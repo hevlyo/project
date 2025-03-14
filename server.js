@@ -13,9 +13,24 @@ const io = new Server(server, {
   }
 });
 
-// Constants and configuration
-const WORLD_SIZE = 50; // Size of the game world
-const BALL_COUNT = 15; // Number of balls in the world
+// Game Settings and Configuration
+const GAME_SETTINGS = {
+  WORLD_SIZE: 50,
+  BALL_COUNT: 15,
+  PLAYER_HEIGHT: 1,
+  ACCELERATION: 0.1,
+  DECELERATION: 0.1,
+  BOB_FREQUENCY: 0.5,
+  BOB_AMPLITUDE: 0.1,
+  BOB_SPEED_SCALING: 0.5,
+  TILT_INTENSITY: 0.2,
+  NICKNAME_MAX_LENGTH: 15,
+  NICKNAME_MIN_LENGTH: 3,
+  UI_TRANSITION_DURATION: '0.3s',
+  MAX_SPEED: 0.5,
+  SPRINT_MULTIPLIER: 1.8
+};
+
 const BALL_TYPES = {
   NORMAL: { value: 10, color: 0xFFFFFF },
   GOLDEN: { value: 30, color: 0xFFD700 },
@@ -151,10 +166,11 @@ io.on('connection', (socket) => {
     
     console.log(`Player ${nickname} (${socket.id}) joined the game`);
     
-    // Send world info to player
+    // Send world info and game settings to player
     socket.emit('worldInfo', {
-      worldSize: WORLD_SIZE,
-      ballCount: BALL_COUNT
+      settings: GAME_SETTINGS,
+      worldSize: GAME_SETTINGS.WORLD_SIZE,
+      ballCount: GAME_SETTINGS.BALL_COUNT
     });
     
     // Send player their own info
