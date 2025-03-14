@@ -1355,6 +1355,22 @@ function initGame() {
   }
 }
 
+// Function to handle screen orientation changes
+function updateScreenOrientations() {
+  if (window.innerHeight > window.innerWidth) {
+    // Portrait mode
+    if (messageDisplay) {
+      messageDisplay.style.display = "block";
+      messageDisplay.textContent = "Rotate your device for a better experience";
+    }
+  } else {
+    // Landscape mode
+    if (messageDisplay) {
+      messageDisplay.style.display = "none";
+    }
+  }
+}
+
 initGame();
 
 // Setup window resize handler
