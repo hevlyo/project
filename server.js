@@ -123,7 +123,17 @@ io.on('connection', (socket) => {
   
   // Handle player join with nickname
   socket.on('joinGame', (playerData) => {
-    const nickname = playerData.nickname || `Player-${socket.id.substr(0, 4)}`;
+    // Validate nickname
+    if (!playerData || typeof playerData.nickname !== 'string') {
+      socket.emit('error', { message: 'Invalid nickname' });
+      return;
+    }
+    
+    const nickname = playerData.nickname.trim() || `Player-${socket.id.substr(0, 4)}`;
+    if (nickname.length > 15) {
+      socket.emit('error', { message: 'Nickname too long' });
+      return;
+    }
     
     // Generate random starting position for new player
     const startX = (Math.random() * WORLD_SIZE * 2) - WORLD_SIZE;
@@ -166,6 +176,28 @@ io.on('connection', (socket) => {
   
   // Handle player movement
   socket.on('playerMovement', (movementData) => {
+    if (!players[socket.id]) {
+      socket.emit('error', { message: 'Player not found' });
+      return;
+    }
+    
+    // Validate position data
+    if (!movementData || !movementData.position || 
+        typeof movementData.position.x !== 'number' || 
+        typeof movementData.position.y !== 'number' ||
+        typeof movementData.position.z !== 'number') {
+      socket.emit('error', { message: 'Invalid movement data' });
+      return;
+    }
+    
+    // Validate position bounds
+    const maxBound = WORLD_SIZE * 1.2; // Allow slight buffer
+    if (Math.abs(movementData.position.x) > maxBound || 
+        Math.abs(movementData.position.z) > maxBound) {
+      socket.emit('error', { message: 'Position out of bounds' });
+      return;
+    }
+    
     if (players[socket.id]) {
       // Update player position
       players[socket.id].position = movementData.position;
@@ -181,8 +213,36 @@ io.on('connection', (socket) => {
   
   // Handle ball collection
   socket.on('collectBall', (data) => {
+    if (!players[socket.id]) {
+      socket.emit('error', { message: 'Player not found' });
+      return;
+    }
+
+    if (!data || !data.ballId) {
+      socket.emit('error', { message: 'Invalid ball data' });
+      return;
+    }
+
     const ballId = data.ballId;
     const ball = balls.find(b => b.id === ballId && !b.collected);
+    
+    if (!ball) {
+      socket.emit('error', { message: 'Ball not found or already collected' });
+      return;
+    }
+
+    // Validate distance between player and ball
+    const playerPos = players[socket.id].position;
+    const ballPos = ball.position;
+    const distance = Math.sqrt(
+      Math.pow(playerPos.x - ballPos.x, 2) + 
+      Math.pow(playerPos.z - ballPos.z, 2)
+    );
+    
+    if (distance > 5) { // Maximum collection distance
+      socket.emit('error', { message: 'Ball too far to collect' });
+      return;
+    }
     
     if (ball) {
       console.log(`Player ${players[socket.id]?.nickname || socket.id} collected ball ${ballId}`);
