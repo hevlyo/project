@@ -117,6 +117,38 @@ app.use(express.static(path.join(__dirname, 'public')));
 let topScore = 0;
 let topScorePlayer = null;
 
+// Rate limiting settings
+const RATE_LIMITS = {
+  movement: { points: 60, duration: 1 }, // 60 updates per second
+  collection: { points: 10, duration: 1 }, // 10 collections per second
+};
+
+// Rate limiter implementation
+function createRateLimiter(points, duration) {
+  const tokens = new Map();
+  
+  return (socketId) => {
+    const now = Date.now();
+    let token = tokens.get(socketId) || { points: points, last: now };
+    
+    // Restore points based on time passed
+    const timePassed = now - token.last;
+    token.points += (timePassed / 1000) * (points / duration);
+    token.points = Math.min(points, token.points);
+    token.last = now;
+    
+    if (token.points >= 1) {
+      token.points -= 1;
+      tokens.set(socketId, token);
+      return true;
+    }
+    return false;
+  };
+}
+
+const movementLimiter = createRateLimiter(RATE_LIMITS.movement.points, RATE_LIMITS.movement.duration);
+const collectionLimiter = createRateLimiter(RATE_LIMITS.collection.points, RATE_LIMITS.collection.duration);
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log(`Player connected: ${socket.id}`);
@@ -176,6 +208,10 @@ io.on('connection', (socket) => {
   
   // Handle player movement
   socket.on('playerMovement', (movementData) => {
+    if (!movementLimiter(socket.id)) {
+      return;
+    }
+    
     if (!players[socket.id]) {
       socket.emit('error', { message: 'Player not found' });
       return;
@@ -213,6 +249,10 @@ io.on('connection', (socket) => {
   
   // Handle ball collection
   socket.on('collectBall', (data) => {
+    if (!collectionLimiter(socket.id)) {
+      return;
+    }
+    
     if (!players[socket.id]) {
       socket.emit('error', { message: 'Player not found' });
       return;
