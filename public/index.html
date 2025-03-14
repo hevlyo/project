@@ -129,6 +129,7 @@
     // Now load the main game script
     const scriptElement = document.createElement('script');
     scriptElement.src = 'js/main.js';
+    scriptElement.type = 'module';
     document.body.appendChild(scriptElement);
   }
   

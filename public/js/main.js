@@ -1342,3 +1342,12 @@ function updateLeaderboard() {
     leaderboardEntries.appendChild(emptyEntry);
   }
 }
+import { Game } from './core/Game.js';
+
+async function startGame() {
+    const game = new Game();
+    await game.initialize();
+}
+
+// Start game when DOM is loaded
+document.addEventListener('DOMContentLoaded', startGame);
