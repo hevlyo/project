@@ -234,8 +234,4 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running at http://localhost:${PORT}`);
   console.log(`Game world size: ${WORLD_SIZE} x ${WORLD_SIZE}`);
   console.log(`Initial balls generated: ${BALL_COUNT}`);
-  console.log(`\nTo play with friends:`);
-  console.log(`1. Get your local IP address (run 'ipconfig' in command prompt)`);
-  console.log(`2. Share your IP address with friends`);
-  console.log(`3. Friends can connect by opening: http://YOUR_IP:${PORT}`);
 });
