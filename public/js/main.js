@@ -826,6 +826,8 @@ function removePlayer(playerId) {
   if (players[playerId]) {
     // Remove the player mesh from the scene
     if (players[playerId].mesh && scene) {
+
+      players[playerId].mesh.dispose();
       scene.remove(players[playerId].mesh);
     }
 
