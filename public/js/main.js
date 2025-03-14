@@ -78,6 +78,7 @@ const SETTINGS = {
 };
 
 // Movement keys tracking
+// Movement keys tracking
 let keys = {
   forward: false,
   backward: false,
@@ -85,6 +86,9 @@ let keys = {
   right: false,
   sprint: false,
 };
+
+// Initialize clock for animation timing
+const clock = new THREE.Clock();
 
 // UI elements
 let scoreDisplay, topScoreDisplay, playerCountDisplay, messageDisplay;
