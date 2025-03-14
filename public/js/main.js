@@ -814,32 +814,36 @@ function removePlayer(playerId) {
 
 // Create the ground
 function createGround(scene) {
+  // Criar textura do chão
   const textureLoader = new THREE.TextureLoader();
   const groundTexture = textureLoader.load('/assets/textures/grass.jpg');
   groundTexture.wrapS = THREE.RepeatWrapping;
   groundTexture.wrapT = THREE.RepeatWrapping;
-  groundTexture.repeat.set(16, 16);
-  groundTexture.anisotropy = 16;
+  groundTexture.repeat.set(16, 16); // Aumentar a repetição para cobrir mais área
+  groundTexture.anisotropy = 16; // Melhorar a qualidade da textura
 
+  // Criar material com a textura
   const groundMaterial = new THREE.MeshStandardMaterial({
     map: groundTexture,
     roughness: 0.8,
-    metalness: 0.2
+    metalness: 0.2,
+    flatShading: true
   });
 
-  const groundGeometry = new THREE.PlaneGeometry(worldSize * 2, worldSize * 2);
+  // Criar geometria do chão com menos detalhes para melhor desempenho em dispositivos móveis
+  const groundGeometry = new THREE.PlaneGeometry(worldSize * 2, worldSize * 2, 32, 32);
+
+  // Adicionar variação de altura para mais realismo
+  const vertices = groundGeometry.attributes.position.array;
+  for (let i = 0; i < vertices.length; i += 3) {
+    vertices[i + 1] = Math.random() * 0.2; // Pequena variação aleatória na altura
+  }
+  groundGeometry.computeVertexNormals();
+
+  // Criar mesh do chão
   const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
   groundMesh.rotation.x = -Math.PI / 2;
-  groundMesh.receiveShadow = true;
-  groundMesh.name = 'ground';
-  scene.add(groundMesh);
-
-  const gridHelper = new THREE.GridHelper(worldSize * 2, 20, 0x000000, 0x000000);
-  gridHelper.position.y = 0.01;
-  gridHelper.material.opacity = 0.1;
-  gridHelper.material.transparent = true;
-  scene.add(gridHelper);
-}
+  groundMesh.receiveShadow = true; // Habilitar recebimento de sombras
   groundMesh.name = 'ground';
   scene.add(groundMesh);
 
