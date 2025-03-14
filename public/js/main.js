@@ -44,7 +44,9 @@ const SETTINGS = {
   CAMERA_HEIGHT: 3,
   CAMERA_DISTANCE: 5,
   COLLECTION_DISTANCE: 1.5,
-  INTERPOLATION_SPEED: 0.1,
+  MIN_INTERPOLATION_SPEED: 0.05,
+  MAX_INTERPOLATION_SPEED: 0.25,
+  PING_WEIGHT: 0.01,
   BALL_RADIUS: 0.3,
   BALL_SEGMENTS: 16,
   BALL_ROTATION_SPEED: 0.02,
@@ -601,7 +603,13 @@ function setupGameEventHandlers() {
       if (!interpolationData[moveData.id]) {
         interpolationData[moveData.id] = {
           targetPosition: new THREE.Vector3(),
+          lastUpdateTime: Date.now(),
+          ping: 100
         };
+      } else {
+        // Update ping calculation
+        interpolationData[moveData.id].ping = Date.now() - interpolationData[moveData.id].lastUpdateTime;
+        interpolationData[moveData.id].lastUpdateTime = Date.now();
       }
 
       // Set target position for interpolation
@@ -1172,12 +1180,15 @@ function updatePlayerInterpolation() {
     if (playerId !== localPlayerId && players[playerId]) {
       const data = interpolationData[playerId];
       const playerMesh = players[playerId].mesh;
+      
+      // Calculate dynamic interpolation speed based on ping
+      const ping = data.ping || 100; // Default to 100ms if no ping data
+      const speedFactor = Math.max(0, Math.min(1, SETTINGS.PING_WEIGHT * (1000 / ping)));
+      const interpolationSpeed = SETTINGS.MIN_INTERPOLATION_SPEED + 
+        (SETTINGS.MAX_INTERPOLATION_SPEED - SETTINGS.MIN_INTERPOLATION_SPEED) * speedFactor;
 
-      // Adjust position with interpolation
-      playerMesh.position.lerp(
-        data.targetPosition,
-        SETTINGS.INTERPOLATION_SPEED,
-      );
+      // Adjust position with dynamic interpolation
+      playerMesh.position.lerp(data.targetPosition, interpolationSpeed);
     }
   });
 }
