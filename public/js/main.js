@@ -939,8 +939,8 @@ function updateCameraPosition() {
   const sizeMultiplier = players[localPlayerId].sizeMultiplier || 1.0;
   
   // Adjust camera distance based on player size
-  const adjustedCameraDistance = SETTINGS.CAMERA_DISTANCE * Math.max(1, sizeMultiplier * 0.8);
-  const adjustedCameraHeight = SETTINGS.CAMERA_HEIGHT * Math.max(1, sizeMultiplier * 0.5);
+  const adjustedCameraDistance = SETTINGS.CAMERA_DISTANCE * Math.max(1, sizeMultiplier * 0.8) * 1.5; // Aumentado em 50%
+  const adjustedCameraHeight = SETTINGS.CAMERA_HEIGHT * Math.max(1, sizeMultiplier * 0.5) * 1.2; // Aumentado em 20%
   
   // Get camera direction
   const cameraDirection = camera.getWorldDirection(new THREE.Vector3());
