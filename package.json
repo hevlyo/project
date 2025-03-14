@@ -1,0 +1,16 @@
+{
+  "name": "pega-bola",
+  "version": "1.0.0",
+  "description": "Pega Bola - A 3D multiplayer game where you collect balls and avoid the other players.",
+  "main": "server.js",
+  "author": "Riquelme",
+  "license": "MIT",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "pega-bola": "file:",
+    "socket.io": "^4.7.2"
+  }
+}
