@@ -816,7 +816,7 @@ function removePlayer(playerId) {
 function createGround(scene) {
   // Criar textura do chão
   const textureLoader = new THREE.TextureLoader();
-  const groundTexture = textureLoader.load('./assets/textures/grass.jpg');
+  const groundTexture = textureLoader.load('/assets/textures/grass.jpg');
   groundTexture.wrapS = THREE.RepeatWrapping;
   groundTexture.wrapT = THREE.RepeatWrapping;
   groundTexture.repeat.set(16, 16); // Aumentar a repetição para cobrir mais área
