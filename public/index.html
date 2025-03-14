@@ -99,8 +99,11 @@
     </div>
   </div>
 
-  <!-- Import Three.js from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <!-- Import Three.js from CDN as ES module -->
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+    window.THREE = THREE; // Make THREE available globally
+  </script>
   <!-- Import Socket.IO client from CDN -->
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   
