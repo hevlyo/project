@@ -1188,53 +1188,19 @@ function updatePlayerMovement() {
 
 // Update player interpolation for smooth movement
 function updatePlayerInterpolation() {
-  const now = Date.now();
-  
   Object.keys(interpolationData).forEach((playerId) => {
     if (playerId !== localPlayerId && players[playerId]) {
       const data = interpolationData[playerId];
       const playerMesh = players[playerId].mesh;
 
-      // Skip if no snapshots
-      if (data.snapshots.length === 0) return;
-      
-      // Calculate ping for adjustment
+      // Calculate dynamic interpolation speed based on ping
       const ping = data.ping || 100; // Default to 100ms if no ping data
-      
-      // Find two snapshots to interpolate between
-      const renderTime = now - ping; // Render time is current time minus ping
-      
-      let older = null;
-      let newer = null;
-      
-      // Find the two snapshots that surround our render time
-      for (let i = 0; i < data.snapshots.length; i++) {
-        const snapshot = data.snapshots[i];
-        if (snapshot.timestamp <= renderTime) {
-          older = snapshot;
-        }
-        if (snapshot.timestamp >= renderTime && !newer) {
-          newer = snapshot;
-        }
-      }
-      
-      // If we have both snapshots, interpolate between them
-      if (older && newer && older !== newer) {
-        const alpha = (renderTime - older.timestamp) / (newer.timestamp - older.timestamp);
-        const interpolatedPosition = older.position.clone().lerp(newer.position, alpha);
-        playerMesh.position.copy(interpolatedPosition);
-      } 
-      // If we only have an older snapshot, use that (or extrapolate slightly)
-      else if (older) {
-        playerMesh.position.copy(older.position);
-      }
-      // If we only have a newer snapshot, use that
-      else if (newer) {
-        playerMesh.position.copy(newer.position);
-      }
-      
-      // Clean up old snapshots (older than 1 second)
-      data.snapshots = data.snapshots.filter(snapshot => now - snapshot.timestamp < 1000);
+      const speedFactor = Math.max(0, Math.min(1, SETTINGS.PING_WEIGHT * (1000 / ping)));
+      const interpolationSpeed = SETTINGS.MIN_INTERPOLATION_SPEED + 
+        (SETTINGS.MAX_INTERPOLATION_SPEED - SETTINGS.MIN_INTERPOLATION_SPEED) * speedFactor;
+
+      // Adjust position with dynamic interpolation
+      playerMesh.position.lerp(data.targetPosition, interpolationSpeed);
     }
   });
 }
@@ -1485,156 +1451,3 @@ function setRandomNicknamePlaceholder() {
   ];
   nicknameInput.placeholder = nicknames[Math.floor(Math.random() * nicknames.length)];
 }
-// Game timing variables
-let lastFrameTime = 0;
-let deltaTime = 0;
-
-// Animation loop with delta time
-function animate(currentTime) {
-  // Calculate delta time in seconds
-  if (!lastFrameTime) lastFrameTime = currentTime;
-  deltaTime = (currentTime - lastFrameTime) / 1000; // convert to seconds
-  lastFrameTime = currentTime;
-  
-  // Cap delta time to prevent huge jumps after tab inactivity
-  deltaTime = Math.min(deltaTime, 0.1);
-  
-  // Update player movement with delta time
-  updatePlayerMovement(deltaTime);
-  
-  // Other updates...
-  updatePlayerInterpolation();
-  animateBalls();
-  
-  renderer.render(scene, camera);
-  requestAnimationFrame(animate);
-}
-
-// Update player movement based on keys with delta time
-function updatePlayerMovement(dt) {
-  if (!players[localPlayerId]) return;
-
-  const playerMesh = players[localPlayerId].mesh;
-  const cameraDirection = camera.getWorldDirection(new THREE.Vector3());
-
-  // Normalize the direction for consistent movement speed
-  cameraDirection.y = 0; // Keep movement on the xz plane
-  cameraDirection.normalize();
-
-  // Calculate forward/backward movement vector (based on camera direction)
-  const forwardVector = cameraDirection.clone();
-
-  // Calculate left/right movement vector (perpendicular to camera direction)
-  const rightVector = new THREE.Vector3()
-    .crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0))
-    .normalize();
-
-  // Determine max speed based on sprint
-  let maxSpeed = keys.sprint
-    ? SETTINGS.MOVE_SPEED * SETTINGS.SPRINT_MULTIPLIER
-    : SETTINGS.MOVE_SPEED;
-  if (powerUps.SPEED.active) {
-    maxSpeed *= SETTINGS.SPEED_BOOST_MULTIPLIER;
-  }
-
-  // Calculate desired direction based on pressed keys
-  targetVelocity.set(0, 0, 0);
-
-  if (keys.forward) targetVelocity.add(forwardVector);
-  if (keys.backward) targetVelocity.sub(forwardVector);
-  if (keys.left) targetVelocity.sub(rightVector);
-  if (keys.right) targetVelocity.add(rightVector);
-
-  // Normalize and apply max speed if there's movement input
-  if (targetVelocity.length() > 0) {
-    targetVelocity.normalize().multiplyScalar(maxSpeed);
-  }
-
-  // Apply acceleration with delta time
-  const acceleration = SETTINGS.ACCELERATION * dt;
-  currentVelocity.lerp(targetVelocity, acceleration);
-
-  // Apply velocity to position with delta time
-  const movementDelta = currentVelocity.clone().multiplyScalar(dt);
-  playerMesh.position.add(movementDelta);
-  
-  // Apply world boundaries
-  playerMesh.position.x = Math.max(-worldSize, Math.min(worldSize, playerMesh.position.x));
-  playerMesh.position.z = Math.max(-worldSize, Math.min(worldSize, playerMesh.position.z));
-  
-  // Update camera and send position to server...
-  updateCameraPosition();
-  
-  // Only send updates if we're actually moving to reduce network traffic
-  if (currentVelocity.length() > 0.01) {
-    socket.emit("playerMovement", {
-      position: {
-        x: playerMesh.position.x,
-        y: playerMesh.position.y - SETTINGS.PLAYER_HEIGHT,
-        z: playerMesh.position.z,
-      },
-    });
-  }
-}
-// Event listeners management
-const eventListeners = [];
-
-function addEventListenerWithCleanup(target, type, listener, options) {
-  target.addEventListener(type, listener, options);
-  eventListeners.push({ target, type, listener });
-}
-
-function cleanupEventListeners() {
-  while (eventListeners.length > 0) {
-    const { target, type, listener } = eventListeners.pop();
-    target.removeEventListener(type, listener);
-  }
-}
-
-// Add cleanup to disconnect handler
-socket.on("disconnect", () => {
-  console.log("Disconnected from server");
-  showMessage("Disconnected from server. Trying to reconnect...", 0);
-  gameActive = false;
-
-  // Clear all pending collections when disconnected
-  pendingCollections.clear();
-  
-  // Cleanup event listeners
-  cleanupEventListeners();
-});
-// Game settings with additional parameters
-const SETTINGS = {
-  // Movement
-  MOVE_SPEED: 5.0,
-  SPRINT_MULTIPLIER: 1.5,
-  SPEED_BOOST_MULTIPLIER: 1.8,
-  ACCELERATION: 8.0, // How quickly player reaches target speed
-  DECELERATION: 6.0, // How quickly player stops
-  
-  // Camera
-  CAMERA_HEIGHT: 4,
-  CAMERA_DISTANCE: 5,
-  CAMERA_SMOOTHING: 0.1,
-  
-  // Player
-  PLAYER_HEIGHT: 0.5,
-  PLAYER_BOUNCE_HEIGHT: 0.2,
-  PLAYER_BOUNCE_SPEED: 2.0,
-  TILT_INTENSITY: 0.2,
-  TILT_RECOVERY_SPEED: 0.1,
-  
-  // Network
-  POSITION_UPDATE_RATE: 10, // Updates per second
-  MIN_MOVEMENT_THRESHOLD: 0.01, // Minimum movement before sending update
-  PING_WEIGHT: 0.5,
-  MIN_INTERPOLATION_SPEED: 0.05,
-  MAX_INTERPOLATION_SPEED: 0.3,
-  
-  // Visuals
-  BALL_ROTATION_SPEED: 0.01,
-  UI_TRANSITION_DURATION: "0.3s",
-  
-  // World
-  WORLD_BOUNDARY_BUFFER: 0.5, // Buffer zone near world edges
-};
