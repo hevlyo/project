@@ -47,7 +47,7 @@ function generateBalls() {
         z: (Math.random() * WORLD_SIZE * 2) - WORLD_SIZE
       },
       collected: false,
-      value: BALL_VALUE
+      value: BALL_TYPES.NORMAL.value
     });
   }
 }
