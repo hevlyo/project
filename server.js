@@ -59,12 +59,16 @@ function createNewBall() {
   const type = types[Math.floor(Math.random() * types.length)];
   const ballData = BALL_TYPES[type];
   
+  // Ensure ball is not spawned too close to the world edge
+  const safeZone = WORLD_SIZE * 0.9; // 90% of world size
+  const randomPosition = () => (Math.random() * safeZone * 2) - safeZone;
+  
   const newBall = {
     id: `ball-${Date.now()}`,
     position: {
-      x: (Math.random() * WORLD_SIZE * 2) - WORLD_SIZE,
+      x: randomPosition(),
       y: 0.5,
-      z: (Math.random() * WORLD_SIZE * 2) - WORLD_SIZE
+      z: randomPosition()
     },
     collected: false,
     type: type,
@@ -161,10 +165,14 @@ io.on('connection', (socket) => {
       return;
     }
     
-    const nickname = playerData.nickname.trim() || `Player-${socket.id.substr(0, 4)}`;
-    if (nickname.length > 15) {
-      socket.emit('error', { message: 'Nickname too long' });
-      return;
+    // Stricter sanitization - only allow alphanumeric, underscore and dash
+    let nickname = playerData.nickname.trim() || `Player-${socket.id.substr(0, 4)}`;
+    nickname = nickname.replace(/[^a-zA-Z0-9_-]/g, "");
+    
+    if (nickname.length === 0) {
+      nickname = `Player-${socket.id.substr(0, 4)}`;
+    } else if (nickname.length > 15) {
+      nickname = nickname.substring(0, 15);
     }
     
     // Generate random starting position for new player
@@ -279,8 +287,19 @@ io.on('connection', (socket) => {
       Math.pow(playerPos.z - ballPos.z, 2)
     );
     
-    if (distance > 5) { // Maximum collection distance
+    // Stricter maximum collection distance
+    const maxCollectionDistance = 3; 
+    if (distance > maxCollectionDistance) {
+      console.log(`Collection attempt rejected: distance ${distance.toFixed(2)} > ${maxCollectionDistance}`);
       socket.emit('error', { message: 'Ball too far to collect' });
+      return;
+    }
+    
+    // Additional time-based validation to prevent client spoofing
+    const now = Date.now();
+    const lastUpdate = players[socket.id].lastUpdate || 0;
+    if (now - lastUpdate > 5000) { // If position hasn't been updated in 5 seconds
+      socket.emit('error', { message: 'Position data too old' });
       return;
     }
     
