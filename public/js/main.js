@@ -239,7 +239,7 @@ function createUI() {
   topScoreDisplay.style.borderRadius = '5px';
   topScoreDisplay.style.transition = `opacity ${SETTINGS.UI_TRANSITION_DURATION} ease-in`;
   topScoreDisplay.style.opacity = '0';
-  topScoreDisplay.style.minWidth = '180px';
+  topScoreDisplay.style.minWidth = '230px';
   topScoreDisplay.innerHTML = '<div style="text-align: center; margin-bottom: 5px; font-weight: bold;">🏆 Leaderboard</div><div id="leaderboard-entries"></div>';
   document.body.appendChild(topScoreDisplay);
   
@@ -823,7 +823,8 @@ function createGround(scene) {
   const groundTexture = textureLoader.load('./textures/grass.jpg');
   groundTexture.wrapS = THREE.RepeatWrapping;
   groundTexture.wrapT = THREE.RepeatWrapping;
-  groundTexture.repeat.set(4, 4); // Repetir a textura 4x4 vezes
+  groundTexture.repeat.set(16, 16); // Aumentar a repetição para cobrir mais área
+  groundTexture.anisotropy = 16; // Melhorar a qualidade da textura
   
   // Criar material com a textura
   const groundMaterial = new THREE.MeshStandardMaterial({
@@ -1148,6 +1149,9 @@ function checkBallCollisions() {
         // Marcar bola como coletada localmente para evitar tentativas repetidas
         ball.collected = true;
         
+        // Implementação de coleta otimista: ocultar a bola imediatamente
+        ball.mesh.visible = false;
+        
         // Adicionar à lista de coletas pendentes para debounce
         pendingCollections.add(ballId);
         
@@ -1171,21 +1175,21 @@ function createNametag(name) {
   // Create a canvas for the nametag
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
-  canvas.width = 256;
-  canvas.height = 64;
+  canvas.width = 512; // Aumentar a largura do canvas para nomes maiores
+  canvas.height = 128; // Aumentar a altura do canvas
   
   // Fill with transparent background
   context.fillStyle = 'rgba(0, 0, 0, 0)';
   context.fillRect(0, 0, canvas.width, canvas.height);
   
   // Draw text
-  context.font = 'bold 36px Arial';
+  context.font = 'bold 42px Arial'; // Fonte maior
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   
   // Draw text outline
   context.strokeStyle = 'black';
-  context.lineWidth = 4;
+  context.lineWidth = 5; // Contorno mais grosso
   context.strokeText(name, canvas.width / 2, canvas.height / 2);
   
   // Draw text fill
@@ -1204,7 +1208,7 @@ function createNametag(name) {
   
   // Create sprite with the material
   const sprite = new THREE.Sprite(material);
-  sprite.scale.set(2, 0.5, 1);
+  sprite.scale.set(3, 0.75, 1); // Aumentar escala proporcionalmente
   
   // Create a group to hold the sprite (for easier positioning)
   const group = new THREE.Group();
@@ -1314,7 +1318,7 @@ function updateLeaderboard() {
     nameSpan.style.textOverflow = 'ellipsis';
     nameSpan.style.overflow = 'hidden';
     nameSpan.style.whiteSpace = 'nowrap';
-    nameSpan.style.maxWidth = '120px';
+    nameSpan.style.maxWidth = '170px';
     
     // Pontuação
     const scoreSpan = document.createElement('span');
