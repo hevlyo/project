@@ -593,31 +593,43 @@ function setupGameEventHandlers() {
   });
 
   // Handle player movement
-  socket.on("playerMoved", (moveData) => {
-    // Skip if it's our own movement
-    if (moveData.id === localPlayerId) return;
+  socket.on("playerMoved", (data) => {
+    if (!interpolationData[data.id]) {
+      interpolationData[data.id] = {
+        targetPosition: new THREE.Vector3(),
+        lastUpdateTime: Date.now(),
+        ping: 100,
+        sequence: 0,
+        snapshots: []
+      };
+    }
 
-    // Update other player's target position
-    if (players[moveData.id]) {
-      // Create or update interpolation data
-      if (!interpolationData[moveData.id]) {
-        interpolationData[moveData.id] = {
-          targetPosition: new THREE.Vector3(),
-          lastUpdateTime: Date.now(),
-          ping: 100
-        };
-      } else {
-        // Update ping calculation
-        interpolationData[moveData.id].ping = Date.now() - interpolationData[moveData.id].lastUpdateTime;
-        interpolationData[moveData.id].lastUpdateTime = Date.now();
+    const playerData = interpolationData[data.id];
+    playerData.ping = Date.now() - playerData.lastUpdateTime;
+    playerData.lastUpdateTime = Date.now();
+
+    // Store server snapshot
+    playerData.snapshots.push({
+      position: new THREE.Vector3(data.position.x, data.position.y, data.position.z),
+      timestamp: Date.now(),
+      sequence: playerData.sequence++
+    });
+
+    // Keep only last 10 snapshots
+    if (playerData.snapshots.length > 10) {
+      playerData.snapshots.shift();
+    }
+
+    // Reconcile state with server position
+    const latestSnapshot = playerData.snapshots[playerData.snapshots.length - 1];
+    if (data.id === localPlayerId) {
+      const currentPos = players[localPlayerId].mesh.position;
+      const serverPos = latestSnapshot.position;
+      const distance = currentPos.distanceTo(serverPos);
+
+      if (distance > 0.5) { // Threshold for correction
+        currentPos.lerp(serverPos, 0.3); // Smooth correction
       }
-
-      // Set target position for interpolation
-      interpolationData[moveData.id].targetPosition.set(
-        moveData.position.x,
-        moveData.position.y + SETTINGS.PLAYER_HEIGHT,
-        moveData.position.z,
-      );
     }
   });
 
@@ -1180,7 +1192,7 @@ function updatePlayerInterpolation() {
     if (playerId !== localPlayerId && players[playerId]) {
       const data = interpolationData[playerId];
       const playerMesh = players[playerId].mesh;
-      
+
       // Calculate dynamic interpolation speed based on ping
       const ping = data.ping || 100; // Default to 100ms if no ping data
       const speedFactor = Math.max(0, Math.min(1, SETTINGS.PING_WEIGHT * (1000 / ping)));
@@ -1422,4 +1434,20 @@ function updateLeaderboard() {
     emptyEntry.innerHTML = `${medals[i] || "•"} ---`;
     leaderboardEntries.appendChild(emptyEntry);
   }
+}
+
+function setRandomNicknamePlaceholder() {
+  const nicknames = [
+    "SpeedyGonzales",
+    "FlashGordon",
+    "SonicBoom",
+    "Rocketman",
+    "Turbo",
+    "Zippy",
+    "Whizzbang",
+    "ZoomZoom",
+    "Rapid",
+    "Velocity",
+  ];
+  nicknameInput.placeholder = nicknames[Math.floor(Math.random() * nicknames.length)];
 }
