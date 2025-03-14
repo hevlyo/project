@@ -134,7 +134,6 @@ io.on('connection', (socket) => {
       id: socket.id,
       nickname: nickname,
       position: { x: startX, y: 0, z: startZ },
-      isJumping: false,
       color: getRandomColor(),
       score: 0,
       lastUpdate: Date.now()
