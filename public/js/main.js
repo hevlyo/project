@@ -96,6 +96,9 @@ let menuScreen, nicknameInput, playButton;
 let playerNickname = sessionStorage.getItem("playerNickname") || "Player";
 console.log("Retrieved nickname from session storage:", playerNickname);
 
+// Game state tracking
+let pendingPositionUpdate = false;
+
 // Power-up state
 const powerUps = {
   SPEED: { active: false, duration: 5000 }, // Example speed boost power-up
