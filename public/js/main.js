@@ -1,5 +1,5 @@
 // Window onload handler
-document.addEventListener('DOMContentLoaded', onload);
+document.addEventListener("DOMContentLoaded", onload);
 
 // Initialize Socket.IO connection
 let socket;
@@ -43,7 +43,7 @@ const SETTINGS = {
   PLAYER_SEGMENTS: 32,
   CAMERA_HEIGHT: 3,
   CAMERA_DISTANCE: 5,
-  COLLECTION_DISTANCE: 1.5, 
+  COLLECTION_DISTANCE: 1.5,
   INTERPOLATION_SPEED: 0.1,
   BALL_RADIUS: 0.3,
   BALL_SEGMENTS: 16,
@@ -54,53 +54,59 @@ const SETTINGS = {
   CAMERA_FOV: 75,
   CAMERA_NEAR: 0.1,
   CAMERA_FAR: 1000,
-  DELTA_TIME: 1/60,
-  SKY_COLOR: 0x87CEFA,
-  SIZE_INCREASE_PER_BALL: 0.05, // Size increase multiplier per ball collected
+  DELTA_TIME: 1 / 60,
+  SKY_COLOR: 0x87cefa,
+  SIZE_INCREASE_PER_BALL: 0.1, // Size increase multiplier per ball collected
   MAX_SIZE_MULTIPLIER: 2.5, // Maximum size multiplier for players
   NAMETAG_OFFSET_Y: 2.2, // Height above player for nametag
   NAMETAG_SCALE: 0.01, // Scale of the nametag text
   NICKNAME_MAX_LENGTH: 20,
   NICKNAME_MIN_LENGTH: 2,
   NICKNAME_PATTERN: /^[a-zA-Z0-9\s\-_]+$/, // Apenas letras, números, espaços, hífens e underscores
-  UI_TRANSITION_DURATION: '0.3s',
+  UI_TRANSITION_DURATION: "0.3s",
   ACCELERATION: 0.015, // Velocidade de aceleração
-  DECELERATION: 0.03,   // Velocidade de desaceleração (mais rápida que aceleração)
+  DECELERATION: 0.03, // Velocidade de desaceleração (mais rápida que aceleração)
   TILT_INTENSITY: 0.15, // Intensidade da inclinação do jogador durante o movimento
   TILT_RECOVERY_SPEED: 0.1, // Velocidade de recuperação da inclinação
   BOB_FREQUENCY: 0.1, // Frequência do efeito de salto
   BOB_AMPLITUDE: 0.05, // Amplitude do efeito de salto
   BOB_SPEED_SCALING: 1.5, // Escala da velocidade de bob baseada na velocidade de movimento
-  SPEED_BOOST_MULTIPLIER: 2.0 // Multiplicador de velocidade para power-up
+  SPEED_BOOST_MULTIPLIER: 2.0, // Multiplicador de velocidade para power-up
 };
 
 // Movement keys tracking
-let keys = { forward: false, backward: false, left: false, right: false, sprint: false };
+let keys = {
+  forward: false,
+  backward: false,
+  left: false,
+  right: false,
+  sprint: false,
+};
 
 // UI elements
 let scoreDisplay, topScoreDisplay, playerCountDisplay, messageDisplay;
 let menuScreen, nicknameInput, playButton;
-let playerNickname = sessionStorage.getItem('playerNickname') || 'Player';
-console.log('Retrieved nickname from session storage:', playerNickname);
+let playerNickname = sessionStorage.getItem("playerNickname") || "Player";
+console.log("Retrieved nickname from session storage:", playerNickname);
 
 // Power-up state
 const powerUps = {
-  SPEED: { active: false, duration: 5000 } // Example speed boost power-up
+  SPEED: { active: false, duration: 5000 }, // Example speed boost power-up
 };
 
 // Wait for the DOM to load completely
 function onload() {
-  console.log('DOM loaded, initializing game');
+  console.log("DOM loaded, initializing game");
 
   // Get menu elements
-  menuScreen = document.getElementById('menu-screen');
-  nicknameInput = document.getElementById('nickname-input');
-  playButton = document.getElementById('play-button');
+  menuScreen = document.getElementById("menu-screen");
+  nicknameInput = document.getElementById("nickname-input");
+  playButton = document.getElementById("play-button");
 
-  console.log('Menu elements:', { 
-    menuScreen: !!menuScreen, 
-    nicknameInput: !!nicknameInput, 
-    playButton: !!playButton 
+  console.log("Menu elements:", {
+    menuScreen: !!menuScreen,
+    nicknameInput: !!nicknameInput,
+    playButton: !!playButton,
   });
 
   // Set a random fun placeholder
@@ -109,13 +115,13 @@ function onload() {
   // Set up menu event listeners
   if (playButton) {
     // Add click event with direct function and logging
-    playButton.onclick = function() {
-      console.log('Play button clicked!');
+    playButton.onclick = function () {
+      console.log("Play button clicked!");
       startGame();
     };
-    console.log('Play button click handler attached');
+    console.log("Play button click handler attached");
   } else {
-    console.error('Play button not found in the DOM');
+    console.error("Play button not found in the DOM");
   }
 
   // Focus the nickname input automatically
@@ -123,21 +129,21 @@ function onload() {
     nicknameInput.focus();
 
     // Start game when Enter key is pressed in the input field
-    nicknameInput.addEventListener('keypress', function(e) {
-      console.log('Key pressed in input:', e.key);
-      if (e.key === 'Enter') {
-        console.log('Enter key pressed, starting game...');
+    nicknameInput.addEventListener("keypress", function (e) {
+      console.log("Key pressed in input:", e.key);
+      if (e.key === "Enter") {
+        console.log("Enter key pressed, starting game...");
         startGame();
       }
     });
-    console.log('Nickname input keypress handler attached');
+    console.log("Nickname input keypress handler attached");
   }
 }
 
 // Start the game when the play button is clicked
 function startGame() {
   try {
-    console.log('startGame function called');
+    console.log("startGame function called");
 
     // Get nickname from input or use placeholder if empty
     playerNickname = nicknameInput.value.trim();
@@ -147,7 +153,7 @@ function startGame() {
 
     // Sanitização do nickname
     playerNickname = playerNickname
-      .replace(/[^a-zA-Z0-9\s\-_]/g, '') // Remove caracteres não permitidos
+      .replace(/[^a-zA-Z0-9\s\-_]/g, "") // Remove caracteres não permitidos
       .slice(0, SETTINGS.NICKNAME_MAX_LENGTH); // Limita o tamanho máximo
 
     // Validação final
@@ -160,115 +166,119 @@ function startGame() {
     // Hide the menu screen with transition
     if (menuScreen) {
       menuScreen.style.transition = `opacity ${SETTINGS.UI_TRANSITION_DURATION} ease-out`;
-      menuScreen.style.opacity = '0';
-      setTimeout(() => {
-        menuScreen.style.display = 'none';
-      }, parseFloat(SETTINGS.UI_TRANSITION_DURATION) * 1000);
-      console.log('Menu screen hidden with transition');
+      menuScreen.style.opacity = "0";
+      setTimeout(
+        () => {
+          menuScreen.style.display = "none";
+        },
+        parseFloat(SETTINGS.UI_TRANSITION_DURATION) * 1000,
+      );
+      console.log("Menu screen hidden with transition");
     } else {
-      console.error('Menu screen element not found');
+      console.error("Menu screen element not found");
     }
 
     // Create UI elements for the game
     createUI();
-    console.log('Game UI created');
+    console.log("Game UI created");
 
     // Connect to the server
     connectToServer();
-    console.log('Connected to server');
+    console.log("Connected to server");
 
     // Start the animation loop
     animate();
-    console.log('Animation loop started');
+    console.log("Animation loop started");
 
     gameActive = true;
   } catch (error) {
-    console.error('Error starting game:', error);
-    alert('Error starting game: ' + error.message);
+    console.error("Error starting game:", error);
+    alert("Error starting game: " + error.message);
   }
 }
 
 // Create UI elements
 function createUI() {
   // Create score display with transition
-  scoreDisplay = document.createElement('div');
-  scoreDisplay.id = 'score-display';
-  scoreDisplay.className = 'game-ui';
-  scoreDisplay.style.position = 'absolute';
-  scoreDisplay.style.top = '10px';
-  scoreDisplay.style.left = '10px';
-  scoreDisplay.style.color = 'white';
-  scoreDisplay.style.fontFamily = 'Arial, sans-serif';
-  scoreDisplay.style.fontSize = '18px';
-  scoreDisplay.style.padding = '5px 10px';
-  scoreDisplay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-  scoreDisplay.style.borderRadius = '5px';
+  scoreDisplay = document.createElement("div");
+  scoreDisplay.id = "score-display";
+  scoreDisplay.className = "game-ui";
+  scoreDisplay.style.position = "absolute";
+  scoreDisplay.style.top = "10px";
+  scoreDisplay.style.left = "10px";
+  scoreDisplay.style.color = "white";
+  scoreDisplay.style.fontFamily = "Arial, sans-serif";
+  scoreDisplay.style.fontSize = "18px";
+  scoreDisplay.style.padding = "5px 10px";
+  scoreDisplay.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+  scoreDisplay.style.borderRadius = "5px";
   scoreDisplay.style.transition = `opacity ${SETTINGS.UI_TRANSITION_DURATION} ease-in`;
-  scoreDisplay.style.opacity = '0';
-  scoreDisplay.innerHTML = 'Score: 0';
+  scoreDisplay.style.opacity = "0";
+  scoreDisplay.innerHTML = "Score: 0";
   document.body.appendChild(scoreDisplay);
 
   // Criar leaderboard que mostra os 3 melhores jogadores
-  topScoreDisplay = document.createElement('div');
-  topScoreDisplay.id = 'leaderboard-display';
-  topScoreDisplay.className = 'game-ui';
-  topScoreDisplay.style.position = 'absolute';
-  topScoreDisplay.style.top = '10px';
-  topScoreDisplay.style.right = '10px';
-  topScoreDisplay.style.color = 'white';
-  topScoreDisplay.style.fontFamily = 'Arial, sans-serif';
-  topScoreDisplay.style.fontSize = '16px';
-  topScoreDisplay.style.padding = '5px 10px';
-  topScoreDisplay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-  topScoreDisplay.style.borderRadius = '5px';
+  topScoreDisplay = document.createElement("div");
+  topScoreDisplay.id = "leaderboard-display";
+  topScoreDisplay.className = "game-ui";
+  topScoreDisplay.style.position = "absolute";
+  topScoreDisplay.style.top = "10px";
+  topScoreDisplay.style.right = "10px";
+  topScoreDisplay.style.color = "white";
+  topScoreDisplay.style.fontFamily = "Arial, sans-serif";
+  topScoreDisplay.style.fontSize = "16px";
+  topScoreDisplay.style.padding = "5px 10px";
+  topScoreDisplay.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+  topScoreDisplay.style.borderRadius = "5px";
   topScoreDisplay.style.transition = `opacity ${SETTINGS.UI_TRANSITION_DURATION} ease-in`;
-  topScoreDisplay.style.opacity = '0';
-  topScoreDisplay.style.minWidth = '230px';
-  topScoreDisplay.innerHTML = '<div style="text-align: center; margin-bottom: 5px; font-weight: bold;">🏆 Leaderboard</div><div id="leaderboard-entries"></div>';
+  topScoreDisplay.style.opacity = "0";
+  topScoreDisplay.style.minWidth = "230px";
+  topScoreDisplay.innerHTML =
+    '<div style="text-align: center; margin-bottom: 5px; font-weight: bold;">🏆 Leaderboard</div><div id="leaderboard-entries"></div>';
   document.body.appendChild(topScoreDisplay);
 
   // Create player count display with transition
-  playerCountDisplay = document.createElement('div');
-  playerCountDisplay.id = 'player-count-display';
-  playerCountDisplay.className = 'game-ui';
-  playerCountDisplay.style.position = 'absolute';
-  playerCountDisplay.style.bottom = '10px';
-  playerCountDisplay.style.left = '10px';
-  playerCountDisplay.style.color = 'white';
-  playerCountDisplay.style.fontFamily = 'Arial, sans-serif';
-  playerCountDisplay.style.fontSize = '16px';
-  playerCountDisplay.style.padding = '5px 10px';
-  playerCountDisplay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-  playerCountDisplay.style.borderRadius = '5px';
+  playerCountDisplay = document.createElement("div");
+  playerCountDisplay.id = "player-count-display";
+  playerCountDisplay.className = "game-ui";
+  playerCountDisplay.style.position = "absolute";
+  playerCountDisplay.style.bottom = "10px";
+  playerCountDisplay.style.left = "10px";
+  playerCountDisplay.style.color = "white";
+  playerCountDisplay.style.fontFamily = "Arial, sans-serif";
+  playerCountDisplay.style.fontSize = "16px";
+  playerCountDisplay.style.padding = "5px 10px";
+  playerCountDisplay.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+  playerCountDisplay.style.borderRadius = "5px";
   playerCountDisplay.style.transition = `opacity ${SETTINGS.UI_TRANSITION_DURATION} ease-in`;
-  playerCountDisplay.style.opacity = '0';
-  playerCountDisplay.innerHTML = 'Players: 0';
+  playerCountDisplay.style.opacity = "0";
+  playerCountDisplay.innerHTML = "Players: 0";
   document.body.appendChild(playerCountDisplay);
 
   // Create message display with transition
-  messageDisplay = document.createElement('div');
-  messageDisplay.id = 'message-display';
-  messageDisplay.className = 'game-ui';
-  messageDisplay.style.position = 'absolute';
-  messageDisplay.style.top = '50%';
-  messageDisplay.style.left = '50%';
-  messageDisplay.style.transform = 'translate(-50%, -50%)';
-  messageDisplay.style.color = 'white';
-  messageDisplay.style.fontFamily = 'Arial, sans-serif';
-  messageDisplay.style.fontSize = '24px';
-  messageDisplay.style.padding = '10px 20px';
-  messageDisplay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-  messageDisplay.style.borderRadius = '5px';
-  messageDisplay.style.display = 'none';
+  messageDisplay = document.createElement("div");
+  messageDisplay.id = "message-display";
+  messageDisplay.className = "game-ui";
+  messageDisplay.style.position = "absolute";
+  messageDisplay.style.top = "50%";
+  messageDisplay.style.left = "50%";
+  messageDisplay.style.transform = "translate(-50%, -50%)";
+  messageDisplay.style.color = "white";
+  messageDisplay.style.fontFamily = "Arial, sans-serif";
+  messageDisplay.style.fontSize = "24px";
+  messageDisplay.style.padding = "10px 20px";
+  messageDisplay.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
+  messageDisplay.style.borderRadius = "5px";
+  messageDisplay.style.display = "none";
   messageDisplay.style.transition = `opacity ${SETTINGS.UI_TRANSITION_DURATION} ease-in-out`;
-  messageDisplay.style.opacity = '0';
+  messageDisplay.style.opacity = "0";
   document.body.appendChild(messageDisplay);
 
   // Trigger fade-in for UI elements
   setTimeout(() => {
-    scoreDisplay.style.opacity = '1';
-    topScoreDisplay.style.opacity = '1';
-    playerCountDisplay.style.opacity = '1';
+    scoreDisplay.style.opacity = "1";
+    topScoreDisplay.style.opacity = "1";
+    playerCountDisplay.style.opacity = "1";
   }, 50);
 }
 
@@ -277,15 +287,18 @@ function showMessage(message, duration = 3000) {
   if (!messageDisplay) return;
 
   messageDisplay.innerHTML = message;
-  messageDisplay.style.display = 'block';
-  messageDisplay.style.opacity = '1';
+  messageDisplay.style.display = "block";
+  messageDisplay.style.opacity = "1";
 
   if (duration > 0) {
     setTimeout(() => {
-      messageDisplay.style.opacity = '0';
-      setTimeout(() => {
-        messageDisplay.style.display = 'none';
-      }, parseFloat(SETTINGS.UI_TRANSITION_DURATION) * 1000);
+      messageDisplay.style.opacity = "0";
+      setTimeout(
+        () => {
+          messageDisplay.style.display = "none";
+        },
+        parseFloat(SETTINGS.UI_TRANSITION_DURATION) * 1000,
+      );
     }, duration);
   }
 }
@@ -301,7 +314,7 @@ function initializeScene() {
     SETTINGS.CAMERA_FOV,
     window.innerWidth / window.innerHeight,
     SETTINGS.CAMERA_NEAR,
-    SETTINGS.CAMERA_FAR
+    SETTINGS.CAMERA_FAR,
   );
   camera.position.set(0, SETTINGS.CAMERA_HEIGHT, SETTINGS.CAMERA_DISTANCE);
   camera.lookAt(0, 0, 0);
@@ -339,7 +352,7 @@ function initializeScene() {
   const listener = new THREE.AudioListener();
   camera.add(listener);
 
-  audioLoader.load('./assets/background_sound.mp3', function(buffer) {
+  audioLoader.load("./assets/background_sound.mp3", function (buffer) {
     const sound = new THREE.Audio(listener);
     sound.setBuffer(buffer);
     sound.setLoop(true);
@@ -359,80 +372,96 @@ function initControls() {
     backward: false,
     left: false,
     right: false,
-    sprint: false
+    sprint: false,
   };
 
   // Key down event listener
-  window.addEventListener('keydown', (event) => {
+  window.addEventListener("keydown", (event) => {
     if (!gameActive) return;
 
     // Prevent default behavior for game control keys
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'W', 'A', 'S', 'D', 'Shift'].includes(event.key)) {
+    if (
+      [
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+        "w",
+        "a",
+        "s",
+        "d",
+        "W",
+        "A",
+        "S",
+        "D",
+        "Shift",
+      ].includes(event.key)
+    ) {
       event.preventDefault();
     }
 
     // Update key states
     switch (event.key) {
-      case 'ArrowUp':
-      case 'w':
-      case 'W':
+      case "ArrowUp":
+      case "w":
+      case "W":
         keys.forward = true;
         break;
-      case 'ArrowDown':
-      case 's':
-      case 'S':
+      case "ArrowDown":
+      case "s":
+      case "S":
         keys.backward = true;
         break;
-      case 'ArrowLeft':
-      case 'a':
-      case 'A':
+      case "ArrowLeft":
+      case "a":
+      case "A":
         keys.left = true;
         break;
-      case 'ArrowRight':
-      case 'd':
-      case 'D':
+      case "ArrowRight":
+      case "d":
+      case "D":
         keys.right = true;
         break;
-      case 'Shift':
+      case "Shift":
         keys.sprint = true;
         break;
     }
   });
 
   // Key up event listener
-  window.addEventListener('keyup', (event) => {
+  window.addEventListener("keyup", (event) => {
     // Update key states
     switch (event.key) {
-      case 'ArrowUp':
-      case 'w':
-      case 'W':
+      case "ArrowUp":
+      case "w":
+      case "W":
         keys.forward = false;
         break;
-      case 'ArrowDown':
-      case 's':
-      case 'S':
+      case "ArrowDown":
+      case "s":
+      case "S":
         keys.backward = false;
         break;
-      case 'ArrowLeft':
-      case 'a':
-      case 'A':
+      case "ArrowLeft":
+      case "a":
+      case "A":
         keys.left = false;
         break;
-      case 'ArrowRight':
-      case 'd':
-      case 'D':
+      case "ArrowRight":
+      case "d":
+      case "D":
         keys.right = false;
         break;
-      case 'Shift':
+      case "Shift":
         keys.sprint = false;
         break;
     }
   });
 
   // Handle window blur (user tabs out)
-  window.addEventListener('blur', () => {
+  window.addEventListener("blur", () => {
     // Reset all keys when window loses focus
-    Object.keys(keys).forEach(key => {
+    Object.keys(keys).forEach((key) => {
       keys[key] = false;
     });
   });
@@ -441,19 +470,19 @@ function initControls() {
 // Connect to the server
 function connectToServer() {
   try {
-    console.log('Connecting to server with nickname:', playerNickname);
+    console.log("Connecting to server with nickname:", playerNickname);
 
     // Connect to the server via Socket.IO
     socket = io();
-    console.log('Socket.IO connection created');
+    console.log("Socket.IO connection created");
 
     // Set up socket event handlers
     setupSocketHandlers();
 
     // Join the game with the selected nickname
-    socket.emit('joinGame', { nickname: playerNickname });
+    socket.emit("joinGame", { nickname: playerNickname });
   } catch (error) {
-    console.error('Error connecting to server:', error);
+    console.error("Error connecting to server:", error);
   }
 }
 
@@ -464,55 +493,55 @@ function setupSocketHandlers() {
     socket.removeAllListeners();
   }
 
-  socket.on('connect', () => {
-    console.log('Connected to server with ID:', socket.id);
+  socket.on("connect", () => {
+    console.log("Connected to server with ID:", socket.id);
     localPlayerId = socket.id;
-    showMessage('Connected to game server!', 3000);
+    showMessage("Connected to game server!", 3000);
     gameActive = true;
   });
 
-  socket.on('disconnect', () => {
-    console.log('Disconnected from server');
-    showMessage('Disconnected from server. Trying to reconnect...', 0);
+  socket.on("disconnect", () => {
+    console.log("Disconnected from server");
+    showMessage("Disconnected from server. Trying to reconnect...", 0);
     gameActive = false;
 
     // Limpar todas as coletas pendentes quando desconectar
     pendingCollections.clear();
   });
 
-  socket.on('reconnect', () => {
-    console.log('Reconnected to server');
-    showMessage('Reconnected to server!', 3000);
+  socket.on("reconnect", () => {
+    console.log("Reconnected to server");
+    showMessage("Reconnected to server!", 3000);
     gameActive = true;
   });
 
   // Handle world info
-  socket.on('worldInfo', (data) => {
-    console.log('Received world info:', data);
+  socket.on("worldInfo", (data) => {
+    console.log("Received world info:", data);
     worldSize = data.worldSize;
   });
 
   // Handle current players
-  socket.on('currentPlayers', (serverPlayers) => {
-    console.log('Current players received:', serverPlayers);
+  socket.on("currentPlayers", (serverPlayers) => {
+    console.log("Current players received:", serverPlayers);
 
     // Clear existing players first
-    Object.keys(players).forEach(id => {
+    Object.keys(players).forEach((id) => {
       if (id !== localPlayerId) {
         removePlayer(id);
       }
     });
 
     // Add all players from server
-    Object.values(serverPlayers).forEach(playerInfo => {
+    Object.values(serverPlayers).forEach((playerInfo) => {
       // If this is us and we don't have our player yet, create it
       if (playerInfo.id === localPlayerId && !players[localPlayerId]) {
-        console.log('Creating local player');
+        console.log("Creating local player");
         addPlayer(playerInfo);
       }
       // If this is another player and we don't have them yet, create them
       else if (playerInfo.id !== localPlayerId && !players[playerInfo.id]) {
-        console.log('Adding existing player:', playerInfo.id);
+        console.log("Adding existing player:", playerInfo.id);
         addPlayer(playerInfo);
       }
     });
@@ -530,26 +559,26 @@ function setupSocketHandlers() {
 // Set up game-related event handlers
 function setupGameEventHandlers() {
   // Handle player info
-  socket.on('playerInfo', (playerData) => {
-    console.log('Player info received:', playerData);
+  socket.on("playerInfo", (playerData) => {
+    console.log("Player info received:", playerData);
 
     // If this is our player and we don't have it yet, create it
     if (playerData.id === localPlayerId && !players[localPlayerId]) {
-      console.log('Creating local player mesh');
+      console.log("Creating local player mesh");
       addPlayer(playerData);
       showMessage(`Bem-vinde jogadore ${playerData.nickname}!`, 3000);
     }
   });
 
   // Handle new balls
-  socket.on('newBalls', (serverBalls) => {
-    console.log('Received new balls:', serverBalls);
+  socket.on("newBalls", (serverBalls) => {
+    console.log("Received new balls:", serverBalls);
 
     // Limpar qualquer coleta pendente para bolas que não existem mais no servidor
-    const serverBallIds = new Set(serverBalls.map(ball => ball.id));
+    const serverBallIds = new Set(serverBalls.map((ball) => ball.id));
 
     // Para cada coleta pendente, verificar se a bola ainda existe no servidor
-    pendingCollections.forEach(pendingBallId => {
+    pendingCollections.forEach((pendingBallId) => {
       if (!serverBallIds.has(pendingBallId)) {
         pendingCollections.delete(pendingBallId);
       }
@@ -562,7 +591,7 @@ function setupGameEventHandlers() {
   });
 
   // Handle player movement
-  socket.on('playerMoved', (moveData) => {
+  socket.on("playerMoved", (moveData) => {
     // Skip if it's our own movement
     if (moveData.id === localPlayerId) return;
 
@@ -571,7 +600,7 @@ function setupGameEventHandlers() {
       // Create or update interpolation data
       if (!interpolationData[moveData.id]) {
         interpolationData[moveData.id] = {
-          targetPosition: new THREE.Vector3()
+          targetPosition: new THREE.Vector3(),
         };
       }
 
@@ -579,14 +608,14 @@ function setupGameEventHandlers() {
       interpolationData[moveData.id].targetPosition.set(
         moveData.position.x,
         moveData.position.y + SETTINGS.PLAYER_HEIGHT,
-        moveData.position.z
+        moveData.position.z,
       );
     }
   });
 
   // Handle new player
-  socket.on('newPlayer', (playerData) => {
-    console.log('New player joined:', playerData);
+  socket.on("newPlayer", (playerData) => {
+    console.log("New player joined:", playerData);
 
     // Add the new player if we don't already have them
     if (!players[playerData.id]) {
@@ -602,8 +631,8 @@ function setupGameEventHandlers() {
   });
 
   // Handle player disconnection
-  socket.on('playerDisconnected', (playerId) => {
-    console.log('Player disconnected:', playerId);
+  socket.on("playerDisconnected", (playerId) => {
+    console.log("Player disconnected:", playerId);
     removePlayer(playerId);
 
     // Atualizar leaderboard quando um jogador desconecta
@@ -611,8 +640,8 @@ function setupGameEventHandlers() {
   });
 
   // Handle score updates
-  socket.on('updateScores', (scores) => {
-    console.log('Score update received:', scores);
+  socket.on("updateScores", (scores) => {
+    console.log("Score update received:", scores);
 
     // Update all player scores
     Object.entries(scores).forEach(([playerId, score]) => {
@@ -648,13 +677,13 @@ function setupGameEventHandlers() {
   });
 
   // Handle player count updates
-  socket.on('playerCount', (count) => {
+  socket.on("playerCount", (count) => {
     updatePlayerCount(count);
   });
 
   // Handle ball collection
-  socket.on('ballCollected', (data) => {
-    console.log('Ball collected:', data);
+  socket.on("ballCollected", (data) => {
+    console.log("Ball collected:", data);
 
     // Remover o ID da bola da lista de coletas pendentes
     pendingCollections.delete(data.ballId);
@@ -701,8 +730,8 @@ function updatePlayerSize(playerId) {
   // Each ball is worth SETTINGS.BALL_VALUE points (10 by default)
   const ballsCollected = score / SETTINGS.BALL_VALUE;
   const sizeMultiplier = Math.min(
-    1.0 + (ballsCollected * SETTINGS.SIZE_INCREASE_PER_BALL),
-    SETTINGS.MAX_SIZE_MULTIPLIER
+    1.0 + ballsCollected * SETTINGS.SIZE_INCREASE_PER_BALL,
+    SETTINGS.MAX_SIZE_MULTIPLIER,
   );
 
   // Store the new size multiplier
@@ -711,7 +740,9 @@ function updatePlayerSize(playerId) {
   // Apply scaling to the mesh
   player.mesh.scale.set(sizeMultiplier, sizeMultiplier, sizeMultiplier);
 
-  console.log(`Updated player ${playerId} size: ${sizeMultiplier.toFixed(2)}x (score: ${score})`);
+  console.log(
+    `Updated player ${playerId} size: ${sizeMultiplier.toFixed(2)}x (score: ${score})`,
+  );
 
   // If this is the local player, update camera height too
   if (playerId === localPlayerId) {
@@ -726,26 +757,26 @@ function addPlayer(playerInfo) {
     players[playerInfo.id].mesh.position.set(
       playerInfo.position.x,
       playerInfo.position.y + SETTINGS.PLAYER_HEIGHT,
-      playerInfo.position.z
+      playerInfo.position.z,
     );
     return;
   }
 
-  console.log('Adding player:', playerInfo.id);
+  console.log("Adding player:", playerInfo.id);
 
   // Create player geometry and material
   const playerGeometry = new THREE.CylinderGeometry(
-    SETTINGS.PLAYER_RADIUS, 
-    SETTINGS.PLAYER_RADIUS, 
-    SETTINGS.PLAYER_HEIGHT * 2, 
-    SETTINGS.PLAYER_SEGMENTS
+    SETTINGS.PLAYER_RADIUS,
+    SETTINGS.PLAYER_RADIUS,
+    SETTINGS.PLAYER_HEIGHT * 2,
+    SETTINGS.PLAYER_SEGMENTS,
   );
 
   // Use player color from server or generate a random one
   const playerMaterial = new THREE.MeshStandardMaterial({
     color: playerInfo.color || getRandomColor(),
     roughness: 0.5,
-    metalness: 0.5
+    metalness: 0.5,
   });
 
   // Create player mesh
@@ -757,11 +788,12 @@ function addPlayer(playerInfo) {
   playerMesh.position.set(
     playerInfo.position.x,
     playerInfo.position.y + SETTINGS.PLAYER_HEIGHT,
-    playerInfo.position.z
+    playerInfo.position.z,
   );
 
   // Create player nametag
-  const nickname = playerInfo.nickname || `Player ${playerInfo.id.substring(0, 4)}`;
+  const nickname =
+    playerInfo.nickname || `Player ${playerInfo.id.substring(0, 4)}`;
   const nametagGroup = createNametag(nickname);
 
   // Position nametag above player
@@ -777,7 +809,7 @@ function addPlayer(playerInfo) {
     color: playerMaterial.color.getHex(),
     sizeMultiplier: playerInfo.sizeMultiplier || 1.0,
     nametagGroup: nametagGroup,
-    baseHeight: playerInfo.position.y || 0 // Armazenar altura base para efeito de salto
+    baseHeight: playerInfo.position.y || 0, // Armazenar altura base para efeito de salto
   };
 
   // Add player mesh to scene
@@ -816,7 +848,7 @@ function removePlayer(playerId) {
 function createGround(scene) {
   // Criar textura do chão
   const textureLoader = new THREE.TextureLoader();
-  const groundTexture = textureLoader.load('/assets/textures/grass.jpg');
+  const groundTexture = textureLoader.load("/assets/textures/grass.jpg");
   groundTexture.wrapS = THREE.RepeatWrapping;
   groundTexture.wrapT = THREE.RepeatWrapping;
   groundTexture.repeat.set(16, 16); // Aumentar a repetição para cobrir mais área
@@ -827,11 +859,16 @@ function createGround(scene) {
     map: groundTexture,
     roughness: 0.8,
     metalness: 0.2,
-    flatShading: true
+    flatShading: true,
   });
 
   // Criar geometria do chão com menos detalhes para melhor desempenho em dispositivos móveis
-  const groundGeometry = new THREE.PlaneGeometry(worldSize * 2, worldSize * 2, 32, 32);
+  const groundGeometry = new THREE.PlaneGeometry(
+    worldSize * 2,
+    worldSize * 2,
+    32,
+    32,
+  );
 
   // Adicionar variação de altura para mais realismo
   const vertices = groundGeometry.attributes.position.array;
@@ -844,11 +881,16 @@ function createGround(scene) {
   const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
   groundMesh.rotation.x = -Math.PI / 2;
   groundMesh.receiveShadow = true; // Habilitar recebimento de sombras
-  groundMesh.name = 'ground';
+  groundMesh.name = "ground";
   scene.add(groundMesh);
 
   // Criar grid helper com opacidade reduzida
-  const gridHelper = new THREE.GridHelper(worldSize * 2, 20, 0x000000, 0x000000);
+  const gridHelper = new THREE.GridHelper(
+    worldSize * 2,
+    20,
+    0x000000,
+    0x000000,
+  );
   gridHelper.position.y = 0.01;
   gridHelper.material.opacity = 0.1;
   gridHelper.material.transparent = true;
@@ -862,26 +904,26 @@ function addBall(ballInfo) {
     balls[ballInfo.id].mesh.position.set(
       ballInfo.position.x,
       ballInfo.position.y,
-      ballInfo.position.z
+      ballInfo.position.z,
     );
     return;
   }
 
-  console.log('Adding ball:', ballInfo.id);
+  console.log("Adding ball:", ballInfo.id);
 
   // Create ball geometry and material
   const ballGeometry = new THREE.SphereGeometry(
     SETTINGS.BALL_RADIUS,
     SETTINGS.BALL_SEGMENTS,
-    SETTINGS.BALL_SEGMENTS
+    SETTINGS.BALL_SEGMENTS,
   );
 
-  const ballMaterial = new THREE.MeshStandardMaterial({ 
-    color: ballInfo.color || 0xFFFFFF,
+  const ballMaterial = new THREE.MeshStandardMaterial({
+    color: ballInfo.color || 0xffffff,
     roughness: 0.2,
     metalness: 0.9,
-    emissive: ballInfo.type === 'GOLDEN' ? 0xFFD700 : 0,
-    emissiveIntensity: 0.5
+    emissive: ballInfo.type === "GOLDEN" ? 0xffd700 : 0,
+    emissiveIntensity: 0.5,
   });
 
   // Create ball mesh
@@ -894,7 +936,7 @@ function addBall(ballInfo) {
   ballMesh.position.set(
     ballInfo.position.x,
     ballInfo.position.y,
-    ballInfo.position.z
+    ballInfo.position.z,
   );
 
   // Store ball with ID and add to scene
@@ -903,7 +945,7 @@ function addBall(ballInfo) {
     baseHeight: ballInfo.position.y,
     collected: false,
     value: ballInfo.value || SETTINGS.BALL_VALUE,
-    type: ballInfo.type || 'NORMAL' // Add ball type
+    type: ballInfo.type || "NORMAL", // Add ball type
   };
 
   // Add to scene
@@ -936,14 +978,17 @@ function updateCameraPosition() {
   const sizeMultiplier = players[localPlayerId].sizeMultiplier || 1.0;
 
   // Adjust camera distance based on player size
-  const adjustedCameraDistance = SETTINGS.CAMERA_DISTANCE * Math.max(1, sizeMultiplier * 0.8) * 1.5; // Aumentado em 50%
-  const adjustedCameraHeight = SETTINGS.CAMERA_HEIGHT * Math.max(1, sizeMultiplier * 0.5) * 1.2; // Aumentado em 20%
+  const adjustedCameraDistance =
+    SETTINGS.CAMERA_DISTANCE * Math.max(1, sizeMultiplier * 0.8) * 1.5; // Aumentado em 50%
+  const adjustedCameraHeight =
+    SETTINGS.CAMERA_HEIGHT * Math.max(1, sizeMultiplier * 0.5) * 1.2; // Aumentado em 20%
 
   // Get camera direction
   const cameraDirection = camera.getWorldDirection(new THREE.Vector3());
 
   // Position camera behind player
-  camera.position.copy(playerMesh.position)
+  camera.position
+    .copy(playerMesh.position)
     .sub(cameraDirection.multiplyScalar(adjustedCameraDistance));
 
   // Set camera height
@@ -968,7 +1013,9 @@ function animate() {
     window.frameCount = 0;
   }
   if (window.frameCount < 10) {
-    console.log(`Animation frame ${window.frameCount}, gameActive: ${gameActive}`);
+    console.log(
+      `Animation frame ${window.frameCount}, gameActive: ${gameActive}`,
+    );
     window.frameCount++;
   }
 
@@ -989,13 +1036,13 @@ function animate() {
 
   // Always render the scene
   if (scene && camera && renderer) {
-    console.log('Rendering scene');
+    console.log("Rendering scene");
     renderer.render(scene, camera);
   } else {
-    console.error('Cannot render: scene, camera, or renderer is not defined', {
+    console.error("Cannot render: scene, camera, or renderer is not defined", {
       scene: !!scene,
       camera: !!camera,
-      renderer: !!renderer
+      renderer: !!renderer,
     });
   }
 
@@ -1018,13 +1065,14 @@ function updatePlayerMovement() {
   const forwardVector = cameraDirection.clone();
 
   // Calculate left/right movement vector (perpendicular to camera direction)
-  const rightVector = new THREE.Vector3().crossVectors(
-    cameraDirection,
-    new THREE.Vector3(0, 1, 0)
-  ).normalize();
+  const rightVector = new THREE.Vector3()
+    .crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0))
+    .normalize();
 
   // Determinar a velocidade máxima baseada no sprint
-  let maxSpeed = keys.sprint ? SETTINGS.MOVE_SPEED * SETTINGS.SPRINT_MULTIPLIER : SETTINGS.MOVE_SPEED;
+  let maxSpeed = keys.sprint
+    ? SETTINGS.MOVE_SPEED * SETTINGS.SPRINT_MULTIPLIER
+    : SETTINGS.MOVE_SPEED;
   if (powerUps.SPEED.active) {
     maxSpeed *= SETTINGS.SPEED_BOOST_MULTIPLIER;
   }
@@ -1062,13 +1110,21 @@ function updatePlayerMovement() {
     playerMesh.position.z += currentVelocity.z;
 
     // Aplicar efeito de salto (bob)
-    bobTimer += currentVelocity.length() * SETTINGS.BOB_FREQUENCY * SETTINGS.BOB_SPEED_SCALING;
-    const bobOffset = Math.sin(bobTimer) * SETTINGS.BOB_AMPLITUDE * (currentVelocity.length() / maxSpeed);
-    playerMesh.position.y = players[localPlayerId].baseHeight + SETTINGS.PLAYER_HEIGHT + bobOffset;
+    bobTimer +=
+      currentVelocity.length() *
+      SETTINGS.BOB_FREQUENCY *
+      SETTINGS.BOB_SPEED_SCALING;
+    const bobOffset =
+      Math.sin(bobTimer) *
+      SETTINGS.BOB_AMPLITUDE *
+      (currentVelocity.length() / maxSpeed);
+    playerMesh.position.y =
+      players[localPlayerId].baseHeight + SETTINGS.PLAYER_HEIGHT + bobOffset;
 
     // Aplicar inclinação na direção do movimento
     const movementAngle = Math.atan2(currentVelocity.x, currentVelocity.z);
-    const tiltIntensity = currentVelocity.length() / maxSpeed * SETTINGS.TILT_INTENSITY;
+    const tiltIntensity =
+      (currentVelocity.length() / maxSpeed) * SETTINGS.TILT_INTENSITY;
 
     // Rotação suave para a direção do movimento
     const targetRotationY = movementAngle;
@@ -1078,45 +1134,55 @@ function updatePlayerMovement() {
     playerMesh.rotation.x = tiltIntensity;
 
     // Manter jogador dentro dos limites do mundo
-    playerMesh.position.x = Math.max(-worldSize, Math.min(worldSize, playerMesh.position.x));
-    playerMesh.position.z = Math.max(-worldSize, Math.min(worldSize, playerMesh.position.z));
+    playerMesh.position.x = Math.max(
+      -worldSize,
+      Math.min(worldSize, playerMesh.position.x),
+    );
+    playerMesh.position.z = Math.max(
+      -worldSize,
+      Math.min(worldSize, playerMesh.position.z),
+    );
 
     // Atualizar posição da câmera relativa ao jogador
     updateCameraPosition();
 
     // Enviar atualização de posição para o servidor
-    socket.emit('playerMovement', {
+    socket.emit("playerMovement", {
       position: {
         x: playerMesh.position.x,
         y: playerMesh.position.y - SETTINGS.PLAYER_HEIGHT, // Ajustar pelo offset
-        z: playerMesh.position.z
-      }
+        z: playerMesh.position.z,
+      },
     });
   } else {
     // Recuperar altura normal quando parado
-    playerMesh.position.y = players[localPlayerId].baseHeight + SETTINGS.PLAYER_HEIGHT;
+    playerMesh.position.y =
+      players[localPlayerId].baseHeight + SETTINGS.PLAYER_HEIGHT;
 
     // Recuperar inclinação e rotação quando parado
-    playerMesh.rotation.x *= (1 - SETTINGS.TILT_RECOVERY_SPEED);
+    playerMesh.rotation.x *= 1 - SETTINGS.TILT_RECOVERY_SPEED;
   }
 }
 
 // Update player interpolation for smooth movement
 function updatePlayerInterpolation() {
-  Object.keys(interpolationData).forEach(playerId => {
+  Object.keys(interpolationData).forEach((playerId) => {
     if (playerId !== localPlayerId && players[playerId]) {
       const data = interpolationData[playerId];
       const playerMesh = players[playerId].mesh;
 
       // Adjust position with interpolation
-      playerMesh.position.lerp(data.targetPosition, SETTINGS.INTERPOLATION_SPEED);
+      playerMesh.position.lerp(
+        data.targetPosition,
+        SETTINGS.INTERPOLATION_SPEED,
+      );
     }
   });
 }
 
 // Animate all balls
 function animateBalls() {
-  Object.keys(balls).forEach(ballId => {
+  Object.keys(balls).forEach((ballId) => {
     const ball = balls[ballId];
     if (ball && ball.mesh) {
       // Rotate ball
@@ -1137,7 +1203,7 @@ function checkBallCollisions() {
   const playerPosition = players[localPlayerId].mesh.position.clone();
   playerPosition.y = 0; // Ignore height difference when checking collision
 
-  Object.keys(balls).forEach(ballId => {
+  Object.keys(balls).forEach((ballId) => {
     const ball = balls[ballId];
     if (ball && ball.mesh && !ball.collected) {
       const ballPosition = ball.mesh.position.clone();
@@ -1145,7 +1211,10 @@ function checkBallCollisions() {
       const distance = playerPosition.distanceTo(ballPosition);
 
       // Verificar se a bola está dentro da distância de coleta e não está em processo de coleta
-      if (distance < SETTINGS.COLLECTION_DISTANCE && !pendingCollections.has(ballId)) {
+      if (
+        distance < SETTINGS.COLLECTION_DISTANCE &&
+        !pendingCollections.has(ballId)
+      ) {
         // Marcar bola como coletada localmente para evitar tentativas repetidas
         ball.collected = true;
 
@@ -1158,7 +1227,7 @@ function checkBallCollisions() {
         console.log(`Collecting ball ${ballId}, distance: ${distance}`);
 
         // Dizer ao servidor que esta bola foi coletada
-        socket.emit('collectBall', { ballId: ballId });
+        socket.emit("collectBall", { ballId: ballId });
 
         // Configurar um timeout de segurança para limpar o status pendente
         // após 5 segundos, caso o servidor não responda
@@ -1173,27 +1242,27 @@ function checkBallCollisions() {
 // Create a nametag for a player
 function createNametag(name) {
   // Create a canvas for the nametag
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
   canvas.width = 512; // Aumentar a largura do canvas para nomes maiores
   canvas.height = 128; // Aumentar a altura do canvas
 
   // Fill with transparent background
-  context.fillStyle = 'rgba(0, 0, 0, 0)';
+  context.fillStyle = "rgba(0, 0, 0, 0)";
   context.fillRect(0, 0, canvas.width, canvas.height);
 
   // Draw text
-  context.font = 'bold 42px Arial'; // Fonte maior
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
+  context.font = "bold 42px Arial"; // Fonte maior
+  context.textAlign = "center";
+  context.textBaseline = "middle";
 
   // Draw text outline
-  context.strokeStyle = 'black';
+  context.strokeStyle = "black";
   context.lineWidth = 5; // Contorno mais grosso
   context.strokeText(name, canvas.width / 2, canvas.height / 2);
 
   // Draw text fill
-  context.fillStyle = 'white';
+  context.fillStyle = "white";
   context.fillText(name, canvas.width / 2, canvas.height / 2);
 
   // Create texture from canvas
@@ -1201,9 +1270,9 @@ function createNametag(name) {
   texture.needsUpdate = true;
 
   // Create a sprite material with the texture
-  const material = new THREE.SpriteMaterial({ 
+  const material = new THREE.SpriteMaterial({
     map: texture,
-    transparent: true
+    transparent: true,
   });
 
   // Create sprite with the material
@@ -1219,7 +1288,7 @@ function createNametag(name) {
 
 // Update nametag orientations to face the camera
 function updateNametagOrientations() {
-  Object.values(players).forEach(player => {
+  Object.values(players).forEach((player) => {
     if (player.nametagGroup) {
       // Make nametag face the camera
       player.nametagGroup.quaternion.copy(camera.quaternion);
@@ -1232,14 +1301,14 @@ function getRandomColor() {
   // Exclude very dark or light colors
   const hue = Math.random() * 360;
   const saturation = 70 + Math.random() * 30; // 70-100%
-  const lightness = 40 + Math.random() * 20;  // 40-60%
+  const lightness = 40 + Math.random() * 20; // 40-60%
 
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
 // Initialize everything immediately since we're now loaded after menu handling
 function initGame() {
-  console.log('Initializing game with nickname:', playerNickname);
+  console.log("Initializing game with nickname:", playerNickname);
   try {
     // Create UI
     createUI();
@@ -1248,7 +1317,7 @@ function initGame() {
     initializeScene();
 
     // Create ground if not created already
-    if (!scene.getObjectByName('ground')) {
+    if (!scene.getObjectByName("ground")) {
       createGround(scene);
     }
 
@@ -1261,24 +1330,24 @@ function initGame() {
     // Start animation loop
     animate();
 
-    console.log('Game initialized successfully');
+    console.log("Game initialized successfully");
   } catch (error) {
-    console.error('Error initializing game:', error);
-    alert('Error starting game: ' + error.message);
+    console.error("Error initializing game:", error);
+    alert("Error starting game: " + error.message);
   }
 }
 
 initGame();
 
 // Setup window resize handler
-window.addEventListener('resize', () => {
+window.addEventListener("resize", () => {
   if (renderer && camera) {
     const width = window.innerWidth;
     const height = window.innerHeight;
     renderer.setSize(width, height);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
-    console.log('Window resized to', width, 'x', height);
+    console.log("Window resized to", width, "x", height);
   }
 });
 
@@ -1288,42 +1357,42 @@ function updateLeaderboard() {
   leaderboardPlayers = Object.values(players).sort((a, b) => b.score - a.score);
 
   // Update leaderboard display
-  const leaderboardEntries = document.getElementById('leaderboard-entries');
+  const leaderboardEntries = document.getElementById("leaderboard-entries");
   if (!leaderboardEntries) return;
 
-  leaderboardEntries.innerHTML = '';
+  leaderboardEntries.innerHTML = "";
 
   // Mostrar apenas os top 3 jogadores
   const topPlayers = leaderboardPlayers.slice(0, 3);
 
   // Medalhas para os top 3
-  const medals = ['🥇', '🥈', '🥉'];
+  const medals = ["🥇", "🥈", "🥉"];
 
   topPlayers.forEach((player, index) => {
-    const entry = document.createElement('div');
-    entry.className = 'leaderboard-entry';
-    entry.style.margin = '3px 0';
-    entry.style.display = 'flex';
-    entry.style.justifyContent = 'space-between';
+    const entry = document.createElement("div");
+    entry.className = "leaderboard-entry";
+    entry.style.margin = "3px 0";
+    entry.style.display = "flex";
+    entry.style.justifyContent = "space-between";
 
     // Destaque para o jogador local
     if (player.id === localPlayerId) {
-      entry.style.fontWeight = 'bold';
-      entry.style.color = '#ffff00';
+      entry.style.fontWeight = "bold";
+      entry.style.color = "#ffff00";
     }
 
     // Medalha + nome
-    const nameSpan = document.createElement('span');
-    nameSpan.innerHTML = `${medals[index] || '•'} ${player.nickname}`;
-    nameSpan.style.textOverflow = 'ellipsis';
-    nameSpan.style.overflow = 'hidden';
-    nameSpan.style.whiteSpace = 'nowrap';
-    nameSpan.style.maxWidth = '170px';
+    const nameSpan = document.createElement("span");
+    nameSpan.innerHTML = `${medals[index] || "•"} ${player.nickname}`;
+    nameSpan.style.textOverflow = "ellipsis";
+    nameSpan.style.overflow = "hidden";
+    nameSpan.style.whiteSpace = "nowrap";
+    nameSpan.style.maxWidth = "170px";
 
     // Pontuação
-    const scoreSpan = document.createElement('span');
+    const scoreSpan = document.createElement("span");
     scoreSpan.innerHTML = `${player.score}`;
-    scoreSpan.style.marginLeft = '10px';
+    scoreSpan.style.marginLeft = "10px";
 
     entry.appendChild(nameSpan);
     entry.appendChild(scoreSpan);
@@ -1333,11 +1402,11 @@ function updateLeaderboard() {
 
   // Se não há jogadores suficientes, mostrar espaços vazios
   for (let i = topPlayers.length; i < 3; i++) {
-    const emptyEntry = document.createElement('div');
-    emptyEntry.className = 'leaderboard-entry';
-    emptyEntry.style.margin = '3px 0';
-    emptyEntry.style.color = '#888';
-    emptyEntry.innerHTML = `${medals[i] || '•'} ---`;
+    const emptyEntry = document.createElement("div");
+    emptyEntry.className = "leaderboard-entry";
+    emptyEntry.style.margin = "3px 0";
+    emptyEntry.style.color = "#888";
+    emptyEntry.innerHTML = `${medals[i] || "•"} ---`;
     leaderboardEntries.appendChild(emptyEntry);
   }
 }
