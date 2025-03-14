@@ -1,7 +1,7 @@
 {
   "name": "pega-bola",
   "version": "1.0.0",
-  "description": "Pega Bola - A 3D multiplayer game where you collect balls and avoid the other players.",
+  "description": "Pega Bola 3000",
   "main": "server.js",
   "author": "Riquelme",
   "license": "MIT",
