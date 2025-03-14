@@ -47,23 +47,6 @@ const SETTINGS = {
   INTERPOLATION_SPEED: 0.1,
   BALL_RADIUS: 0.3,
   BALL_SEGMENTS: 16,
-
-// Handle jump key
-document.addEventListener('keydown', (e) => {
-  if (e.code === 'Space' && canJump && players[localPlayerId]) {
-    keys.jump = true;
-    canJump = false;
-    verticalVelocity = SETTINGS.JUMP_FORCE;
-    setTimeout(() => canJump = true, SETTINGS.JUMP_COOLDOWN);
-  }
-});
-
-document.addEventListener('keyup', (e) => {
-  if (e.code === 'Space') {
-    keys.jump = false;
-  }
-});
-
   BALL_ROTATION_SPEED: 0.02,
   BALL_VALUE: 10,
   BALL_HOVER_HEIGHT: 0.2,
@@ -88,17 +71,11 @@ document.addEventListener('keyup', (e) => {
   BOB_FREQUENCY: 0.1, // Frequência do efeito de salto
   BOB_AMPLITUDE: 0.05, // Amplitude do efeito de salto
   BOB_SPEED_SCALING: 1.5, // Escala da velocidade de bob baseada na velocidade de movimento
-  SPEED_BOOST_MULTIPLIER: 2.0, // Multiplicador de velocidade para power-up
-  JUMP_FORCE: 0.3,
-  GRAVITY: 0.015,
-  MAX_JUMP_HEIGHT: 2.0,
-  JUMP_COOLDOWN: 500 // milliseconds
+  SPEED_BOOST_MULTIPLIER: 2.0 // Multiplicador de velocidade para power-up
 };
 
 // Movement keys tracking
-let keys = { forward: false, backward: false, left: false, right: false, sprint: false, jump: false };
-let canJump = true;
-let verticalVelocity = 0;
+let keys = { forward: false, backward: false, left: false, right: false, sprint: false };
 
 // UI elements
 let scoreDisplay, topScoreDisplay, playerCountDisplay, messageDisplay;
@@ -197,25 +174,6 @@ function startGame() {
     console.log('Game UI created');
 
     // Connect to the server
-
-function updateJumpPhysics() {
-  if (!players[localPlayerId]) return;
-  
-  const player = players[localPlayerId].mesh;
-  
-  // Apply gravity
-  verticalVelocity -= SETTINGS.GRAVITY;
-  
-  // Update position
-  player.position.y += verticalVelocity;
-  
-  // Ground collision
-  if (player.position.y <= SETTINGS.PLAYER_HEIGHT / 2) {
-    player.position.y = SETTINGS.PLAYER_HEIGHT / 2;
-    verticalVelocity = 0;
-  }
-}
-
     connectToServer();
     console.log('Connected to server');
 
@@ -1005,7 +963,6 @@ function updatePlayerCount(count) {
 // Animation loop
 function animate() {
   requestAnimationFrame(animate);
-  updateJumpPhysics();
 
   // Log the first few frames for debugging
   if (!window.frameCount) {

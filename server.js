@@ -47,7 +47,7 @@ function generateBalls() {
         z: (Math.random() * WORLD_SIZE * 2) - WORLD_SIZE
       },
       collected: false,
-      value: BALL_TYPES.NORMAL.value
+      value: BALL_VALUE
     });
   }
 }
@@ -134,7 +134,6 @@ io.on('connection', (socket) => {
       id: socket.id,
       nickname: nickname,
       position: { x: startX, y: 0, z: startZ },
-      isJumping: false,
       color: getRandomColor(),
       score: 0,
       lastUpdate: Date.now()
