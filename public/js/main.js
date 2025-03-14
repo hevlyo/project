@@ -34,8 +34,45 @@ const pendingCollections = new Set();
 // Three.js global variables
 let scene, camera, renderer;
 
-// Game settings (will be populated from server)
-let SETTINGS = {};
+// Game settings
+const SETTINGS = {
+  MOVE_SPEED: 0.2,
+  SPRINT_MULTIPLIER: 1.5,
+  PLAYER_HEIGHT: 1,
+  PLAYER_RADIUS: 0.5,
+  PLAYER_SEGMENTS: 32,
+  CAMERA_HEIGHT: 3,
+  CAMERA_DISTANCE: 5,
+  COLLECTION_DISTANCE: 1.5, 
+  INTERPOLATION_SPEED: 0.1,
+  BALL_RADIUS: 0.3,
+  BALL_SEGMENTS: 16,
+  BALL_ROTATION_SPEED: 0.02,
+  BALL_VALUE: 10,
+  BALL_HOVER_HEIGHT: 0.2,
+  BALL_HOVER_SPEED: 1.0,
+  CAMERA_FOV: 75,
+  CAMERA_NEAR: 0.1,
+  CAMERA_FAR: 1000,
+  DELTA_TIME: 1/60,
+  SKY_COLOR: 0x87CEFA,
+  SIZE_INCREASE_PER_BALL: 0.05, // Size increase multiplier per ball collected
+  MAX_SIZE_MULTIPLIER: 2.5, // Maximum size multiplier for players
+  NAMETAG_OFFSET_Y: 2.2, // Height above player for nametag
+  NAMETAG_SCALE: 0.01, // Scale of the nametag text
+  NICKNAME_MAX_LENGTH: 20,
+  NICKNAME_MIN_LENGTH: 2,
+  NICKNAME_PATTERN: /^[a-zA-Z0-9\s\-_]+$/, // Apenas letras, números, espaços, hífens e underscores
+  UI_TRANSITION_DURATION: '0.3s',
+  ACCELERATION: 0.015, // Velocidade de aceleração
+  DECELERATION: 0.03,   // Velocidade de desaceleração (mais rápida que aceleração)
+  TILT_INTENSITY: 0.15, // Intensidade da inclinação do jogador durante o movimento
+  TILT_RECOVERY_SPEED: 0.1, // Velocidade de recuperação da inclinação
+  BOB_FREQUENCY: 0.1, // Frequência do efeito de salto
+  BOB_AMPLITUDE: 0.05, // Amplitude do efeito de salto
+  BOB_SPEED_SCALING: 1.5, // Escala da velocidade de bob baseada na velocidade de movimento
+  SPEED_BOOST_MULTIPLIER: 2.0 // Multiplicador de velocidade para power-up
+};
 
 // Movement keys tracking
 let keys = { forward: false, backward: false, left: false, right: false, sprint: false };
@@ -1303,21 +1340,4 @@ function updateLeaderboard() {
     emptyEntry.innerHTML = `${medals[i] || '•'} ---`;
     leaderboardEntries.appendChild(emptyEntry);
   }
-}
-
-function setRandomNicknamePlaceholder() {
-  const nicknames = [
-    "SpeedyGonzales",
-    "BallMaster",
-    "PixelPusher",
-    "CodeNinja",
-    "TheFlash",
-    "QuickDraw",
-    "ZoomZoom",
-    "Turbo",
-    "Velocity",
-    "HyperDrive"
-  ];
-  const randomIndex = Math.floor(Math.random() * nicknames.length);
-  nicknameInput.placeholder = nicknames[randomIndex];
 }
