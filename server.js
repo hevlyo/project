@@ -16,7 +16,11 @@ const io = new Server(server, {
 // Constants and configuration
 const WORLD_SIZE = 50; // Size of the game world
 const BALL_COUNT = 15; // Number of balls in the world
-const BALL_VALUE = 10; // Points for collecting a ball
+const BALL_TYPES = {
+  NORMAL: { value: 10, color: 0xFFFFFF },
+  GOLDEN: { value: 30, color: 0xFFD700 },
+  SPEED: { value: 5, color: 0x00FF00 }
+};
 const RESPAWN_DELAY = 3000; // Time in ms before a new ball spawns after collection
 const PORT = process.env.PORT || 25565;
 
@@ -51,15 +55,21 @@ function generateBalls() {
 // Function to create a single new ball
 function createNewBall() {
   console.log('Creating a new ball');
+  const types = Object.keys(BALL_TYPES);
+  const type = types[Math.floor(Math.random() * types.length)];
+  const ballData = BALL_TYPES[type];
+  
   const newBall = {
     id: `ball-${Date.now()}`,
     position: {
       x: (Math.random() * WORLD_SIZE * 2) - WORLD_SIZE,
-      y: 0.5, // Slightly above the ground
+      y: 0.5,
       z: (Math.random() * WORLD_SIZE * 2) - WORLD_SIZE
     },
     collected: false,
-    value: BALL_VALUE
+    type: type,
+    value: ballData.value,
+    color: ballData.color
   };
   balls.push(newBall);
   io.emit('newBalls', [newBall]);
