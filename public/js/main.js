@@ -74,10 +74,8 @@ const SETTINGS = {
   BOB_AMPLITUDE: 0.05, // Amplitude do efeito de salto
   BOB_SPEED_SCALING: 1.5, // Escala da velocidade de bob baseada na velocidade de movimento
   SPEED_BOOST_MULTIPLIER: 2.0, // Multiplicador de velocidade para power-up
-  NETWORK_UPDATE_RATE: 50, // ms between network updates (20 updates per second)
 };
 
-// Movement keys tracking
 // Movement keys tracking
 let keys = {
   forward: false,
@@ -87,17 +85,11 @@ let keys = {
   sprint: false,
 };
 
-// Initialize clock for animation timing
-const clock = new THREE.Clock();
-
 // UI elements
 let scoreDisplay, topScoreDisplay, playerCountDisplay, messageDisplay;
 let menuScreen, nicknameInput, playButton;
 let playerNickname = sessionStorage.getItem("playerNickname") || "Player";
 console.log("Retrieved nickname from session storage:", playerNickname);
-
-// Game state tracking
-let pendingPositionUpdate = false;
 
 // Power-up state
 const powerUps = {
@@ -942,7 +934,7 @@ function addBall(ballInfo) {
   console.log("Adding ball:", ballInfo.id);
 
   // Create ball geometry and material
-const ballGeometry = new THREE.SphereGeometry(
+  const ballGeometry = new THREE.SphereGeometry(
     SETTINGS.BALL_RADIUS,
     SETTINGS.BALL_SEGMENTS,
     SETTINGS.BALL_SEGMENTS,
@@ -1038,41 +1030,46 @@ function updatePlayerCount(count) {
 function animate() {
   requestAnimationFrame(animate);
 
-  // Calculate delta time for smoother movement
-  const deltaTime = clock.getDelta();
-  const currentTime = clock.elapsedTime * 1000; // Convert to ms
-
-  // Update game animations and logic
-  updatePlayerMovement();
-  updatePlayerInterpolation();
-  animateBalls();
-  updateScreenOrientations();
-
-  // Send network updates at fixed rate
-  if (pendingPositionUpdate && 
-      currentTime - lastNetworkUpdateTime > SETTINGS.NETWORK_UPDATE_RATE) {
-    sendPositionUpdate();
-    lastNetworkUpdateTime = currentTime;
-    pendingPositionUpdate = false;
+  // Log the first few frames for debugging
+  if (!window.frameCount) {
+    window.frameCount = 0;
+  }
+  if (window.frameCount < 10) {
+    console.log(
+      `Animation frame ${window.frameCount}, gameActive: ${gameActive}`,
+    );
+    window.frameCount++;
   }
 
-  // Render the scene
-  renderer.render(scene, camera);
-}
+  // Only process game logic if the game is active
+  if (gameActive) {
+    // Handle player movement
+    updatePlayerMovement();
 
-// Function to send position update to server (throttled)
-function sendPositionUpdate() {
-  if (!players[localPlayerId]) return;
+    // Interpolate other player positions
+    updatePlayerInterpolation();
 
-  const playerMesh = players[localPlayerId].mesh;
-  socket.emit("playerMovement", {
-    position: {
-      x: playerMesh.position.x,
-      y: playerMesh.position.y - SETTINGS.PLAYER_HEIGHT, // Adjust for offset
-      z: playerMesh.position.z,
-    },
-    timestamp: Date.now(), // Include timestamp for server-side lag compensation
-  });
+    // Animate balls
+    animateBalls();
+
+    // Check for ball collisions
+    checkBallCollisions();
+  }
+
+  // Always render the scene
+  if (scene && camera && renderer) {
+    console.log("Rendering scene");
+    renderer.render(scene, camera);
+  } else {
+    console.error("Cannot render: scene, camera, or renderer is not defined", {
+      scene: !!scene,
+      camera: !!camera,
+      renderer: !!renderer,
+    });
+  }
+
+  // Update nametag orientation to face camera
+  updateNametagOrientations();
 }
 
 // Update player movement based on keys
@@ -1171,7 +1168,14 @@ function updatePlayerMovement() {
     // Atualizar posição da câmera relativa ao jogador
     updateCameraPosition();
 
-    pendingPositionUpdate = true; // Flag to indicate pending update
+    // Enviar atualização de posição para o servidor
+    socket.emit("playerMovement", {
+      position: {
+        x: playerMesh.position.x,
+        y: playerMesh.position.y - SETTINGS.PLAYER_HEIGHT, // Ajustar pelo offset
+        z: playerMesh.position.z,
+      },
+    });
   } else {
     // Recuperar altura normal quando parado
     playerMesh.position.y =
@@ -1355,22 +1359,6 @@ function initGame() {
   } catch (error) {
     console.error("Error initializing game:", error);
     alert("Error starting game: " + error.message);
-  }
-}
-
-// Function to handle screen orientation changes
-function updateScreenOrientations() {
-  if (window.innerHeight > window.innerWidth) {
-    // Portrait mode
-    if (messageDisplay) {
-      messageDisplay.style.display = "block";
-      messageDisplay.textContent = "Rotate your device for a better experience";
-    }
-  } else {
-    // Landscape mode
-    if (messageDisplay) {
-      messageDisplay.style.display = "none";
-    }
   }
 }
 
