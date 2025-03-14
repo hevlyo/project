@@ -74,6 +74,7 @@ const SETTINGS = {
   BOB_AMPLITUDE: 0.05, // Amplitude do efeito de salto
   BOB_SPEED_SCALING: 1.5, // Escala da velocidade de bob baseada na velocidade de movimento
   SPEED_BOOST_MULTIPLIER: 2.0, // Multiplicador de velocidade para power-up
+  NETWORK_UPDATE_RATE: 50, // ms between network updates (20 updates per second)
 };
 
 // Movement keys tracking
@@ -934,7 +935,7 @@ function addBall(ballInfo) {
   console.log("Adding ball:", ballInfo.id);
 
   // Create ball geometry and material
-  const ballGeometry = new THREE.SphereGeometry(
+const ballGeometry = new THREE.SphereGeometry(
     SETTINGS.BALL_RADIUS,
     SETTINGS.BALL_SEGMENTS,
     SETTINGS.BALL_SEGMENTS,
@@ -1030,46 +1031,41 @@ function updatePlayerCount(count) {
 function animate() {
   requestAnimationFrame(animate);
 
-  // Log the first few frames for debugging
-  if (!window.frameCount) {
-    window.frameCount = 0;
-  }
-  if (window.frameCount < 10) {
-    console.log(
-      `Animation frame ${window.frameCount}, gameActive: ${gameActive}`,
-    );
-    window.frameCount++;
-  }
+  // Calculate delta time for smoother movement
+  const deltaTime = clock.getDelta();
+  const currentTime = clock.elapsedTime * 1000; // Convert to ms
 
-  // Only process game logic if the game is active
-  if (gameActive) {
-    // Handle player movement
-    updatePlayerMovement();
+  // Update game animations and logic
+  updatePlayerMovement();
+  updatePlayerInterpolation();
+  animateBalls();
+  updateScreenOrientations();
 
-    // Interpolate other player positions
-    updatePlayerInterpolation();
-
-    // Animate balls
-    animateBalls();
-
-    // Check for ball collisions
-    checkBallCollisions();
+  // Send network updates at fixed rate
+  if (pendingPositionUpdate && 
+      currentTime - lastNetworkUpdateTime > SETTINGS.NETWORK_UPDATE_RATE) {
+    sendPositionUpdate();
+    lastNetworkUpdateTime = currentTime;
+    pendingPositionUpdate = false;
   }
 
-  // Always render the scene
-  if (scene && camera && renderer) {
-    console.log("Rendering scene");
-    renderer.render(scene, camera);
-  } else {
-    console.error("Cannot render: scene, camera, or renderer is not defined", {
-      scene: !!scene,
-      camera: !!camera,
-      renderer: !!renderer,
-    });
-  }
+  // Render the scene
+  renderer.render(scene, camera);
+}
 
-  // Update nametag orientation to face camera
-  updateNametagOrientations();
+// Function to send position update to server (throttled)
+function sendPositionUpdate() {
+  if (!players[localPlayerId]) return;
+
+  const playerMesh = players[localPlayerId].mesh;
+  socket.emit("playerMovement", {
+    position: {
+      x: playerMesh.position.x,
+      y: playerMesh.position.y - SETTINGS.PLAYER_HEIGHT, // Adjust for offset
+      z: playerMesh.position.z,
+    },
+    timestamp: Date.now(), // Include timestamp for server-side lag compensation
+  });
 }
 
 // Update player movement based on keys
@@ -1168,14 +1164,7 @@ function updatePlayerMovement() {
     // Atualizar posição da câmera relativa ao jogador
     updateCameraPosition();
 
-    // Enviar atualização de posição para o servidor
-    socket.emit("playerMovement", {
-      position: {
-        x: playerMesh.position.x,
-        y: playerMesh.position.y - SETTINGS.PLAYER_HEIGHT, // Ajustar pelo offset
-        z: playerMesh.position.z,
-      },
-    });
+    pendingPositionUpdate = true; // Flag to indicate pending update
   } else {
     // Recuperar altura normal quando parado
     playerMesh.position.y =
