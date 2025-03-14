@@ -1,0 +1,128 @@
+Problemas de Segurança
+a. Sanitização Incompleta
+
+javascript
+playerNickname.replace(/[^a-zA-Z0-9\s\-_]/g, "") // 👈 Permite XSS potencial via espaços/unicode
+
+    Risco: Possível injeção de HTML/CSS via nicknames
+
+    Solução: Usar textContent ao invés de innerHTML e sanitização mais rigorosa
+
+b. Autoridade do Cliente
+
+javascript
+socket.emit("collectBall", { ballId, playerId }); // 👈 Cliente determina coleta
+
+    Crítico: Validação deve ser feita no servidor
+
+    Solução: Servidor deve verificar posições antes de aceitar coleta
+
+4. Problemas Físicos
+a. Movimento Não Delta-Time
+
+javascript
+function update() {
+  const speed = SETTINGS.MOVE_SPEED; // 👈 Frame-dependent movement
+  // Deveria usar: speed * deltaTime
+}
+
+    Consequência: Comportamento diferente em vários FPS
+
+    Correção: Usar requestAnimationFrame com delta time
+
+b. Colisão Ausente
+
+javascript
+// Nenhuma verificação de colisão com paredes/objetos
+function movePlayer() {
+  // Movimento livre sem restrições 👈
+}
+
+    Impacto: Jogadores podem sair dos limites do mundo
+
+    Solução: Implementar checks de colisão AABB
+
+5. Problemas de UI/UX
+a. CSS Hardcoded
+
+javascript
+menuScreen.style.transition = `opacity ${SETTINGS.UI_TRANSITION_DURATION}`;
+// 👈 Deveria usar classes CSS
+
+    Problema: Dificulta manutenção e personalização
+
+    Solução: Usar classes CSS e alternar via classList
+
+b. Atualizações de Leaderboard Ineficientes
+
+javascript
+function updateLeaderboard() {
+  leaderboardEntries.innerHTML = ""; // 👈 Redesenho completo toda vez
+  // ...
+}
+
+    Issue: Reflow/Rrepaint desnecessários
+
+    Solução: Usar Virtual DOM ou otimizar atualizações
+
+6. Erros Comuns
+a. Cleanup de Eventos Ausente
+
+javascript
+window.addEventListener("keydown", handler); // 👈 Nunca removido
+
+    Risco: Event listeners acumulam após múltiplas sessões
+
+    Correção: Remover listeners em disconnect
+
+b. Z-Fighting em Objetos 3D
+
+javascript
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+directionalLight.position.set(50, 200, 100); // 👈 Sem shadow config
+
+    Problema: Artefatos gráficos em superfícies próximas
+
+    Solução: Configurar shadowMap e ajustar bias
+
+7. Problemas Arquiteturais
+a. Estado Global Não Gerenciado
+
+javascript
+let gameActive = false; // 👈 Estado compartilhado entre módulos
+
+    Risco: Condições de corrida em atualizações assíncronas
+
+    Solução: Usar padrão de estado imutável ou máquina de estados
+
+b. Acoplamento Excessivo
+
+javascript
+// Lógica de rede, UI e física misturadas 👈
+function update() {
+  handleNetwork();
+  updatePhysics();
+  renderUI();
+}
+
+    Problema: Dificulta testes e manutenção
+
+    Solução: Separar em sistemas (ECS pattern)
+
+Recomendações de Melhoria:
+
+    Implementar sistema de predição/reconciliação para movimentos
+
+    Adicionar throttling nas comunicações de rede
+
+    Criar pool de objetos para bolas/jogadores
+
+    Usar Web Workers para física pesada
+
+    Implementar client-side interpolation com extrapolação
+
+    Adicionar heartbeat para detecção de conexão
+
+    Utilizar spatial partitioning para otimizar colisões
+
+Essas correções ajudariam a criar uma experiência mais estável e segura, especialmente considerando que é um jogo multiplayer onde sincronização e performance são críticas.
