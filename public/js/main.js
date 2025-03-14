@@ -745,8 +745,7 @@ function addPlayer(playerInfo) {
   const playerMaterial = new THREE.MeshStandardMaterial({
     color: playerInfo.color || getRandomColor(),
     roughness: 0.5,
-    metalness: 0.5,
-    shininess: 30
+    metalness: 0.5
   });
 
   // Create player mesh
