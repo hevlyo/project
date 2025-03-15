@@ -84,13 +84,14 @@
       animation: pulse 2s infinite;
     }
   </style>
+  <link rel="preload" href="js/main.js" as="script">
 </head>
 <body>
   <!-- Menu Screen -->
   <div id="menu-screen">
     <div id="menu-container">
       <h1>Pega Bola 3000</h1>
-      <input type="text" id="nickname-input" placeholder="Kemell Pinto" maxlength="15">
+      <input type="text" id="nickname-input" placeholder="Nickname" maxlength="15">
       <button id="play-button" onclick="startGameDirectly()">Iniciar a caralha do jogo</button>
       <div class="instructions">
         <p>Pega as bolas pra ficar mais grande e espesso</p>
@@ -115,11 +116,8 @@
     const nicknameInput = document.getElementById('nickname-input');
     const menuScreen = document.getElementById('menu-screen');
     
-    // Get nickname or use placeholder
-    let playerNickname = nicknameInput.value.trim();
-    if (playerNickname.length === 0) {
-      playerNickname = nicknameInput.placeholder;
-    }
+    // Get nickname
+    let playerNickname = nicknameInput.value.trim().replace(/[^a-zA-Z0-9\s\-_]/g, "").slice(0, 15);
     
     // Store nickname in sessionStorage for main.js to access
     sessionStorage.setItem('playerNickname', playerNickname);
@@ -127,11 +125,10 @@
     // Hide the menu
     menuScreen.style.display = 'none';
     
-    console.log('Game starting with nickname:', playerNickname);
-    
-    // Now load the main game script
+    // Load the main game script
     const scriptElement = document.createElement('script');
     scriptElement.src = 'js/main.js';
+    scriptElement.type = 'module';
     document.body.appendChild(scriptElement);
   }
   

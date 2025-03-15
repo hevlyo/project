@@ -149,6 +149,23 @@ function createRateLimiter(points, duration) {
 const movementLimiter = createRateLimiter(RATE_LIMITS.movement.points, RATE_LIMITS.movement.duration);
 const collectionLimiter = createRateLimiter(RATE_LIMITS.collection.points, RATE_LIMITS.collection.duration);
 
+// Function to validate ball collection
+function validateBallCollection(playerId, ballId) {
+  const player = players[playerId];
+  const ball = balls.find(b => b.id === ballId && !b.collected);
+  
+  if (!player || !ball) return false;
+  
+  // Calculate distance between player and ball
+  const distance = Math.sqrt(
+    Math.pow(player.position.x - ball.position.x, 2) + 
+    Math.pow(player.position.z - ball.position.z, 2)
+  );
+  
+  // Check if player is within collection distance
+  return distance <= 5; // Maximum collection distance
+}
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log(`Player connected: ${socket.id}`);
@@ -264,25 +281,14 @@ io.on('connection', (socket) => {
     }
 
     const ballId = data.ballId;
-    const ball = balls.find(b => b.id === ballId && !b.collected);
     
-    if (!ball) {
-      socket.emit('error', { message: 'Ball not found or already collected' });
-      return;
-    }
-
-    // Validate distance between player and ball
-    const playerPos = players[socket.id].position;
-    const ballPos = ball.position;
-    const distance = Math.sqrt(
-      Math.pow(playerPos.x - ballPos.x, 2) + 
-      Math.pow(playerPos.z - ballPos.z, 2)
-    );
-    
-    if (distance > 5) { // Maximum collection distance
+    // Validate collection
+    if (!validateBallCollection(socket.id, ballId)) {
       socket.emit('error', { message: 'Ball too far to collect' });
       return;
     }
+
+    const ball = balls.find(b => b.id === ballId);
     
     if (ball) {
       console.log(`Player ${players[socket.id]?.nickname || socket.id} collected ball ${ballId}`);

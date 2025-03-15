@@ -1,3 +1,10 @@
+// Pré-carregar main.js
+const preloadScript = document.createElement('link');
+preloadScript.rel = 'preload';
+preloadScript.href = 'js/main.js';
+preloadScript.as = 'script';
+document.head.appendChild(preloadScript);
+
 // Window onload handler
 document.addEventListener("DOMContentLoaded", onload);
 
@@ -33,6 +40,7 @@ const pendingCollections = new Set();
 
 // Three.js global variables
 let scene, camera, renderer;
+let clock = new THREE.Clock(); // Add clock for frame rate-independent movement
 
 // Game settings
 const SETTINGS = {
@@ -110,9 +118,6 @@ function onload() {
     nicknameInput: !!nicknameInput,
     playButton: !!playButton,
   });
-
-  // Set a random fun placeholder
-  setRandomNicknamePlaceholder();
 
   // Set up menu event listeners
   if (playButton) {
@@ -846,8 +851,6 @@ function removePlayer(playerId) {
   if (players[playerId]) {
     // Remove the player mesh from the scene
     if (players[playerId].mesh && scene) {
-
-      players[playerId].mesh.dispose();
       scene.remove(players[playerId].mesh);
     }
 
@@ -858,6 +861,8 @@ function removePlayer(playerId) {
     if (interpolationData[playerId]) {
       delete interpolationData[playerId];
     }
+    
+    window.removeEventListener("keydown", handler);
 
     // Update player count display
     updatePlayerCount();
@@ -930,8 +935,6 @@ function addBall(ballInfo) {
     );
     return;
   }
-
-  console.log("Adding ball:", ballInfo.id);
 
   // Create ball geometry and material
   const ballGeometry = new THREE.SphereGeometry(
@@ -1058,7 +1061,6 @@ function animate() {
 
   // Always render the scene
   if (scene && camera && renderer) {
-    console.log("Rendering scene");
     renderer.render(scene, camera);
   } else {
     console.error("Cannot render: scene, camera, or renderer is not defined", {
@@ -1434,20 +1436,4 @@ function updateLeaderboard() {
     emptyEntry.innerHTML = `${medals[i] || "•"} ---`;
     leaderboardEntries.appendChild(emptyEntry);
   }
-}
-
-function setRandomNicknamePlaceholder() {
-  const nicknames = [
-    "SpeedyGonzales",
-    "FlashGordon",
-    "SonicBoom",
-    "Rocketman",
-    "Turbo",
-    "Zippy",
-    "Whizzbang",
-    "ZoomZoom",
-    "Rapid",
-    "Velocity",
-  ];
-  nicknameInput.placeholder = nicknames[Math.floor(Math.random() * nicknames.length)];
 }
