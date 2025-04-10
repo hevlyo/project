@@ -55,12 +55,16 @@ class GameState {
   }
 
   addPlayer(socketId, playerData) {
+    // Se o jogador já existe, preserve a cor existente
+    const existingPlayer = this.players[socketId];
+    const existingColor = existingPlayer ? existingPlayer.color : null;
+
     this.players[socketId] = {
       id: socketId,
       nickname: playerData.nickname,
       position: playerData.position,
-      color: playerData.color,
-      score: 0,
+      color: existingColor || playerData.color || getRandomColor(),
+      score: existingPlayer ? existingPlayer.score : 0,
       lastUpdate: Date.now()
     };
   }

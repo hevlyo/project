@@ -1118,6 +1118,13 @@ function addPlayer(playerInfo) {
       playerInfo.position.y + SETTINGS.PLAYER_HEIGHT,
       playerInfo.position.z
     );
+    
+    // Preservar a cor original do jogador
+    if (playerInfo.color) {
+      const playerColor = new THREE.Color(playerInfo.color);
+      players[playerInfo.id].mesh.material.color = playerColor;
+      players[playerInfo.id].color = playerColor.getHex();
+    }
     return;
   }
 
@@ -1131,17 +1138,18 @@ function addPlayer(playerInfo) {
     SETTINGS.PLAYER_SEGMENTS
   );
 
-  // Use player color from server or generate a random one
+  // Use player color from server
+  const playerColor = new THREE.Color(playerInfo.color);
   const playerMaterial = new THREE.MeshStandardMaterial({
-    color: playerInfo.color || getRandomColor(),
+    color: playerColor,
     roughness: 0.5,
     metalness: 0.5
   });
 
   // Create player mesh
   const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
-  playerMesh.castShadow = true; // Habilitar projeção de sombras
-  playerMesh.receiveShadow = true; // Habilitar recebimento de sombras
+  playerMesh.castShadow = true;
+  playerMesh.receiveShadow = true;
 
   // Set player position
   playerMesh.position.set(
@@ -1164,10 +1172,10 @@ function addPlayer(playerInfo) {
     id: playerInfo.id,
     nickname: nickname,
     score: playerInfo.score || 0,
-    color: playerMaterial.color.getHex(),
+    color: playerColor.getHex(),
     sizeMultiplier: playerInfo.sizeMultiplier || 1.0,
     nametagGroup: nametagGroup,
-    baseHeight: playerInfo.position.y || 0 // Armazenar altura base para efeito de salto
+    baseHeight: playerInfo.position.y || 0
   };
 
   // Add player mesh to scene

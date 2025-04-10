@@ -4,7 +4,9 @@
  */
 function getRandomColor() {
   const hue = Math.floor(Math.random() * 360);
-  return hslToHex(hue, 100, 50);
+  const color = hslToHex(hue, 100, 50);
+  // Garantir que o valor seja um número hexadecimal válido
+  return parseInt(color.toString(16).padStart(6, '0'), 16);
 }
 
 /**

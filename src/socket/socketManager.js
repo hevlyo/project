@@ -44,10 +44,14 @@ class SocketManager {
       const startX = (Math.random() * config.WORLD_SIZE * 2) - config.WORLD_SIZE;
       const startZ = (Math.random() * config.WORLD_SIZE * 2) - config.WORLD_SIZE;
       
+      // Verificar se o jogador já existe e preservar sua cor
+      const existingPlayer = this.gameState.players[socket.id];
+      const existingColor = existingPlayer ? existingPlayer.color : null;
+      
       const playerInfo = {
         nickname: playerData.nickname.trim() || `Player-${socket.id.substr(0, 4)}`,
         position: { x: startX, y: 0, z: startZ },
-        color: getRandomColor()
+        color: existingColor || getRandomColor()
       };
 
       this.gameState.addPlayer(socket.id, playerInfo);
