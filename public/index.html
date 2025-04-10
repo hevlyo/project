@@ -1,143 +1,194 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pega bola 3000</title>
+  <title>Pega Bola 3000</title>
   <style>
-    body { 
-      margin: 0; 
-      overflow: hidden; 
-      font-family: Arial, sans-serif;
-      color: white;
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Crimson+Text&display=swap');
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Crimson Text', serif;
+      background: radial-gradient(ellipse at center, #1c1c1c 0%, #000000 100%);
+      color: #f3e9dc;
     }
-    canvas { 
-      display: block; 
+
+    canvas {
+      display: block;
     }
+
+    #leaderboard-entries {
+      font-family: 'Playfair Display', serif;
+      color: #f0e6d2;
+      background: rgba(20, 20, 20, 0.8);
+      padding: 10px;
+      border-radius: 10px;
+      max-width: 300px;
+      margin-top: 6px;
+      box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+    }    
+
+    #message-toast {
+      position: absolute;
+      top: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(20, 20, 20, 0.85);
+      color: #f0e6d2;
+      padding: 16px 24px;
+      border-radius: 10px;
+      font-size: 1.2em;
+      font-family: 'Playfair Display', serif;
+      pointer-events: none;
+      -webkit-user-select: none;
+      user-select: none;
+      opacity: 0;
+      transition: opacity 0.5s ease-in-out;
+      z-index: 99;
+      max-width: 80%;
+      text-align: center;
+      box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+    }
+
     #menu-screen {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(10, 10, 10, 0.85);
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       z-index: 10;
     }
+
     #menu-container {
-      background: rgba(40, 40, 40, 0.9);
-      border-radius: 10px;
-      padding: 30px;
+      background: rgba(30, 20, 10, 0.95);
+      border-radius: 16px;
+      padding: 40px;
       text-align: center;
-      max-width: 500px;
-      width: 80%;
-      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+      max-width: 600px;
+      width: 90%;
+      box-shadow: 0 0 25px rgba(255, 215, 0, 0.4);
+      border: 2px solid #d4af37;
     }
+
     h1 {
-      margin-top: 0;
-      color: #4CAF50;
-      font-size: 2.5em;
-      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+      font-family: 'Playfair Display', serif;
+      font-size: 3em;
+      margin: 0 0 20px;
+      color: #d4af37;
+      text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.7);
     }
+
     input {
-      padding: 12px;
+      padding: 14px;
       margin: 20px 0;
       width: 100%;
-      border: none;
-      border-radius: 5px;
+      border: 1px solid #555;
+      border-radius: 8px;
       font-size: 1.2em;
-      background: rgba(255, 255, 255, 0.9);
+      background: #2d2d2d;
+      color: #fff7e6;
       box-sizing: border-box;
     }
+
     button {
-      padding: 12px 25px;
-      background: #4CAF50;
+      padding: 14px 25px;
+      background: #b8860b;
       color: white;
       border: none;
-      border-radius: 5px;
-      font-size: 1.2em;
+      border-radius: 8px;
+      font-size: 1.3em;
       cursor: pointer;
-      transition: background 0.3s;
+      transition: background 0.3s ease-in-out, transform 0.2s ease-in-out;
       width: 100%;
+      font-family: 'Playfair Display', serif;
+      letter-spacing: 1px;
     }
+
     button:hover {
-      background: #45a049;
+      background: #d4af37;
+      transform: scale(1.03);
     }
+
     button:disabled {
-      background: #cccccc;
+      background: #999;
       cursor: not-allowed;
     }
+
     .instructions {
-      margin-top: 20px;
-      color: #aaa;
-      font-size: 0.9em;
+      margin-top: 25px;
+      font-size: 1em;
+      color: #cfcfcf;
+      font-style: italic;
+      line-height: 1.5;
     }
+
     @keyframes pulse {
       0% { transform: scale(1); }
       50% { transform: scale(1.05); }
       100% { transform: scale(1); }
     }
+
     #play-button {
-      animation: pulse 2s infinite;
+      animation: pulse 2.5s infinite;
     }
   </style>
-  <link rel="preload" href="js/main.js" as="script">
 </head>
 <body>
   <!-- Menu Screen -->
   <div id="menu-screen">
     <div id="menu-container">
       <h1>Pega Bola 3000</h1>
-      <input type="text" id="nickname-input" placeholder="Nickname" maxlength="15">
-      <button id="play-button" onclick="startGameDirectly()">Iniciar a caralha do jogo</button>
+      <input type="text" id="nickname-input" placeholder="Kemell Pinto" maxlength="15">
+      <button id="play-button" onclick="startGameDirectly()">Iniciar a pocilga do jogo</button>
       <div class="instructions">
-        <p>Pega as bolas pra ficar mais grande e espesso</p>
-        <p>Controls: WASD ou setinha pra se mover, Shift pra andar rapidinho</p>
+        <p>Pega as bolas para crescer em glória e espessura.</p>
+        <p>Controles: WASD ou setinhas, Shift para correr feito um desesperado.</p>
       </div>
     </div>
   </div>
 
-  <!-- Import Three.js from CDN as ES module -->
+  <!-- Import Three.js -->
   <script type="module">
     import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-    window.THREE = THREE; // Make THREE available globally
+    window.THREE = THREE;
   </script>
-  <!-- Import Socket.IO client from CDN -->
+
+  <!-- Socket.IO -->
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  
-  <!-- Direct inline script for menu handling -->
+
+  <div id="message-toast"></div>
+
+  <!-- Menu handling script -->
   <script>
-  // Direct function to start the game
-  function startGameDirectly() {
-    console.log('Start Game button clicked directly');
-    const nicknameInput = document.getElementById('nickname-input');
-    const menuScreen = document.getElementById('menu-screen');
-    
-    // Get nickname
-    let playerNickname = nicknameInput.value.trim().replace(/[^a-zA-Z0-9\s\-_]/g, "").slice(0, 15);
-    
-    // Store nickname in sessionStorage for main.js to access
-    sessionStorage.setItem('playerNickname', playerNickname);
-    
-    // Hide the menu
-    menuScreen.style.display = 'none';
-    
-    // Load the main game script
-    const scriptElement = document.createElement('script');
-    scriptElement.src = 'js/main.js';
-    scriptElement.type = 'module';
-    document.body.appendChild(scriptElement);
-  }
-  
-  // Also handle Enter key in the input field
-  document.getElementById('nickname-input').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-      startGameDirectly();
+    function startGameDirectly() {
+      const nicknameInput = document.getElementById('nickname-input');
+      const menuScreen = document.getElementById('menu-screen');
+
+      let playerNickname = nicknameInput.value.trim();
+      if (playerNickname.length === 0) {
+        playerNickname = nicknameInput.placeholder;
+      }
+
+      sessionStorage.setItem('playerNickname', playerNickname);
+      menuScreen.style.display = 'none';
+
+      const scriptElement = document.createElement('script');
+      scriptElement.src = 'js/main.js';
+      document.body.appendChild(scriptElement);
     }
-  });
+
+    document.getElementById('nickname-input').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        startGameDirectly();
+      }
+    });
   </script>
 </body>
 </html>
