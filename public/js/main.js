@@ -4,10 +4,8 @@ document.addEventListener('DOMContentLoaded', onload);
 // Initialize Socket.IO connection
 let socket;
 
-// Store all players (including local player)
+// Store all players (including local player) and all collectible balls
 const players = {};
-
-// Store all collectible balls
 const balls = {};
 
 // Store interpolation data for smooth movement
@@ -71,7 +69,6 @@ const SETTINGS = {
   BOB_FREQUENCY: 0.1, // Frequência do efeito de salto
   BOB_AMPLITUDE: 0.05, // Amplitude do efeito de salto
   BOB_SPEED_SCALING: 1.5, // Escala da velocidade de bob baseada na velocidade de movimento
-  SPEED_BOOST_MULTIPLIER: 2.0 // Multiplicador de velocidade para power-up
 };
 
 // Movement keys tracking
@@ -83,14 +80,14 @@ let menuScreen, nicknameInput, playButton;
 let playerNickname = sessionStorage.getItem('playerNickname') || 'Player';
 console.log('Retrieved nickname from session storage:', playerNickname);
 
-// Power-up state
-const powerUps = {
-  SPEED: { active: false, duration: 5000 } // Example speed boost power-up
-};
-
 const tempVec3_1 = new THREE.Vector3();
 const tempVec3_2 = new THREE.Vector3();
 const tempVec3_3 = new THREE.Vector3();
+
+// Check for ball collisions
+const pendingCollectionTimeouts = {};
+
+const nametagTextureCache = {};
 
 // Wait for the DOM to load completely
 function onload() {
@@ -187,7 +184,6 @@ function startGame() {
   }
 }
 
-// Create UI elements
 // Create UI elements
 function createUI() {
   // Fonte elegante (adicione no HTML <head> se ainda não tiver)
@@ -547,8 +543,43 @@ function setupSocketHandlers() {
   // Handle world info
   socket.on('worldInfo', (data) => {
     console.log('Received world info:', data);
+    const oldWorldSize = worldSize;
     worldSize = data.worldSize;
+    
+    // If ground exists and world size changed, update ground
+    if (scene && scene.getObjectByName('ground') && oldWorldSize !== worldSize) {
+      updateGround(scene);
+    } 
+    // If ground doesn't exist yet, create it
+    else if (scene && !scene.getObjectByName('ground')) {
+      createGround(scene);
+    }
   });
+  
+  // 2. Create a new function to update the ground
+  function updateGround(scene) {
+    // Remove old ground
+    const oldGround = scene.getObjectByName('ground');
+    if (oldGround) {
+      scene.remove(oldGround);
+      if (oldGround.geometry) oldGround.geometry.dispose();
+      if (oldGround.material) {
+        if (oldGround.material.map) oldGround.material.map.dispose();
+        oldGround.material.dispose();
+      }
+    }
+    
+    // Remove old grid
+    const oldGrid = scene.getObjectByName('grid');
+    if (oldGrid) {
+      scene.remove(oldGrid);
+      if (oldGrid.geometry) oldGrid.geometry.dispose();
+      if (oldGrid.material) oldGrid.material.dispose();
+    }
+    
+    // Create new ground with updated size
+    createGround(scene);
+  }
 
   // Handle current players
   socket.on('currentPlayers', (serverPlayers) => {
@@ -770,317 +801,7 @@ function setupGameEventHandlers() {
   });
 }
 
-// No frontend (client)
-const ABILITIES = {
-  DASH: {
-    cost: 20,
-    cooldown: 5000,
-    active: false,
-    lastUsed: 0
-  },
-  MAGNET: {
-    cost: 50,
-    cooldown: 15000,
-    active: false,
-    lastUsed: 0
-  },
-  SHOCKWAVE: {
-    cost: 100,
-    cooldown: 20000,
-    active: false,
-    lastUsed: 0
-  }
-};
-
-// Ativar habilidade
-function activateAbility(abilityName) {
-  const ability = ABILITIES[abilityName];
-  const now = Date.now();
-  
-  if (!ability || ability.active || now - ability.lastUsed < ability.cooldown || 
-      players[localPlayerId].score < ability.cost) {
-    return false;
-  }
-  
-  socket.emit('useAbility', { ability: abilityName });
-  ability.active = true;
-  ability.lastUsed = now;
-  
-  // UI feedback
-  showAbilityEffect(abilityName);
-  
-  setTimeout(() => {
-    ability.active = false;
-  }, ability.duration);
-  
-  return true;
-}
-
-function createZoneMesh(zoneData) {
-  const geometry = new THREE.CylinderGeometry(zoneData.radius, zoneData.radius, 0.2, 32);
-  
-  let material;
-  switch(zoneData.type) {
-    case 'MULTIPLIER':
-      material = new THREE.MeshBasicMaterial({ 
-        color: 0xFFD700, 
-        transparent: true, 
-        opacity: 0.3 
-      });
-      break;
-    case 'DANGER':
-      material = new THREE.MeshBasicMaterial({ 
-        color: 0xFF0000, 
-        transparent: true, 
-        opacity: 0.3 
-      });
-      break;
-    // outros casos...
-  }
-  
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(zoneData.position.x, zoneData.position.y, zoneData.position.z);
-  mesh.rotation.x = Math.PI / 2;
-  
-  scene.add(mesh);
-  zones[zoneData.id] = { data: zoneData, mesh };
-}
-
-let currentWeatherEffect = null;
-let weatherParticleSystem = null;
-
-function handleWeatherEvent(weatherData) {
-  currentWeatherEffect = weatherData;
-  
-  showMessage(`Clima mudou: ${getWeatherName(weatherData.type)}`, 3000);
-  
-  // Aplicar efeitos visuais
-  switch(weatherData.type) {
-    case 'RAIN':
-      createRainEffect();
-      scene.fog.density = 0.02;
-      break;
-    case 'FOG':
-      scene.fog.density = 0.05;
-      break;
-    case 'STORM':
-      createStormEffect();
-      scene.fog.density = 0.03;
-      break;
-    case 'SUNSHINE':
-      scene.fog.density = 0.007;
-      createSunshineEffect();
-      break;
-  }
-}
-
-function getWeatherName(type) {
-  switch(type) {
-    case 'RAIN': return 'Chuva';
-    case 'FOG': return 'Névoa';
-    case 'STORM': return 'Tempestade';
-    case 'SUNSHINE': return 'Dia Ensolarado';
-    default: return type;
-  }
-}
-
-function createRainEffect() {
-  if (weatherParticleSystem) {
-    scene.remove(weatherParticleSystem);
-  }
-  
-  const rainGeometry = new THREE.BufferGeometry();
-  const rainCount = 15000;
-  const positions = new Float32Array(rainCount * 3);
-  const velocities = new Float32Array(rainCount);
-  
-  for (let i = 0; i < rainCount; i++) {
-    positions[i * 3] = (Math.random() * 2 - 1) * worldSize;
-    positions[i * 3 + 1] = Math.random() * 30;
-    positions[i * 3 + 2] = (Math.random() * 2 - 1) * worldSize;
-    velocities[i] = 0.1 + Math.random() * 0.3;
-  }
-  
-  rainGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  rainGeometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 1));
-  
-  const rainMaterial = new THREE.PointsMaterial({
-    color: 0x9999AA,
-    size: 0.1,
-    transparent: true,
-    opacity: 0.6
-  });
-  
-  weatherParticleSystem = new THREE.Points(rainGeometry, rainMaterial);
-  scene.add(weatherParticleSystem);
-}
-
-// Função chamada no loop de animação
-function updateWeatherEffects() {
-  if (!currentWeatherEffect) return;
-  
-  switch(currentWeatherEffect.type) {
-    case 'RAIN':
-      updateRainAnimation();
-      break;
-    case 'STORM':
-      updateStormAnimation();
-      break;
-    // outros casos...
-  }
-}
-
-function updateRainAnimation() {
-  if (!weatherParticleSystem) return;
-  
-  const positions = weatherParticleSystem.geometry.attributes.position.array;
-  const velocities = weatherParticleSystem.geometry.attributes.velocity.array;
-  const count = positions.length / 3;
-  
-  for (let i = 0; i < count; i++) {
-    positions[i * 3 + 1] -= velocities[i];
-    
-    if (positions[i * 3 + 1] < 0) {
-      positions[i * 3 + 1] = 30;
-      positions[i * 3] = (Math.random() * 2 - 1) * worldSize;
-      positions[i * 3 + 2] = (Math.random() * 2 - 1) * worldSize;
-    }
-  }
-  
-  weatherParticleSystem.geometry.attributes.position.needsUpdate = true;
-}
-
-const ACHIEVEMENTS = [
-  {
-    id: 'FIRST_STEPS',
-    name: 'Primeiros Passos',
-    description: 'Colete sua primeira esfera',
-    icon: '🥚',
-    requirement: { type: 'COLLECT', count: 1 }
-  },
-  {
-    id: 'COLLECTOR',
-    name: 'Colecionador',
-    description: 'Colete 100 esferas no total',
-    icon: '🧩',
-    requirement: { type: 'COLLECT_TOTAL', count: 100 }
-  },
-  {
-    id: 'LEADERBOARD_MASTER',
-    name: 'Mestre do Ranking',
-    description: 'Fique em primeiro lugar por 5 minutos acumulados',
-    icon: '👑',
-    requirement: { type: 'TOP_POSITION', minutes: 5 }
-  }
-  // mais conquistas...
-];
-
-// Salvar/carregar progresso usando localStorage
-function loadPlayerProgress() {
-  const savedProgress = localStorage.getItem('playerProgress');
-  
-  if (savedProgress) {
-    try {
-      const progress = JSON.parse(savedProgress);
-      return progress;
-    } catch (e) {
-      console.error('Erro ao carregar progresso:', e);
-    }
-  }
-  
-  return {
-    totalBallsCollected: 0,
-    achievementsUnlocked: {},
-    timeInTopPosition: 0,
-    highestScore: 0,
-    gamesPlayed: 0
-  };
-}
-
-let playerProgress = loadPlayerProgress();
-
-function savePlayerProgress() {
-  localStorage.setItem('playerProgress', JSON.stringify(playerProgress));
-}
-
-function checkAchievements() {
-  ACHIEVEMENTS.forEach(achievement => {
-    if (playerProgress.achievementsUnlocked[achievement.id]) {
-      return; // Já desbloqueado
-    }
-    
-    let unlocked = false;
-    
-    switch(achievement.requirement.type) {
-      case 'COLLECT':
-        unlocked = pendingCollections.size >= achievement.requirement.count;
-        break;
-      case 'COLLECT_TOTAL':
-        unlocked = playerProgress.totalBallsCollected >= achievement.requirement.count;
-        break;
-      case 'TOP_POSITION':
-        unlocked = playerProgress.timeInTopPosition >= achievement.requirement.minutes * 60;
-        break;
-      // outros tipos...
-    }
-    
-    if (unlocked) {
-      unlockAchievement(achievement);
-    }
-  });
-}
-
-function unlockAchievement(achievement) {
-  playerProgress.achievementsUnlocked[achievement.id] = Date.now();
-  savePlayerProgress();
-  
-  // Mostrar notificação
-  const notification = document.createElement('div');
-  notification.className = 'achievement-notification';
-  notification.innerHTML = `
-    <div class="achievement-icon">${achievement.icon}</div>
-    <div class="achievement-text">
-      <div class="achievement-title">Conquista desbloqueada!</div>
-      <div class="achievement-name">${achievement.name}</div>
-      <div class="achievement-description">${achievement.description}</div>
-    </div>
-  `;
-  
-  document.body.appendChild(notification);
-  
-  // Aplicar estilos
-  Object.assign(notification.style, {
-    position: 'absolute',
-    bottom: '20px',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    color: 'white',
-    padding: '15px',
-    borderRadius: '10px',
-    display: 'flex',
-    alignItems: 'center',
-    boxShadow: '0 0 10px gold',
-    zIndex: '1000',
-    opacity: '0',
-    transition: 'opacity 0.5s ease-in-out'
-  });
-  
-  // Animação de entrada
-  setTimeout(() => {
-    notification.style.opacity = '1';
-  }, 100);
-  
-  // Remover após alguns segundos
-  setTimeout(() => {
-    notification.style.opacity = '0';
-    setTimeout(() => {
-      document.body.removeChild(notification);
-    }, 500);
-  }, 5000);
-}
-
-// Function to update player size based on their score
+// Update player size based on their score
 function updatePlayerSize(playerId) {
   if (!players[playerId] || !players[playerId].mesh) return;
 
@@ -1253,10 +974,14 @@ function createGround(scene) {
     }
   );
   
+  // Calculate texture repeat based on world size
+  // This makes the texture scale appropriately with the world size
+  const textureRepeat = Math.max(4, Math.floor(worldSize / 6)); 
+  
   // Configure texture properties
   groundTexture.wrapS = THREE.RepeatWrapping;
   groundTexture.wrapT = THREE.RepeatWrapping;
-  groundTexture.repeat.set(16, 16);
+  groundTexture.repeat.set(textureRepeat, textureRepeat);
   groundTexture.anisotropy = 16;
   
   // Create material with the texture
@@ -1267,8 +992,9 @@ function createGround(scene) {
     side: THREE.DoubleSide  // Render both sides of the plane
   });
   
-  // Create a simple flat ground first to test texturing
-  const groundGeometry = new THREE.PlaneGeometry(worldSize * 2, worldSize * 2, 1, 1);
+  // Create ground geometry with current world size
+  const groundSize = worldSize * 2; // Make ground twice the world size
+  const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize, 1, 1);
   
   // Create ground mesh
   const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
@@ -1278,13 +1004,14 @@ function createGround(scene) {
   scene.add(groundMesh);
   
   // Add a debug message
-  console.log('Ground created with dimensions:', worldSize * 2, 'x', worldSize * 2);
+  console.log('Ground created with dimensions:', groundSize, 'x', groundSize, 'Texture repeat:', textureRepeat);
   
   // Create grid helper with reduced opacity
-  const gridHelper = new THREE.GridHelper(worldSize * 2, 20, 0x000000, 0x000000);
+  const gridHelper = new THREE.GridHelper(groundSize, 20, 0x000000, 0x000000);
   gridHelper.position.y = 0.01;
   gridHelper.material.opacity = 0.1;
   gridHelper.material.transparent = true;
+  gridHelper.name = 'grid'; // Give it a name so we can find it later
   scene.add(gridHelper);
 }
 
@@ -1450,11 +1177,7 @@ function updatePlayerMovement() {
     new THREE.Vector3(0, 1, 0)
   ).normalize();
   
-  // Determine max speed based on sprint/power-ups
   let maxSpeed = keys.sprint ? SETTINGS.MOVE_SPEED * SETTINGS.SPRINT_MULTIPLIER : SETTINGS.MOVE_SPEED;
-  if (powerUps.SPEED.active) {
-    maxSpeed *= SETTINGS.SPEED_BOOST_MULTIPLIER;
-  }
   
   // Reset target velocity
   targetVelocity.set(0, 0, 0);
@@ -1558,9 +1281,6 @@ function animateBalls() {
   });
 }
 
-// Check for ball collisions
-const pendingCollectionTimeouts = {};
-
 function checkBallCollisions() {
   if (!players[localPlayerId]) return;
   
@@ -1608,8 +1328,6 @@ function checkBallCollisions() {
     }
   });
 }
-
-const nametagTextureCache = {};
 
 // Create a nametag for a player
 function createNametag(name) {
@@ -1730,18 +1448,6 @@ function initGame() {
 
 initGame();
 
-// Setup window resize handler
-window.addEventListener('resize', () => {
-  if (renderer && camera) {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    renderer.setSize(width, height);
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-    console.log('Window resized to', width, 'x', height);
-  }
-});
-
 // Update leaderboard
 function updateLeaderboard() {
   // Ordena jogadores por pontuação
@@ -1853,3 +1559,15 @@ function checkPlayerCollisions() {
     }
   });
 }
+
+// Setup window resize handler
+window.addEventListener('resize', () => {
+  if (renderer && camera) {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    renderer.setSize(width, height);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    console.log('Window resized to', width, 'x', height);
+  }
+});

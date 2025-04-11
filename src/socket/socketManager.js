@@ -1,25 +1,13 @@
 const config = require('../config/gameConfig');
 const GameState = require('../models/GameState');
 const { getRandomColor } = require('../utils/colorUtils');
-const WeatherSystem = require('../game/weatherSystem');
-const ZoneSystem = require('../game/zoneSystem');
 
 class SocketManager {
   constructor(io) {
     this.io = io;
     this.gameState = new GameState();
-    this.weatherSystem = new WeatherSystem(io);
-    this.zoneSystem = new ZoneSystem(io);
     
     this.setupSocketHandlers();
-    this.startGameSystems();
-  }
-
-  startGameSystems() {
-    this.weatherSystem.start();
-    setInterval(() => {
-      this.zoneSystem.createZone();
-    }, 30000); // Cria uma nova zona a cada 30 segundos
   }
 
   setupSocketHandlers() {
@@ -30,7 +18,6 @@ class SocketManager {
       this.handlePlayerMovement(socket);
       this.handleBallCollection(socket);
       this.handlePlayerDisconnect(socket);
-      this.handleAbilityUse(socket);
     });
   }
 
@@ -64,7 +51,6 @@ class SocketManager {
       socket.emit('playerInfo', this.gameState.players[socket.id]);
       socket.emit('currentPlayers', this.gameState.players);
       socket.emit('newBalls', this.gameState.getUncollectedBalls());
-      socket.emit('activeZones', this.zoneSystem.getActiveZones());
       
       socket.broadcast.emit('newPlayer', this.gameState.players[socket.id]);
       this.io.emit('playerCount', Object.keys(this.gameState.players).length);
@@ -81,12 +67,6 @@ class SocketManager {
       if (this.gameState.players[socket.id]) {
         this.gameState.players[socket.id].position = movementData.position;
         this.gameState.players[socket.id].lastUpdate = Date.now();
-        
-        // Verificar efeitos de zona
-        const zoneEffects = this.zoneSystem.getZoneEffects(movementData.position);
-        if (Object.keys(zoneEffects).length > 0) {
-          socket.emit('zoneEffects', zoneEffects);
-        }
         
         socket.broadcast.emit('playerMoved', {
           id: socket.id,
@@ -113,17 +93,11 @@ class SocketManager {
       if (this.isPlayerInRange(socket.id, ball)) {
         ball.collected = true;
         
-        // Aplicar multiplicador de pontuação se estiver em uma zona
-        const zoneEffects = this.zoneSystem.getZoneEffects(this.gameState.players[socket.id].position);
-        const scoreMultiplier = zoneEffects.scoreMultiplier || 1;
-        const finalScore = ball.value * scoreMultiplier;
+        this.gameState.updatePlayerScore(socket.id, ball.value);
         
-        this.gameState.updatePlayerScore(socket.id, finalScore);
-        
-        this.io.emit('ballCollected', {
-          ballId: data.ballId,
-          playerId: socket.id,
-          value: finalScore
+        this.io.emit('gameState', {
+          players: this.gameState.players,
+          balls: this.gameState.balls
         });
         
         const scores = {};
@@ -136,48 +110,6 @@ class SocketManager {
           const newBall = this.gameState.createNewBall();
           this.io.emit('newBalls', [newBall]);
         }, config.RESPAWN_DELAY);
-      }
-    });
-  }
-
-  handleAbilityUse(socket) {
-    socket.on('useAbility', (data) => {
-      const player = this.gameState.players[socket.id];
-      const ability = config.ABILITIES[data.ability];
-      
-      if (!player || !ability || player.score < ability.cost) {
-        return;
-      }
-      
-      player.score -= ability.cost;
-      
-      switch(data.ability) {
-        case 'DASH':
-          this.io.emit('playerUsedAbility', { playerId: socket.id, ability: 'DASH' });
-          break;
-        case 'MAGNET':
-          const magnetRadius = 15;
-          const playerPos = player.position;
-          this.gameState.getUncollectedBalls().forEach(ball => {
-            const distance = Math.sqrt(
-              Math.pow(playerPos.x - ball.position.x, 2) + 
-              Math.pow(playerPos.z - ball.position.z, 2)
-            );
-            if (distance <= magnetRadius) {
-              // Mover bola em direção ao jogador
-              const direction = {
-                x: (playerPos.x - ball.position.x) / distance,
-                z: (playerPos.z - ball.position.z) / distance
-              };
-              ball.position.x += direction.x * 0.5;
-              ball.position.z += direction.z * 0.5;
-            }
-          });
-          this.io.emit('playerUsedAbility', { playerId: socket.id, ability: 'MAGNET' });
-          break;
-        case 'SHOCKWAVE':
-          this.io.emit('playerUsedAbility', { playerId: socket.id, ability: 'SHOCKWAVE' });
-          break;
       }
     });
   }
