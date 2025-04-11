@@ -31,7 +31,7 @@ class SocketManager {
       const startX = (Math.random() * config.WORLD_SIZE * 2) - config.WORLD_SIZE;
       const startZ = (Math.random() * config.WORLD_SIZE * 2) - config.WORLD_SIZE;
       
-      // Verificar se o jogador já existe e preservar sua cor
+      // Check if the player already exists in the game state
       const existingPlayer = this.gameState.players[socket.id];
       const existingColor = existingPlayer ? existingPlayer.color : null;
       
@@ -129,7 +129,7 @@ class SocketManager {
   validatePlayerData(playerData) {
     return playerData && 
            typeof playerData.nickname === 'string' && 
-           playerData.nickname.trim().length <= 15;
+           playerData.nickname.trim().length <= 20;
   }
 
   validateMovementData(movementData) {

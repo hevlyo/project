@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pega Bola 3000</title>
+  <link rel="icon" type="image/x-icon" href="/public/assets/favicon.ico">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Crimson+Text&display=swap');
 
@@ -44,7 +45,8 @@
       pointer-events: none;
       -webkit-user-select: none;
       user-select: none;
-      opacity: 0;
+      opacity: 0; /* Start hidden */
+      display: none; /* Start fully hidden */
       transition: opacity 0.5s ease-in-out;
       z-index: 99;
       max-width: 80%;
@@ -146,7 +148,7 @@
     <div id="menu-container">
       <h1>Pega Bola 3000</h1>
       <input type="text" id="nickname-input" placeholder="Kemell Pinto" maxlength="15">
-      <button id="play-button" onclick="startGameDirectly()">Iniciar a pocilga do jogo</button>
+      <button id="play-button">Iniciar a pocilga do jogo</button>
       <div class="instructions">
         <p>Pega as bolas para crescer em glória e espessura.</p>
         <p>Controles: WASD ou setinhas, Shift para correr feito um desesperado.</p>
@@ -163,32 +165,10 @@
   <!-- Socket.IO -->
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
+  <!-- Message Toast Element -->
   <div id="message-toast"></div>
 
-  <!-- Menu handling script -->
-  <script>
-    function startGameDirectly() {
-      const nicknameInput = document.getElementById('nickname-input');
-      const menuScreen = document.getElementById('menu-screen');
-
-      let playerNickname = nicknameInput.value.trim();
-      if (playerNickname.length === 0) {
-        playerNickname = nicknameInput.placeholder;
-      }
-
-      sessionStorage.setItem('playerNickname', playerNickname);
-      menuScreen.style.display = 'none';
-
-      const scriptElement = document.createElement('script');
-      scriptElement.src = 'js/main.js';
-      document.body.appendChild(scriptElement);
-    }
-
-    document.getElementById('nickname-input').addEventListener('keypress', function (e) {
-      if (e.key === 'Enter') {
-        startGameDirectly();
-      }
-    });
-  </script>
+  <!-- Load the main game script DEFERRED -->
+  <script src="js/main.js" defer></script>
 </body>
 </html>

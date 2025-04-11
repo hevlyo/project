@@ -10,7 +10,6 @@ class GameState {
   }
 
   generateBalls() {
-    console.log('Generating new set of balls...');
     this.balls.length = 0;
     
     for (let i = 0; i < config.BALL_COUNT; i++) {
@@ -28,7 +27,6 @@ class GameState {
   }
 
   createNewBall() {
-    console.log('Creating a new ball');
     const types = Object.keys(config.BALL_TYPES);
     const type = types[Math.floor(Math.random() * types.length)];
     const ballData = config.BALL_TYPES[type];

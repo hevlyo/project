@@ -1,31 +1,30 @@
 module.exports = {
-  // Configurações do mundo
+  // World Config
   WORLD_SIZE: 100,
   BALL_COUNT: 20,
-  
-  // Tipos de bolas
+
   BALL_TYPES: {
     NORMAL: {
       value: 10,
-      color: 0xFFFFFF
+      color: 0xffffff,
     },
     GOLDEN: {
       value: 50,
-      color: 0xFFD700
-    }
+      color: 0xffd700,
+    },
   },
-  
-  // Tempos e delays
+
+  // Player Config
   RESPAWN_DELAY: 5000,
-  
-  // Configurações do servidor
+
+  // Server Config
   PORT: process.env.PORT || 25565,
-  
-  // Configurações do Socket.IO
+
+  // Socket Config
   SOCKET_CONFIG: {
     cors: {
       origin: "*",
-      methods: ["GET", "POST"]
-    }
-  }
+      methods: ["GET", "POST"],
+    },
+  },
 }; 
