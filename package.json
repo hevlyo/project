@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "pega-bola": "file:",
     "socket.io": "^4.7.2"
   }
 }

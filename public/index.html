@@ -5,190 +5,546 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pega Bola 3000</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Crimson+Text&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Bungee&family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@500;700&display=swap');
 
-    body {
-      margin: 0;
-      overflow: hidden;
-      font-family: 'Crimson Text', serif;
-      background: radial-gradient(ellipse at center, #1c1c1c 0%, #000000 100%);
-      color: #f3e9dc;
+    :root {
+      --bg-ink: #081014;
+      --bg-smoke: rgba(8, 16, 20, 0.7);
+      --panel: rgba(8, 18, 22, 0.78);
+      --panel-strong: rgba(10, 22, 28, 0.9);
+      --line: rgba(255, 225, 143, 0.26);
+      --gold: #ffd166;
+      --mint: #7bdff2;
+      --cream: #fff5d8;
+      --danger: #ff7f7f;
+      --warning: #ffbf69;
+      --shadow: 0 28px 80px rgba(0, 0, 0, 0.38);
     }
 
-    canvas {
-      display: block;
-    }
-
-    #leaderboard-entries {
-      font-family: 'Playfair Display', serif;
-      color: #f0e6d2;
-      background: rgba(20, 20, 20, 0.8);
-      padding: 10px;
-      border-radius: 10px;
-      max-width: 300px;
-      margin-top: 6px;
-      box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
-    }    
-
-    #message-toast {
-      position: absolute;
-      top: 40px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(20, 20, 20, 0.85);
-      color: #f0e6d2;
-      padding: 16px 24px;
-      border-radius: 10px;
-      font-size: 1.2em;
-      font-family: 'Playfair Display', serif;
-      pointer-events: none;
-      -webkit-user-select: none;
-      user-select: none;
-      opacity: 0;
-      transition: opacity 0.5s ease-in-out;
-      z-index: 99;
-      max-width: 80%;
-      text-align: center;
-      box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
-    }
-
-    #menu-screen {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(10, 10, 10, 0.85);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 10;
-    }
-
-    #menu-container {
-      background: rgba(30, 20, 10, 0.95);
-      border-radius: 16px;
-      padding: 40px;
-      text-align: center;
-      max-width: 600px;
-      width: 90%;
-      box-shadow: 0 0 25px rgba(255, 215, 0, 0.4);
-      border: 2px solid #d4af37;
-    }
-
-    h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: 3em;
-      margin: 0 0 20px;
-      color: #d4af37;
-      text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.7);
-    }
-
-    input {
-      padding: 14px;
-      margin: 20px 0;
-      width: 100%;
-      border: 1px solid #555;
-      border-radius: 8px;
-      font-size: 1.2em;
-      background: #2d2d2d;
-      color: #fff7e6;
+    * {
       box-sizing: border-box;
     }
 
-    button {
-      padding: 14px 25px;
-      background: #b8860b;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 1.3em;
-      cursor: pointer;
-      transition: background 0.3s ease-in-out, transform 0.2s ease-in-out;
+    html, body {
       width: 100%;
-      font-family: 'Playfair Display', serif;
-      letter-spacing: 1px;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top, rgba(255, 209, 102, 0.18), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(123, 223, 242, 0.14), transparent 30%),
+        #0a1419;
+      color: var(--cream);
+      font-family: 'Fraunces', serif;
     }
 
-    button:hover {
-      background: #d4af37;
-      transform: scale(1.03);
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        linear-gradient(135deg, rgba(255, 209, 102, 0.08), transparent 34%),
+        linear-gradient(315deg, rgba(123, 223, 242, 0.08), transparent 34%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #app-shell,
+    #game-root {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #game-root canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: linear-gradient(180deg, rgba(7, 12, 15, 0.35), rgba(7, 12, 15, 0.68));
+      transition: opacity 220ms ease, visibility 220ms ease;
+      z-index: 20;
+    }
+
+    .overlay.is-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .menu-card {
+      width: min(560px, 100%);
+      padding: 28px;
+      border-radius: 28px;
+      background:
+        linear-gradient(160deg, rgba(255, 209, 102, 0.08), transparent 42%),
+        linear-gradient(315deg, rgba(123, 223, 242, 0.08), transparent 34%),
+        var(--panel-strong);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gold);
+      background: rgba(255, 209, 102, 0.12);
+      border: 1px solid rgba(255, 209, 102, 0.16);
+    }
+
+    h1 {
+      margin: 18px 0 10px;
+      font-family: 'Bungee', cursive;
+      font-size: clamp(2.4rem, 7vw, 4.4rem);
+      line-height: 0.94;
+      letter-spacing: 0.02em;
+      color: var(--cream);
+      text-transform: uppercase;
+      text-wrap: balance;
+      text-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .tagline {
+      margin: 0 0 20px;
+      color: rgba(255, 245, 216, 0.8);
+      font-size: 1rem;
+      line-height: 1.55;
+    }
+
+    .input-label {
+      display: block;
+      margin-bottom: 8px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 245, 216, 0.72);
+    }
+
+    input,
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 18px;
+    }
+
+    input {
+      padding: 16px 18px;
+      font: inherit;
+      font-size: 1.08rem;
+      color: var(--cream);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      outline: none;
+      transition: border-color 160ms ease, transform 160ms ease;
+    }
+
+    input:focus {
+      border-color: rgba(123, 223, 242, 0.5);
+      transform: translateY(-1px);
+    }
+
+    button {
+      margin-top: 14px;
+      padding: 17px 18px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #1f1600;
+      background: linear-gradient(135deg, #ffd166, #f7a440);
+      box-shadow: 0 14px 32px rgba(247, 164, 64, 0.28);
+      cursor: pointer;
+      transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-2px) scale(1.01);
+      box-shadow: 0 18px 38px rgba(247, 164, 64, 0.34);
+      filter: saturate(1.05);
     }
 
     button:disabled {
-      background: #999;
-      cursor: not-allowed;
+      opacity: 0.72;
+      cursor: progress;
     }
 
-    .instructions {
-      margin-top: 25px;
-      font-size: 1em;
-      color: #cfcfcf;
-      font-style: italic;
+    .status-pill {
+      display: inline-flex;
+      margin-top: 14px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.78rem;
+      color: rgba(255, 245, 216, 0.82);
+    }
+
+    .status-pill[data-tone='warm'],
+    .badge[data-tone='warning'] {
+      color: var(--warning);
+      border-color: rgba(255, 191, 105, 0.32);
+    }
+
+    .status-pill[data-tone='danger'],
+    .badge[data-tone='danger'],
+    #message-toast[data-tone='danger'] {
+      color: var(--danger);
+      border-color: rgba(255, 127, 127, 0.32);
+    }
+
+    .status-pill[data-tone='live'],
+    .badge[data-tone='live'],
+    #message-toast[data-tone='live'] {
+      color: var(--mint);
+      border-color: rgba(123, 223, 242, 0.32);
+    }
+
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .menu-chip {
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .menu-chip strong {
+      display: block;
+      margin-bottom: 4px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .menu-chip span {
+      display: block;
+      font-size: 0.95rem;
+      color: rgba(255, 245, 216, 0.82);
+      line-height: 1.45;
+    }
+
+    #hud {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+      align-content: start;
+      gap: 16px;
+      padding: 18px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .hud-stack {
+      display: grid;
+      gap: 12px;
+      justify-items: start;
+    }
+
+    .panel,
+    .badge {
+      border-radius: 20px;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 20px 44px rgba(0, 0, 0, 0.22);
+    }
+
+    .badge {
+      padding: 10px 14px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(255, 245, 216, 0.78);
+    }
+
+    .panel {
+      padding: 14px 16px;
+      min-width: 210px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .stat-label {
+      display: block;
+      margin-bottom: 6px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.74rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 245, 216, 0.62);
+    }
+
+    .stat-value {
+      font-family: 'Bungee', cursive;
+      font-size: 1.7rem;
+      color: var(--cream);
+      line-height: 1;
+    }
+
+    #status-line,
+    #hud-tip {
+      margin: 0;
+      color: rgba(255, 245, 216, 0.82);
       line-height: 1.5;
     }
 
-    @keyframes pulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-      100% { transform: scale(1); }
+    #status-chip {
+      max-width: 240px;
     }
 
-    #play-button {
-      animation: pulse 2.5s infinite;
+    #instructions-panel {
+      transition: opacity 900ms ease, transform 900ms ease;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    #instructions-panel.is-fading {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+
+    .leaderboard-title {
+      margin: 0 0 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    #leaderboard {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    #killfeed {
+      display: grid;
+      gap: 8px;
+      min-width: 260px;
+      padding: 12px;
+    }
+
+    .killfeed-entry {
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.78rem;
+      line-height: 1.45;
+      color: rgba(255, 245, 216, 0.85);
+    }
+
+    .killfeed-entry[data-tone='live'] {
+      color: var(--mint);
+      border-color: rgba(123, 223, 242, 0.24);
+    }
+
+    .killfeed-entry[data-tone='warning'] {
+      color: var(--warning);
+      border-color: rgba(255, 191, 105, 0.24);
+    }
+
+    .killfeed-entry[data-tone='danger'] {
+      color: var(--danger);
+      border-color: rgba(255, 127, 127, 0.24);
+    }
+
+    .leaderboard-entry {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      color: rgba(255, 245, 216, 0.85);
+      font-size: 0.96rem;
+    }
+
+    .leaderboard-entry[data-local='true'] {
+      background: rgba(255, 209, 102, 0.12);
+      color: var(--gold);
+    }
+
+    .leaderboard-rank,
+    .leaderboard-score {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.84rem;
+    }
+
+    #message-toast,
+    #pickup-flash {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 16px;
+      border-radius: 16px;
+      background: rgba(8, 18, 22, 0.86);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.86rem;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
+      z-index: 12;
+    }
+
+    #message-toast {
+      top: 20px;
+      opacity: 0;
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+
+    #message-toast.is-visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    #pickup-flash {
+      bottom: 26px;
+      font-size: 1.05rem;
+      color: var(--gold);
+      border-color: rgba(255, 209, 102, 0.26);
+      opacity: 0;
+    }
+
+    #pickup-flash.is-animating {
+      animation: pickup-burst 1.15s ease forwards;
+    }
+
+    @keyframes pickup-burst {
+      0% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(12px) scale(0.88);
+      }
+      15% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-18px) scale(1.08);
+      }
+    }
+
+    @media (max-width: 900px) {
+      #hud {
+        grid-template-columns: 1fr;
+      }
+
+      .menu-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        min-width: 0;
+      }
     }
   </style>
 </head>
 <body>
-  <!-- Menu Screen -->
-  <div id="menu-screen">
-    <div id="menu-container">
-      <h1>Pega Bola 3000</h1>
-      <input type="text" id="nickname-input" placeholder="Kemell Pinto" maxlength="15">
-      <button id="play-button" onclick="startGameDirectly()">Iniciar a pocilga do jogo</button>
-      <div class="instructions">
-        <p>Pega as bolas para crescer em glória e espessura.</p>
-        <p>Controles: WASD ou setinhas, Shift para correr feito um desesperado.</p>
+  <div id="app-shell">
+    <div id="game-root" aria-label="Arena do Pega Bola 3000"></div>
+
+    <div id="menu-screen" class="overlay">
+      <div class="menu-card">
+        <div class="eyebrow">Pega, cresce, humilha</div>
+        <h1>Pega Bola 3000</h1>
+        <p class="tagline">
+          Um protótipo 3D multiplayer sobre caçar bolinhas, inflar o próprio volume e dominar um placar
+          de moral duvidosa.
+        </p>
+
+        <label class="input-label" for="nickname-input">Nome de guerra</label>
+        <input id="nickname-input" type="text" maxlength="15" autocomplete="off" placeholder="Kemell Pinto">
+        <button id="play-button" type="button">Entrar na pocilga</button>
+        <div id="menu-status" class="status-pill" data-tone="idle">Servidor quieto. Tu decide se isso continua assim.</div>
+
+        <div class="menu-grid">
+          <div class="menu-chip">
+            <strong>Move</strong>
+            <span>WASD ou setinhas para rodar o salão.</span>
+          </div>
+          <div class="menu-chip">
+            <strong>Corre</strong>
+            <span>Shift para virar um problema ambulante.</span>
+          </div>
+          <div class="menu-chip">
+            <strong>Tela cheia</strong>
+            <span>`F` liga, `Esc` desliga.</span>
+          </div>
+        </div>
       </div>
     </div>
+
+    <div id="hud" hidden>
+      <div class="hud-stack">
+        <div class="panel">
+          <div class="stat-grid">
+            <div>
+              <span class="stat-label">Score</span>
+              <span id="score-value" class="stat-value">0</span>
+            </div>
+            <div>
+              <span class="stat-label">Gente na lama</span>
+              <span id="player-count-value" class="stat-value">0</span>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <p id="status-line">Arena em banho-maria.</p>
+        </div>
+        <div id="status-chip" class="badge" hidden></div>
+        <div id="instructions-panel" class="panel">
+          <p id="hud-tip">WASD ou setas para se mexer. Shift para correr feito devedor.</p>
+        </div>
+      </div>
+
+      <div class="hud-stack" style="justify-items: stretch;">
+        <div id="killfeed" class="panel" hidden></div>
+        <div class="panel">
+          <p class="leaderboard-title">Top 3 da pocilga</p>
+          <ol id="leaderboard"></ol>
+        </div>
+      </div>
+    </div>
+
+    <div id="message-toast" hidden></div>
+    <div id="pickup-flash" hidden></div>
   </div>
 
-  <!-- Import Three.js -->
-  <script type="module">
-    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-    window.THREE = THREE;
-  </script>
-
-  <!-- Socket.IO -->
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-
-  <div id="message-toast"></div>
-
-  <!-- Menu handling script -->
-  <script>
-    function startGameDirectly() {
-      const nicknameInput = document.getElementById('nickname-input');
-      const menuScreen = document.getElementById('menu-screen');
-
-      let playerNickname = nicknameInput.value.trim();
-      if (playerNickname.length === 0) {
-        playerNickname = nicknameInput.placeholder;
-      }
-
-      sessionStorage.setItem('playerNickname', playerNickname);
-      menuScreen.style.display = 'none';
-
-      const scriptElement = document.createElement('script');
-      scriptElement.src = 'js/main.js';
-      document.body.appendChild(scriptElement);
-    }
-
-    document.getElementById('nickname-input').addEventListener('keypress', function (e) {
-      if (e.key === 'Enter') {
-        startGameDirectly();
-      }
-    });
-  </script>
+  <script type="module" src="/js/main.js"></script>
 </body>
 </html>

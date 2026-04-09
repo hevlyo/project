@@ -1,1847 +1,857 @@
-// Window onload handler
-document.addEventListener('DOMContentLoaded', onload);
+import { SETTINGS, STORAGE_KEY, SESSION_STORAGE_KEY, JOIN_MESSAGES, DISCONNECT_MESSAGES, HUD_TIPS, clamp, isTimedStateActive, lerpAngle, normalizeNickname, randomItem, round, scoreToScale } from './client/config.js';
+import { SceneController, THREE } from './client/scene.js';
+import { createUIController } from './client/ui.js';
 
-// Initialize Socket.IO connection
-let socket;
+class GameApp {
+  constructor(elements) {
+    this.elements = elements;
+    this.ui = createUIController(elements);
+    this.scene = new SceneController({
+      container: elements.gameRoot,
+      worldSize: SETTINGS.worldSize,
+    });
 
-// Store all players (including local player)
-const players = {};
-
-// Store all collectible balls
-const balls = {};
-
-// Store interpolation data for smooth movement
-const interpolationData = {};
-
-// Track game state
-let gameActive = false;
-let localPlayerId = null;
-let topScore = 0;
-let topScorePlayer = null;
-let worldSize = 50; // Will be updated from server
-
-// Array para rastrear jogadores ordenados por pontuação (leaderboard)
-let leaderboardPlayers = [];
-
-// Variáveis para controle de aceleração/desaceleração
-let currentVelocity = new THREE.Vector3(0, 0, 0);
-let targetVelocity = new THREE.Vector3(0, 0, 0);
-let bobTimer = 0; // Timer para o efeito de "bob" (salto)
-
-// Set para rastrear bolas em processo de coleta (debounce)
-const pendingCollections = new Set();
-
-// Three.js global variables
-let scene, camera, renderer;
-
-// Game settings
-const SETTINGS = {
-  MOVE_SPEED: 0.2,
-  SPRINT_MULTIPLIER: 1.5,
-  PLAYER_HEIGHT: 1,
-  PLAYER_RADIUS: 0.5,
-  PLAYER_SEGMENTS: 32,
-  CAMERA_HEIGHT: 3,
-  CAMERA_DISTANCE: 5,
-  COLLECTION_DISTANCE: 1.5, 
-  INTERPOLATION_SPEED: 0.1,
-  BALL_RADIUS: 0.3,
-  BALL_SEGMENTS: 16,
-  BALL_ROTATION_SPEED: 0.02,
-  BALL_VALUE: 10,
-  BALL_HOVER_HEIGHT: 0.2,
-  BALL_HOVER_SPEED: 1.0,
-  CAMERA_FOV: 75,
-  CAMERA_NEAR: 0.1,
-  CAMERA_FAR: 1000,
-  DELTA_TIME: 1/60,
-  SKY_COLOR: 0x87CEFA,
-  SIZE_INCREASE_PER_BALL: 0.05, // Size increase multiplier per ball collected
-  MAX_SIZE_MULTIPLIER: 2.5, // Maximum size multiplier for players
-  NAMETAG_OFFSET_Y: 2.2, // Height above player for nametag
-  NAMETAG_SCALE: 0.01, // Scale of the nametag text
-  NICKNAME_MAX_LENGTH: 20,
-  NICKNAME_MIN_LENGTH: 2,
-  NICKNAME_PATTERN: /^[a-zA-Z0-9\s\-_]+$/, // Apenas letras, números, espaços, hífens e underscores
-  UI_TRANSITION_DURATION: '0.3s',
-  ACCELERATION: 0.015, // Velocidade de aceleração
-  DECELERATION: 0.03,   // Velocidade de desaceleração (mais rápida que aceleração)
-  TILT_INTENSITY: 0.15, // Intensidade da inclinação do jogador durante o movimento
-  TILT_RECOVERY_SPEED: 0.1, // Velocidade de recuperação da inclinação
-  BOB_FREQUENCY: 0.1, // Frequência do efeito de salto
-  BOB_AMPLITUDE: 0.05, // Amplitude do efeito de salto
-  BOB_SPEED_SCALING: 1.5, // Escala da velocidade de bob baseada na velocidade de movimento
-  SPEED_BOOST_MULTIPLIER: 2.0 // Multiplicador de velocidade para power-up
-};
-
-// Movement keys tracking
-let keys = { forward: false, backward: false, left: false, right: false, sprint: false };
-
-// UI elements
-let scoreDisplay, topScoreDisplay, playerCountDisplay, messageDisplay;
-let menuScreen, nicknameInput, playButton;
-let playerNickname = sessionStorage.getItem('playerNickname') || 'Player';
-console.log('Retrieved nickname from session storage:', playerNickname);
-
-// Power-up state
-const powerUps = {
-  SPEED: { active: false, duration: 5000 } // Example speed boost power-up
-};
-
-const tempVec3_1 = new THREE.Vector3();
-const tempVec3_2 = new THREE.Vector3();
-const tempVec3_3 = new THREE.Vector3();
-
-// Wait for the DOM to load completely
-function onload() {
-  console.log('DOM loaded, initializing game menu');
-
-  // Get menu elements and set up UI
-  menuScreen = document.getElementById('menu-screen');
-  nicknameInput = document.getElementById('nickname-input');
-  playButton = document.getElementById('play-button');
-
-  console.log('Menu elements:', { 
-    menuScreen: !!menuScreen, 
-    nicknameInput: !!nicknameInput, 
-    playButton: !!playButton 
-  });
-
-  // Set up menu event listeners
-  if (playButton) {
-    playButton.onclick = function() {
-      console.log('Play button clicked!');
-      startGame();
+    this.mode = 'menu';
+    this.connectionTone = 'idle';
+    this.connectionText = 'Arena em repouso';
+    this.worldSize = SETTINGS.worldSize;
+    this.socket = null;
+    this.nickname = '';
+    this.sessionId = '';
+    this.localPlayerId = null;
+    this.players = new Map();
+    this.balls = new Map();
+    this.keys = {
+      forward: false,
+      backward: false,
+      left: false,
+      right: false,
+      sprint: false,
     };
-    console.log('Play button click handler attached');
-  } else {
-    console.error('Play button not found in the DOM');
+    this.simulationTimeMs = 0;
+    this.accumulatorMs = 0;
+    this.animationHandle = 0;
+    this.lastFrameAt = 0;
+    this.cameraHeading = 0;
+    this.lastSentMovementAt = 0;
+    this.lastSentPosition = new THREE.Vector3();
+    this.localWasMoving = false;
+    this.awaitingBallSnapshot = false;
+    this.ambienceStarted = false;
+    this.ambientAudio = null;
+    this.hasShownSessionInstructions = false;
+    this.hasShownJoinToast = false;
   }
 
-  // Focus the nickname input automatically
-  if (nicknameInput) {
-    nicknameInput.focus();
+  init() {
+    this.scene.init();
+    this.ui.bindStart(() => this.handleStart());
+    this.ui.setMenuStatus('Servidor quieto. Tu decide se isso continua assim.', 'idle');
+    this.ui.setConnectionState(this.connectionText, this.connectionTone);
+    this.ui.setHUDVisible(false);
+    this.ui.setNickname(this.restoreNickname());
+    this.sessionId = this.restoreSessionId();
+    this.ui.focusNickname();
 
-    nicknameInput.addEventListener('keypress', function(e) {
-      console.log('Key pressed in input:', e.key);
-      if (e.key === 'Enter') {
-        console.log('Enter key pressed, starting game...');
-        startGame();
-      }
-    });
-    console.log('Nickname input keypress handler attached');
-  }
-}
-
-// Start the game when the play button is clicked
-function startGame() {
-  try {
-    console.log('startGame function called');
-
-    // Get nickname from input or use placeholder if empty
-    playerNickname = nicknameInput.value.trim();
-    if (playerNickname.length === 0) {
-      playerNickname = nicknameInput.placeholder;
-    }
-
-    // Sanitização do nickname
-    playerNickname = playerNickname
-      .replace(/[^a-zA-Z0-9\s\-_]/g, '') // Remove caracteres não permitidos
-      .slice(0, SETTINGS.NICKNAME_MAX_LENGTH); // Limita o tamanho máximo
-
-    // Validação final
-    if (playerNickname.length < SETTINGS.NICKNAME_MIN_LENGTH) {
-      playerNickname = "Player" + Math.floor(Math.random() * 1000);
-    }
-
-    console.log(`Starting game with nickname: ${playerNickname}`);
-
-    // Hide the menu screen with transition
-    if (menuScreen) {
-      menuScreen.style.transition = `opacity ${SETTINGS.UI_TRANSITION_DURATION} ease-out`;
-      menuScreen.style.opacity = '0';
-      setTimeout(() => {
-        menuScreen.style.display = 'none';
-      }, parseFloat(SETTINGS.UI_TRANSITION_DURATION) * 1000);
-      console.log('Menu screen hidden with transition');
-    } else {
-      console.error('Menu screen element not found');
-    }
-
-    // Create UI elements for the game
-    createUI();
-    console.log('Game UI created');
-
-    // Connect to the server
-    connectToServer();
-    console.log('Connected to server');
-
-    // Start the animation loop
-    animate();
-    console.log('Animation loop started');
-
-    gameActive = true;
-  } catch (error) {
-    console.error('Error starting game:', error);
-    alert('Error starting game: ' + error.message);
-  }
-}
-
-// Create UI elements
-// Create UI elements
-function createUI() {
-  // Fonte elegante (adicione no HTML <head> se ainda não tiver)
-  const fontLink = document.createElement('link');
-  fontLink.href = 'https://fonts.googleapis.com/css2?family=Playfair+Display&display=swap';
-  fontLink.rel = 'stylesheet';
-  document.head.appendChild(fontLink);
-
-  // Score
-  scoreDisplay = document.createElement('div');
-  scoreDisplay.id = 'score-display';
-  scoreDisplay.className = 'game-ui';
-  Object.assign(scoreDisplay.style, {
-    position: 'absolute',
-    top: '12px',
-    left: '12px',
-    color: '#f0e6d2',
-    fontFamily: '"Playfair Display", serif',
-    fontSize: '18px',
-    padding: '6px 14px',
-    backgroundColor: 'rgba(25, 25, 25, 0.7)',
-    border: '1px solid rgba(212, 175, 55, 0.5)',
-    borderRadius: '10px',
-    boxShadow: '0 0 10px rgba(212, 175, 55, 0.2)',
-    transition: `opacity ${SETTINGS.UI_TRANSITION_DURATION} ease-in`,
-    opacity: '0'
-  });
-  scoreDisplay.innerHTML = 'Score: 0';
-  document.body.appendChild(scoreDisplay);
-
-  // Leaderboard
-  topScoreDisplay = document.createElement('div');
-  topScoreDisplay.id = 'leaderboard-display';
-  topScoreDisplay.className = 'game-ui';
-  Object.assign(topScoreDisplay.style, {
-    position: 'absolute',
-    top: '12px',
-    right: '12px',
-    color: '#f0e6d2',
-    fontFamily: '"Playfair Display", serif',
-    fontSize: '15px',
-    padding: '12px 14px',
-    backgroundColor: 'rgba(20, 20, 20, 0.85)',
-    border: '1px solid rgba(212, 175, 55, 0.5)',
-    borderRadius: '10px',
-    minWidth: '230px',
-    boxShadow: '0 0 15px rgba(212, 175, 55, 0.3)',
-    transition: `opacity ${SETTINGS.UI_TRANSITION_DURATION} ease-in`,
-    opacity: '0'
-  });
-  topScoreDisplay.innerHTML = `
-    <div style="text-align:center; font-weight: bold; font-size: 1.1em; margin-bottom: 6px;">🏆 Leaderboard</div>
-    <div id="leaderboard-entries" style="display: flex; flex-direction: column; gap: 3px;"></div>
-  `;
-  document.body.appendChild(topScoreDisplay);
-
-  // Player Count
-  playerCountDisplay = document.createElement('div');
-  playerCountDisplay.id = 'player-count-display';
-  playerCountDisplay.className = 'game-ui';
-  Object.assign(playerCountDisplay.style, {
-    position: 'absolute',
-    bottom: '12px',
-    left: '12px',
-    color: '#cccccc',
-    fontFamily: 'monospace',
-    fontSize: '15px',
-    padding: '6px 12px',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: '6px',
-    transition: `opacity ${SETTINGS.UI_TRANSITION_DURATION} ease-in`,
-    opacity: '0'
-  });
-  playerCountDisplay.innerHTML = 'Players: 0';
-  document.body.appendChild(playerCountDisplay);
-
-  // Central Message
-  messageDisplay = document.createElement('div');
-  messageDisplay.id = 'message-display';
-  messageDisplay.className = 'game-ui';
-  Object.assign(messageDisplay.style, {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    color: '#fff',
-    fontFamily: '"Playfair Display", serif',
-    fontSize: '26px',
-    padding: '12px 24px',
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    border: '2px solid rgba(255, 255, 255, 0.2)',
-    borderRadius: '12px',
-    display: 'none',
-    transition: `opacity ${SETTINGS.UI_TRANSITION_DURATION} ease-in-out`,
-    opacity: '0',
-    userSelect: 'none',
-    pointerEvents: 'none',
-    textAlign: 'center'
-  });
-  document.body.appendChild(messageDisplay);
-
-  // Fade in
-  setTimeout(() => {
-    scoreDisplay.style.opacity = '1';
-    topScoreDisplay.style.opacity = '1';
-    playerCountDisplay.style.opacity = '1';
-  }, 50);
-}
-
-// Function to show a message to the player
-function showMessage(text, duration = 2000) {
-  const toast = document.getElementById('message-toast');
-  toast.textContent = text;
-  toast.style.opacity = '1';
-
-  clearTimeout(toast.hideTimeout);
-  toast.hideTimeout = setTimeout(() => {
-    toast.style.opacity = '0';
-  }, duration);
-}
-
-// Initialize the scene
-function initializeScene() {
-  // Create a scene
-  scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(SETTINGS.SKY_COLOR, 0.01);
-
-  // Create a camera
-  camera = new THREE.PerspectiveCamera(
-    SETTINGS.CAMERA_FOV,
-    window.innerWidth / window.innerHeight,
-    SETTINGS.CAMERA_NEAR,
-    SETTINGS.CAMERA_FAR
-  );
-  camera.position.set(0, SETTINGS.CAMERA_HEIGHT, SETTINGS.CAMERA_DISTANCE);
-  camera.lookAt(0, 0, 0);
-
-  // Create a renderer
-  renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setClearColor(SETTINGS.SKY_COLOR);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Melhor qualidade de sombras
-  document.body.appendChild(renderer.domElement);
-
-  // Add lights
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-  scene.add(ambientLight);
-
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0); // Aumentada a intensidade
-  directionalLight.position.set(50, 200, 100);
-  directionalLight.castShadow = true;
-  directionalLight.shadow.mapSize.width = 2048; // Aumentada a resolução da sombra
-  directionalLight.shadow.mapSize.height = 2048;
-  directionalLight.shadow.camera.near = 0.5;
-  directionalLight.shadow.camera.far = 500;
-  directionalLight.shadow.camera.left = -100;
-  directionalLight.shadow.camera.right = 100;
-  directionalLight.shadow.camera.top = 100;
-  directionalLight.shadow.camera.bottom = -100;
-  scene.add(directionalLight);
-
-  // Create the ground
-  createGround(scene);
-
-  // Load background music
-  loadBackgroundMusic();
-  console.log('Background music loaded');
-
-  // Start the animation loop
-  animate();
-}
-
-function loadBackgroundMusic() {
-  const audioLoader = new THREE.AudioLoader();
-  const listener = new THREE.AudioListener();
-  camera.add(listener);
-  
-  // Add loading and error handling
-  audioLoader.load(
-    './assets/background_sound.mp3',
-    function(buffer) {
-      const sound = new THREE.Audio(listener);
-      sound.setBuffer(buffer);
-      sound.setLoop(true);
-      sound.setVolume(0.1);
-      sound.play();
-      console.log('Background music loaded and playing');
-    },
-    function(xhr) {
-      console.log('Background music loading: ' + (xhr.loaded / xhr.total * 100) + '%');
-    },
-    function(error) {
-      console.error('Error loading background music:', error);
-      // Continue game without music
-    }
-  );
-}
-
-// Initialize keyboard state and event listeners
-function initControls() {
-  // Initialize movement keys state
-  keys = {
-    forward: false,
-    backward: false,
-    left: false,
-    right: false,
-    sprint: false
-  };
-
-  // Key down event listener
-  window.addEventListener('keydown', (event) => {
-    if (!gameActive) return;
-
-    // Prevent default behavior for game control keys
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'W', 'A', 'S', 'D', 'Shift'].includes(event.key)) {
-      event.preventDefault();
-    }
-
-    // Update key states
-    switch (event.key) {
-      case 'ArrowUp':
-      case 'w':
-      case 'W':
-        keys.forward = true;
-        break;
-      case 'ArrowDown':
-      case 's':
-      case 'S':
-        keys.backward = true;
-        break;
-      case 'ArrowLeft':
-      case 'a':
-      case 'A':
-        keys.left = true;
-        break;
-      case 'ArrowRight':
-      case 'd':
-      case 'D':
-        keys.right = true;
-        break;
-      case 'Shift':
-        keys.sprint = true;
-        break;
-    }
-  });
-
-  // Key up event listener
-  window.addEventListener('keyup', (event) => {
-    // Update key states
-    switch (event.key) {
-      case 'ArrowUp':
-      case 'w':
-      case 'W':
-        keys.forward = false;
-        break;
-      case 'ArrowDown':
-      case 's':
-      case 'S':
-        keys.backward = false;
-        break;
-      case 'ArrowLeft':
-      case 'a':
-      case 'A':
-        keys.left = false;
-        break;
-      case 'ArrowRight':
-      case 'd':
-      case 'D':
-        keys.right = false;
-        break;
-      case 'Shift':
-        keys.sprint = false;
-        break;
-    }
-  });
-
-  // Handle window blur (user tabs out)
-  window.addEventListener('blur', () => {
-    // Reset all keys when window loses focus
-    Object.keys(keys).forEach(key => {
-      keys[key] = false;
-    });
-  });
-}
-
-// Connect to the server
-function connectToServer() {
-  try {
-    console.log('Connecting to server with nickname:', playerNickname);
-
-    // Connect to the server via Socket.IO
-    socket = io();
-    console.log('Socket.IO connection created');
-
-    // Set up socket event handlers
-    setupSocketHandlers();
-
-    // Join the game with the selected nickname
-    socket.emit('joinGame', { nickname: playerNickname });
-  } catch (error) {
-    console.error('Error connecting to server:', error);
-  }
-}
-
-// Set up socket event handlers
-function setupSocketHandlers() {
-  // Remove any existing event listeners to prevent duplicates
-  if (socket) {
-    socket.removeAllListeners();
+    this.bindWindowEvents();
+    this.exposeTestingHooks();
+    this.startLoop();
   }
 
-  socket.on('connect', () => {
-    console.log('Connected to server with ID:', socket.id);
-    localPlayerId = socket.id;
-    showMessage('Connected to game server!', 3000);
-    gameActive = true;
-  });
-
-  let reconnectAttempts = 0;
-  const MAX_RECONNECT_ATTEMPTS = 5;
-  const RECONNECT_DELAY = 3000; // 3 seconds
-
-  socket.on('disconnect', () => {
-    console.log('Disconnected from server');
-    showMessage('Disconnected from server. Trying to reconnect...', 0);
-    gameActive = false;
-    
-    // Clear pending collections
-    pendingCollections.clear();
-    
-    // Try to reconnect
-    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      setTimeout(() => {
-        reconnectAttempts++;
-        showMessage(`Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`, 0);
-        socket.connect();
-      }, RECONNECT_DELAY);
-    } else {
-      showMessage('Could not reconnect to server. Please refresh the page.', 0);
-    }
-  });
-
-  socket.on('connect', () => {
-    console.log('Connected to server with ID:', socket.id);
-    localPlayerId = socket.id;
-    showMessage('Connected to game server!', 3000);
-    gameActive = true;
-    reconnectAttempts = 0; // Reset reconnect attempts on successful connection
-    
-    // If we're reconnecting, re-join the game with the same nickname
-    if (playerNickname) {
-      socket.emit('joinGame', { nickname: playerNickname });
-    }
-  });
-
-  // Handle world info
-  socket.on('worldInfo', (data) => {
-    console.log('Received world info:', data);
-    worldSize = data.worldSize;
-  });
-
-  // Handle current players
-  socket.on('currentPlayers', (serverPlayers) => {
-    console.log('Current players received:', serverPlayers);
-
-    // Clear existing players first
-    Object.keys(players).forEach(id => {
-      if (id !== localPlayerId) {
-        removePlayer(id);
-      }
-    });
-
-    // Add all players from server
-    Object.values(serverPlayers).forEach(playerInfo => {
-      // If this is us and we don't have our player yet, create it
-      if (playerInfo.id === localPlayerId && !players[localPlayerId]) {
-        console.log('Creating local player');
-        addPlayer(playerInfo);
-      }
-      // If this is another player and we don't have them yet, create them
-      else if (playerInfo.id !== localPlayerId && !players[playerInfo.id]) {
-        console.log('Adding existing player:', playerInfo.id);
-        addPlayer(playerInfo);
-      }
-    });
-
-    updatePlayerCount();
-
-    // Inicializar o leaderboard com os jogadores conectados
-    updateLeaderboard();
-  });
-
-  // Set up game event handlers
-  setupGameEventHandlers();
-}
-
-// Set up game-related event handlers
-function setupGameEventHandlers() {
-  // Handle player info
-  socket.on('playerInfo', (playerData) => {
-    console.log('Player info received:', playerData);
-  
-    if (playerData.id === localPlayerId && !players[localPlayerId]) {
-      console.log('Creating local player mesh');
-      addPlayer(playerData);
-  
-      const frases = [
-        `Ah, se não é o ilustre ${playerData.nickname}, o flagelo das bolas errantes!`,
-        `Senhor(a) ${playerData.nickname}, vossa tragédia começa agora.`,
-        `Inclinem-se, plebe! ${playerData.nickname} adentrou o palco da vergonha.`,
-        `${playerData.nickname}, que vossas mãos não sejam tão moles quanto vossas ideias.`
-      ];
-      const fraseAleatoria = frases[Math.floor(Math.random() * frases.length)];
-      showMessage(fraseAleatoria, 3500);
-    }
-  });
-
-  // Handle new balls
-  socket.on('newBalls', (serverBalls) => {
-    console.log('Received new balls:', serverBalls);
-
-    // Limpar qualquer coleta pendente para bolas que não existem mais no servidor
-    const serverBallIds = new Set(serverBalls.map(ball => ball.id));
-
-    // Para cada coleta pendente, verificar se a bola ainda existe no servidor
-    pendingCollections.forEach(pendingBallId => {
-      if (!serverBallIds.has(pendingBallId)) {
-        pendingCollections.delete(pendingBallId);
-      }
-    });
-
-    // Add the new balls to the scene
-    serverBalls.forEach((ballInfo) => {
-      addBall(ballInfo);
-    });
-  });
-
-  // Handle player movement
-  socket.on('playerMoved', (moveData) => {
-    // Skip if it's our own movement
-    if (moveData.id === localPlayerId) return;
-
-    // Update other player's target position
-    if (players[moveData.id]) {
-      // Create or update interpolation data
-      if (!interpolationData[moveData.id]) {
-        interpolationData[moveData.id] = {
-          targetPosition: new THREE.Vector3()
-        };
-      }
-
-      // Set target position for interpolation
-      interpolationData[moveData.id].targetPosition.set(
-        moveData.position.x,
-        moveData.position.y + SETTINGS.PLAYER_HEIGHT,
-        moveData.position.z
-      );
-    }
-  });
-
-  // Handle new player
-  socket.on('newPlayer', (playerData) => {
-    console.log('New player joined:', playerData);
-
-    // Add the new player if we don't already have them
-    if (!players[playerData.id]) {
-      addPlayer(playerData);
-      showMessage(`Player ${playerData.nickname} joined!`, 2000);
-    }
-
-    // Update player count
-    updatePlayerCount();
-
-    // Atualizar leaderboard quando um novo jogador se conecta
-    updateLeaderboard();
-  });
-
-  // Handle player disconnection
-  socket.on('playerDisconnected', (playerId) => {
-    console.log('Player disconnected:', playerId);
-    removePlayer(playerId);
-
-    // Atualizar leaderboard quando um jogador desconecta
-    updateLeaderboard();
-  });
-
-  // Handle score updates
-  socket.on('updateScores', (scores) => {
-    console.log('Score update received:', scores);
-
-    // Update all player scores
-    Object.entries(scores).forEach(([playerId, score]) => {
-      if (players[playerId]) {
-        players[playerId].score = score;
-
-        // Update local display if it's our score
-        if (playerId === localPlayerId) {
-          scoreDisplay.innerHTML = `Score: ${score}`;
-        }
-      }
-    });
-
-    // Find top score
-    let highestScore = 0;
-    let highScorePlayerId = null;
-
-    Object.entries(scores).forEach(([playerId, score]) => {
-      if (score > highestScore) {
-        highestScore = score;
-        highScorePlayerId = playerId;
-      }
-    });
-
-    // Update top score display
-    if (highestScore > 0) {
-      topScore = highestScore;
-      topScorePlayer = highScorePlayerId;
-    }
-
-    // Atualizar o leaderboard com todas as pontuações
-    updateLeaderboard();
-  });
-
-  // Handle player count updates
-  socket.on('playerCount', (count) => {
-    updatePlayerCount(count);
-  });
-
-  // Handle ball collection
-  socket.on('ballCollected', (data) => {
-      console.log('Ball collected:', data);
-    
-    // Clear any pending timeout for this ball
-    if (pendingCollectionTimeouts[data.ballId]) {
-      clearTimeout(pendingCollectionTimeouts[data.ballId]);
-      delete pendingCollectionTimeouts[data.ballId];
-    }
-    
-    // Remove the ball ID from pending collections list
-    pendingCollections.delete(data.ballId);
-    
-    // Remove the ball if we still have it
-    if (balls[data.ballId]) {
-      removeBall(data.ballId);
-    }
-
-    // Update player score
-    if (players[data.playerId]) {
-      players[data.playerId].score = players[data.playerId].score || 0;
-      players[data.playerId].score += data.value;
-
-      // Update player size based on new score
-      updatePlayerSize(data.playerId);
-
-      // If it's our ball, update score display
-      if (data.playerId === localPlayerId) {
-        scoreDisplay.innerHTML = `Score: ${players[localPlayerId].score}`;
-      
-        const frasesDePonto = [
-          `+${data.value} pontos! O caldo está engrossando!`,
-          `+${data.value}! Subindo como pão de ontem!`,
-          `+${data.value} pontos... Um prodígio do caos!`,
-          `+${data.value} pontos! Mais espesso que mingau requentado!`,
-          `+${data.value}! Um espetáculo de desequilíbrio e ousadia!`
-        ];
-        const frase = frasesDePonto[Math.floor(Math.random() * frasesDePonto.length)];
-        showMessage(frase, 1000);
-      }      
-    }
-
-    // Update top score if needed
-    if (players[data.playerId] && players[data.playerId].score > topScore) {
-      topScore = players[data.playerId].score;
-      topScorePlayer = data.playerId;
-    }
-
-    // Atualizar o leaderboard
-    updateLeaderboard();
-  });
-}
-
-// No frontend (client)
-const ABILITIES = {
-  DASH: {
-    cost: 20,
-    cooldown: 5000,
-    active: false,
-    lastUsed: 0
-  },
-  MAGNET: {
-    cost: 50,
-    cooldown: 15000,
-    active: false,
-    lastUsed: 0
-  },
-  SHOCKWAVE: {
-    cost: 100,
-    cooldown: 20000,
-    active: false,
-    lastUsed: 0
-  }
-};
-
-// Ativar habilidade
-function activateAbility(abilityName) {
-  const ability = ABILITIES[abilityName];
-  const now = Date.now();
-  
-  if (!ability || ability.active || now - ability.lastUsed < ability.cooldown || 
-      players[localPlayerId].score < ability.cost) {
-    return false;
-  }
-  
-  socket.emit('useAbility', { ability: abilityName });
-  ability.active = true;
-  ability.lastUsed = now;
-  
-  // UI feedback
-  showAbilityEffect(abilityName);
-  
-  setTimeout(() => {
-    ability.active = false;
-  }, ability.duration);
-  
-  return true;
-}
-
-function createZoneMesh(zoneData) {
-  const geometry = new THREE.CylinderGeometry(zoneData.radius, zoneData.radius, 0.2, 32);
-  
-  let material;
-  switch(zoneData.type) {
-    case 'MULTIPLIER':
-      material = new THREE.MeshBasicMaterial({ 
-        color: 0xFFD700, 
-        transparent: true, 
-        opacity: 0.3 
-      });
-      break;
-    case 'DANGER':
-      material = new THREE.MeshBasicMaterial({ 
-        color: 0xFF0000, 
-        transparent: true, 
-        opacity: 0.3 
-      });
-      break;
-    // outros casos...
-  }
-  
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(zoneData.position.x, zoneData.position.y, zoneData.position.z);
-  mesh.rotation.x = Math.PI / 2;
-  
-  scene.add(mesh);
-  zones[zoneData.id] = { data: zoneData, mesh };
-}
-
-let currentWeatherEffect = null;
-let weatherParticleSystem = null;
-
-function handleWeatherEvent(weatherData) {
-  currentWeatherEffect = weatherData;
-  
-  showMessage(`Clima mudou: ${getWeatherName(weatherData.type)}`, 3000);
-  
-  // Aplicar efeitos visuais
-  switch(weatherData.type) {
-    case 'RAIN':
-      createRainEffect();
-      scene.fog.density = 0.02;
-      break;
-    case 'FOG':
-      scene.fog.density = 0.05;
-      break;
-    case 'STORM':
-      createStormEffect();
-      scene.fog.density = 0.03;
-      break;
-    case 'SUNSHINE':
-      scene.fog.density = 0.007;
-      createSunshineEffect();
-      break;
-  }
-}
-
-function getWeatherName(type) {
-  switch(type) {
-    case 'RAIN': return 'Chuva';
-    case 'FOG': return 'Névoa';
-    case 'STORM': return 'Tempestade';
-    case 'SUNSHINE': return 'Dia Ensolarado';
-    default: return type;
-  }
-}
-
-function createRainEffect() {
-  if (weatherParticleSystem) {
-    scene.remove(weatherParticleSystem);
-  }
-  
-  const rainGeometry = new THREE.BufferGeometry();
-  const rainCount = 15000;
-  const positions = new Float32Array(rainCount * 3);
-  const velocities = new Float32Array(rainCount);
-  
-  for (let i = 0; i < rainCount; i++) {
-    positions[i * 3] = (Math.random() * 2 - 1) * worldSize;
-    positions[i * 3 + 1] = Math.random() * 30;
-    positions[i * 3 + 2] = (Math.random() * 2 - 1) * worldSize;
-    velocities[i] = 0.1 + Math.random() * 0.3;
-  }
-  
-  rainGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  rainGeometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 1));
-  
-  const rainMaterial = new THREE.PointsMaterial({
-    color: 0x9999AA,
-    size: 0.1,
-    transparent: true,
-    opacity: 0.6
-  });
-  
-  weatherParticleSystem = new THREE.Points(rainGeometry, rainMaterial);
-  scene.add(weatherParticleSystem);
-}
-
-// Função chamada no loop de animação
-function updateWeatherEffects() {
-  if (!currentWeatherEffect) return;
-  
-  switch(currentWeatherEffect.type) {
-    case 'RAIN':
-      updateRainAnimation();
-      break;
-    case 'STORM':
-      updateStormAnimation();
-      break;
-    // outros casos...
-  }
-}
-
-function updateRainAnimation() {
-  if (!weatherParticleSystem) return;
-  
-  const positions = weatherParticleSystem.geometry.attributes.position.array;
-  const velocities = weatherParticleSystem.geometry.attributes.velocity.array;
-  const count = positions.length / 3;
-  
-  for (let i = 0; i < count; i++) {
-    positions[i * 3 + 1] -= velocities[i];
-    
-    if (positions[i * 3 + 1] < 0) {
-      positions[i * 3 + 1] = 30;
-      positions[i * 3] = (Math.random() * 2 - 1) * worldSize;
-      positions[i * 3 + 2] = (Math.random() * 2 - 1) * worldSize;
-    }
-  }
-  
-  weatherParticleSystem.geometry.attributes.position.needsUpdate = true;
-}
-
-const ACHIEVEMENTS = [
-  {
-    id: 'FIRST_STEPS',
-    name: 'Primeiros Passos',
-    description: 'Colete sua primeira esfera',
-    icon: '🥚',
-    requirement: { type: 'COLLECT', count: 1 }
-  },
-  {
-    id: 'COLLECTOR',
-    name: 'Colecionador',
-    description: 'Colete 100 esferas no total',
-    icon: '🧩',
-    requirement: { type: 'COLLECT_TOTAL', count: 100 }
-  },
-  {
-    id: 'LEADERBOARD_MASTER',
-    name: 'Mestre do Ranking',
-    description: 'Fique em primeiro lugar por 5 minutos acumulados',
-    icon: '👑',
-    requirement: { type: 'TOP_POSITION', minutes: 5 }
-  }
-  // mais conquistas...
-];
-
-// Salvar/carregar progresso usando localStorage
-function loadPlayerProgress() {
-  const savedProgress = localStorage.getItem('playerProgress');
-  
-  if (savedProgress) {
+  restoreNickname() {
     try {
-      const progress = JSON.parse(savedProgress);
-      return progress;
-    } catch (e) {
-      console.error('Erro ao carregar progresso:', e);
+      return sessionStorage.getItem(STORAGE_KEY) || 'Kemell Pinto';
+    } catch {
+      return 'Kemell Pinto';
     }
   }
-  
-  return {
-    totalBallsCollected: 0,
-    achievementsUnlocked: {},
-    timeInTopPosition: 0,
-    highestScore: 0,
-    gamesPlayed: 0
-  };
-}
 
-let playerProgress = loadPlayerProgress();
-
-function savePlayerProgress() {
-  localStorage.setItem('playerProgress', JSON.stringify(playerProgress));
-}
-
-function checkAchievements() {
-  ACHIEVEMENTS.forEach(achievement => {
-    if (playerProgress.achievementsUnlocked[achievement.id]) {
-      return; // Já desbloqueado
+  persistNickname(value) {
+    try {
+      sessionStorage.setItem(STORAGE_KEY, value);
+    } catch {
+      // Ignore storage failures in private contexts.
     }
-    
-    let unlocked = false;
-    
-    switch(achievement.requirement.type) {
-      case 'COLLECT':
-        unlocked = pendingCollections.size >= achievement.requirement.count;
-        break;
-      case 'COLLECT_TOTAL':
-        unlocked = playerProgress.totalBallsCollected >= achievement.requirement.count;
-        break;
-      case 'TOP_POSITION':
-        unlocked = playerProgress.timeInTopPosition >= achievement.requirement.minutes * 60;
-        break;
-      // outros tipos...
-    }
-    
-    if (unlocked) {
-      unlockAchievement(achievement);
-    }
-  });
-}
-
-function unlockAchievement(achievement) {
-  playerProgress.achievementsUnlocked[achievement.id] = Date.now();
-  savePlayerProgress();
-  
-  // Mostrar notificação
-  const notification = document.createElement('div');
-  notification.className = 'achievement-notification';
-  notification.innerHTML = `
-    <div class="achievement-icon">${achievement.icon}</div>
-    <div class="achievement-text">
-      <div class="achievement-title">Conquista desbloqueada!</div>
-      <div class="achievement-name">${achievement.name}</div>
-      <div class="achievement-description">${achievement.description}</div>
-    </div>
-  `;
-  
-  document.body.appendChild(notification);
-  
-  // Aplicar estilos
-  Object.assign(notification.style, {
-    position: 'absolute',
-    bottom: '20px',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    color: 'white',
-    padding: '15px',
-    borderRadius: '10px',
-    display: 'flex',
-    alignItems: 'center',
-    boxShadow: '0 0 10px gold',
-    zIndex: '1000',
-    opacity: '0',
-    transition: 'opacity 0.5s ease-in-out'
-  });
-  
-  // Animação de entrada
-  setTimeout(() => {
-    notification.style.opacity = '1';
-  }, 100);
-  
-  // Remover após alguns segundos
-  setTimeout(() => {
-    notification.style.opacity = '0';
-    setTimeout(() => {
-      document.body.removeChild(notification);
-    }, 500);
-  }, 5000);
-}
-
-// Function to update player size based on their score
-function updatePlayerSize(playerId) {
-  if (!players[playerId] || !players[playerId].mesh) return;
-
-  const player = players[playerId];
-  const score = player.score || 0;
-
-  // Calculate size multiplier based on score
-  // Each ball is worth SETTINGS.BALL_VALUE points (10 by default)
-  const ballsCollected = score / SETTINGS.BALL_VALUE;
-  const sizeMultiplier = Math.min(
-    1.0 + (ballsCollected * SETTINGS.SIZE_INCREASE_PER_BALL),
-    SETTINGS.MAX_SIZE_MULTIPLIER
-  );
-
-  // Store the new size multiplier
-  player.sizeMultiplier = sizeMultiplier;
-
-  // Apply scaling to the mesh
-  player.mesh.scale.set(sizeMultiplier, sizeMultiplier, sizeMultiplier);
-
-  console.log(`Updated player ${playerId} size: ${sizeMultiplier.toFixed(2)}x (score: ${score})`);
-
-  // If this is the local player, update camera height too
-  if (playerId === localPlayerId) {
-    updateCameraPosition();
-  }
-}
-
-// Create a player mesh
-function addPlayer(playerInfo) {
-  // If player already exists, just update it
-  if (players[playerInfo.id]) {
-    players[playerInfo.id].mesh.position.set(
-      playerInfo.position.x,
-      playerInfo.position.y + SETTINGS.PLAYER_HEIGHT,
-      playerInfo.position.z
-    );
-    return;
   }
 
-  console.log('Adding player:', playerInfo.id);
+  restoreSessionId() {
+    const fallback = window.crypto?.randomUUID?.()
+      || `pb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-  // Create player geometry and material
-  const playerGeometry = new THREE.CylinderGeometry(
-    SETTINGS.PLAYER_RADIUS, 
-    SETTINGS.PLAYER_RADIUS, 
-    SETTINGS.PLAYER_HEIGHT * 2, 
-    SETTINGS.PLAYER_SEGMENTS
-  );
-
-  // Use player color from server or generate a random one
-  const playerMaterial = new THREE.MeshStandardMaterial({
-    color: playerInfo.color || getRandomColor(),
-    roughness: 0.5,
-    metalness: 0.5
-  });
-
-  // Create player mesh
-  const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
-  playerMesh.castShadow = true; // Habilitar projeção de sombras
-  playerMesh.receiveShadow = true; // Habilitar recebimento de sombras
-
-  // Set player position
-  playerMesh.position.set(
-    playerInfo.position.x,
-    playerInfo.position.y + SETTINGS.PLAYER_HEIGHT,
-    playerInfo.position.z
-  );
-
-  // Create player nametag
-  const nickname = playerInfo.nickname || `Player ${playerInfo.id.substring(0, 4)}`;
-  const nametagGroup = createNametag(nickname);
-
-  // Position nametag above player
-  nametagGroup.position.set(0, SETTINGS.PLAYER_HEIGHT * 1.6, 0);
-  playerMesh.add(nametagGroup);
-
-  // Store player mesh with ID
-  players[playerInfo.id] = {
-    mesh: playerMesh,
-    id: playerInfo.id,
-    nickname: nickname,
-    score: playerInfo.score || 0,
-    color: playerMaterial.color.getHex(),
-    sizeMultiplier: playerInfo.sizeMultiplier || 1.0,
-    nametagGroup: nametagGroup,
-    baseHeight: playerInfo.position.y || 0 // Armazenar altura base para efeito de salto
-  };
-
-  // Add player mesh to scene
-  scene.add(playerMesh);
-
-  // If this is our player, position the camera
-  if (playerInfo.id === localPlayerId) {
-    updateCameraPosition();
-  }
-}
-
-// Remove a player from the scene
-function removePlayer(playerId) {
-  if (players[playerId]) {
-    if (players[playerId].mesh && scene) {
-      // Remove from scene
-      scene.remove(players[playerId].mesh);
-      
-      // Dispose of geometry and material
-      if (players[playerId].mesh.geometry) {
-        players[playerId].mesh.geometry.dispose();
+    try {
+      const existing = sessionStorage.getItem(SESSION_STORAGE_KEY);
+      if (existing) {
+        return existing;
       }
-      if (players[playerId].mesh.material) {
-        if (Array.isArray(players[playerId].mesh.material)) {
-          players[playerId].mesh.material.forEach(material => material.dispose());
-        } else {
-          players[playerId].mesh.material.dispose();
-        }
-      }
-      
-      // Clear nametag texture from cache if exists
-      if (players[playerId].nickname && nametagTextureCache[players[playerId].nickname]) {
-        nametagTextureCache[players[playerId].nickname].dispose();
-        delete nametagTextureCache[players[playerId].nickname];
-      }
+      sessionStorage.setItem(SESSION_STORAGE_KEY, fallback);
+    } catch {
+      return fallback;
     }
-    
-    // Remove the player from the players object
-    delete players[playerId];
-    
-    // Clean up interpolation data
-    if (interpolationData[playerId]) {
-      delete interpolationData[playerId];
-    }
-    
-    // Update player count display
-    updatePlayerCount();
-    
-    console.log(`Player ${playerId} removed and resources disposed`);
-  }
-}
 
-// Create the ground
-function createGround(scene) {
-  // Create texture loader
-  const textureLoader = new THREE.TextureLoader();
-  
-  // Add error handling for texture loading
-  const groundTexture = textureLoader.load(
-    '/assets/textures/grass.jpg',
-    function(texture) {
-      console.log('Ground texture loaded successfully');
-    },
-    function(xhr) {
-      console.log('Ground texture loading progress: ' + (xhr.loaded / xhr.total * 100) + '%');
-    },
-    function(error) {
-      console.error('Error loading ground texture:', error);
-      // Fallback to a basic material if texture fails
-      groundMesh.material = new THREE.MeshStandardMaterial({
-        color: 0x7CFC00,  // Lawn green color as fallback
-        roughness: 0.8,
-        metalness: 0.2
+    return fallback;
+  }
+
+  bindWindowEvents() {
+    window.addEventListener('resize', () => this.scene.resize());
+    document.addEventListener('fullscreenchange', () => this.scene.resize());
+
+    window.addEventListener('keydown', (event) => {
+      const targetTag = event.target?.tagName;
+      const typing = targetTag === 'INPUT' || targetTag === 'TEXTAREA';
+
+      if (event.key.toLowerCase() === 'f' && !typing) {
+        event.preventDefault();
+        this.toggleFullscreen();
+        return;
+      }
+
+      switch (event.key) {
+        case 'ArrowUp':
+        case 'w':
+        case 'W':
+          this.keys.forward = true;
+          event.preventDefault();
+          break;
+        case 'ArrowDown':
+        case 's':
+        case 'S':
+          this.keys.backward = true;
+          event.preventDefault();
+          break;
+        case 'ArrowLeft':
+        case 'a':
+        case 'A':
+          this.keys.left = true;
+          event.preventDefault();
+          break;
+        case 'ArrowRight':
+        case 'd':
+        case 'D':
+          this.keys.right = true;
+          event.preventDefault();
+          break;
+        case 'Shift':
+          this.keys.sprint = true;
+          event.preventDefault();
+          break;
+        default:
+          break;
+      }
+    });
+
+    window.addEventListener('keyup', (event) => {
+      switch (event.key) {
+        case 'ArrowUp':
+        case 'w':
+        case 'W':
+          this.keys.forward = false;
+          break;
+        case 'ArrowDown':
+        case 's':
+        case 'S':
+          this.keys.backward = false;
+          break;
+        case 'ArrowLeft':
+        case 'a':
+        case 'A':
+          this.keys.left = false;
+          break;
+        case 'ArrowRight':
+        case 'd':
+        case 'D':
+          this.keys.right = false;
+          break;
+        case 'Shift':
+          this.keys.sprint = false;
+          break;
+        default:
+          break;
+      }
+    });
+
+    window.addEventListener('blur', () => {
+      Object.keys(this.keys).forEach((key) => {
+        this.keys[key] = false;
+      });
+    });
+  }
+
+  handleStart() {
+    this.nickname = normalizeNickname(this.ui.getNickname());
+    this.persistNickname(this.nickname);
+    this.ui.setNickname(this.nickname);
+    this.ui.setMenuBusy(true, 'Esquentando o caldeirão...');
+    this.ui.setMenuStatus('Chamando o servidor para a baixaria.', 'warm');
+    this.setConnectionState('Conectando', 'warm');
+    this.mode = 'connecting';
+    this.awaitingBallSnapshot = true;
+    this.cameraHeading = 0;
+    this.hasShownSessionInstructions = false;
+    this.hasShownJoinToast = false;
+
+    if (!this.socket) {
+      this.createSocket();
+    }
+
+    if (!this.socket) {
+      this.ui.setMenuBusy(false);
+      this.ui.setMenuStatus('Socket.IO sumiu. Sem isso, só sobra o pasto.', 'danger');
+      return;
+    }
+
+    this.startAmbience();
+
+    if (this.socket.connected) {
+      this.joinGame();
+    } else {
+      this.socket.connect();
+    }
+  }
+
+  createSocket() {
+    if (typeof window.io !== 'function') {
+      this.ui.showToast('Socket.IO não carregou. Sem fio, sem glória.', 'danger', 3200);
+      return;
+    }
+
+    this.socket = window.io({
+      autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1500,
+    });
+
+    this.socket.on('connect', () => {
+      this.setConnectionState('Conexão viva', 'live');
+      this.joinGame();
+    });
+
+    this.socket.on('disconnect', (reason) => {
+      this.mode = this.mode === 'menu' ? 'menu' : 'reconnecting';
+      this.setConnectionState('Reconectando', 'warning');
+      this.ui.setMenuStatus(randomItem(DISCONNECT_MESSAGES), 'warning');
+      this.ui.showToast(`Conexão caiu: ${reason}`, 'warning', 2400);
+    });
+
+    this.socket.on('error', (payload) => {
+      if (payload?.message) {
+        this.ui.showToast(payload.message, 'danger', 2400);
+      }
+    });
+
+    this.socket.on('worldInfo', (payload) => {
+      this.worldSize = payload.worldSize || SETTINGS.worldSize;
+      this.scene.setWorldSize(this.worldSize);
+    });
+
+    this.socket.on('playerInfo', (payload) => {
+      this.localPlayerId = payload.id;
+      this.upsertPlayerFromServer(payload, { hardSync: true });
+      this.mode = 'playing';
+      this.setConnectionState('Arena ao vivo', 'live');
+      this.ui.hideMenu();
+      this.ui.setMenuBusy(false, 'Entrar na pocilga');
+      this.ui.setHUDVisible(true);
+      if (!this.hasShownSessionInstructions) {
+        this.ui.showSessionInstructions(randomItem(HUD_TIPS), 10000);
+        this.hasShownSessionInstructions = true;
+      }
+      if (!this.hasShownJoinToast) {
+        this.ui.showToast(randomItem(JOIN_MESSAGES), 'live', 2200);
+        this.hasShownJoinToast = true;
+      }
+    });
+
+    this.socket.on('currentPlayers', (snapshot) => {
+      this.syncPlayers(snapshot);
+    });
+
+    this.socket.on('newPlayer', (payload) => {
+      this.upsertPlayerFromServer(payload, { hardSync: true });
+      this.ui.showToast(`${payload.nickname} apareceu para tumultuar.`, 'info', 1800);
+    });
+
+    this.socket.on('playerState', (payload) => {
+      this.handlePlayerState(payload);
+    });
+
+    this.socket.on('playerDisconnected', (playerId) => {
+      this.removePlayer(playerId);
+    });
+
+    this.socket.on('playerMoved', (payload) => {
+      const player = this.players.get(payload.id);
+      if (!player || payload.id === this.localPlayerId) return;
+
+      player.targetPosition.set(payload.position.x, 0, payload.position.z);
+    });
+
+    this.socket.on('newBalls', (payload) => {
+      this.syncBalls(payload, { replaceAll: this.awaitingBallSnapshot });
+      this.awaitingBallSnapshot = false;
+    });
+
+    this.socket.on('ballCollected', (payload) => {
+      this.handleBallCollected(payload);
+    });
+
+    this.socket.on('playerConsumed', (payload) => {
+      this.handlePlayerConsumed(payload);
+    });
+
+    this.socket.on('updateScores', (scores) => {
+      Object.entries(scores).forEach(([playerId, score]) => {
+        const player = this.players.get(playerId);
+        if (!player) return;
+        player.score = score;
+        player.sizeMultiplier = scoreToScale(score);
+      });
+    });
+
+    this.socket.on('playerCount', () => {
+      this.updateHud();
+    });
+
+    if (this.socket.io) {
+      this.socket.io.on('reconnect_attempt', (attempt) => {
+        this.setConnectionState(`Reconectando ${attempt}`, 'warning');
+      });
+
+      this.socket.io.on('reconnect_failed', () => {
+        this.mode = 'menu';
+        this.ui.showMenu();
+        this.ui.setMenuBusy(false, 'Tentar de novo');
+        this.ui.setMenuStatus('O servidor fugiu da briga. Tenta chamar de novo.', 'danger');
+        this.setConnectionState('Sem conexão', 'danger');
       });
     }
-  );
-  
-  // Configure texture properties
-  groundTexture.wrapS = THREE.RepeatWrapping;
-  groundTexture.wrapT = THREE.RepeatWrapping;
-  groundTexture.repeat.set(16, 16);
-  groundTexture.anisotropy = 16;
-  
-  // Create material with the texture
-  const groundMaterial = new THREE.MeshStandardMaterial({
-    map: groundTexture,
-    roughness: 0.8,
-    metalness: 0.2,
-    side: THREE.DoubleSide  // Render both sides of the plane
-  });
-  
-  // Create a simple flat ground first to test texturing
-  const groundGeometry = new THREE.PlaneGeometry(worldSize * 2, worldSize * 2, 1, 1);
-  
-  // Create ground mesh
-  const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
-  groundMesh.rotation.x = -Math.PI / 2;
-  groundMesh.receiveShadow = true;
-  groundMesh.name = 'ground';
-  scene.add(groundMesh);
-  
-  // Add a debug message
-  console.log('Ground created with dimensions:', worldSize * 2, 'x', worldSize * 2);
-  
-  // Create grid helper with reduced opacity
-  const gridHelper = new THREE.GridHelper(worldSize * 2, 20, 0x000000, 0x000000);
-  gridHelper.position.y = 0.01;
-  gridHelper.material.opacity = 0.1;
-  gridHelper.material.transparent = true;
-  scene.add(gridHelper);
-}
-
-// Function to add a ball to the scene
-function addBall(ballInfo) {
-  // If ball already exists, just update it
-  if (balls[ballInfo.id]) {
-    balls[ballInfo.id].mesh.position.set(
-      ballInfo.position.x,
-      ballInfo.position.y,
-      ballInfo.position.z
-    );
-    return;
   }
-  
-  console.log('Adding ball:', ballInfo.id);
-  
-  // Create ball geometry and material
-  const ballGeometry = new THREE.SphereGeometry(
-    SETTINGS.BALL_RADIUS,
-    SETTINGS.BALL_SEGMENTS,
-    SETTINGS.BALL_SEGMENTS
-  );
-  
-  const ballMaterial = new THREE.MeshStandardMaterial({ 
-    color: ballInfo.color || 0xFFFFFF,
-    roughness: 0.2,
-    metalness: 0.9,
-    emissive: ballInfo.type === 'GOLDEN' ? 0xFFD700 : 0,
-    emissiveIntensity: 0.5
-  });
-  
-  // Create ball mesh
-  const ballMesh = new THREE.Mesh(ballGeometry, ballMaterial);
-  ballMesh.castShadow = true;
-  ballMesh.receiveShadow = true;
-  // Enable frustum culling for better performance
-  ballMesh.frustumCulled = true;
-  
-  // Set ball position
-  ballMesh.position.set(
-    ballInfo.position.x,
-    ballInfo.position.y,
-    ballInfo.position.z
-  );
-  
-  // Store ball with ID and add to scene
-  balls[ballInfo.id] = {
-    mesh: ballMesh,
-    baseHeight: ballInfo.position.y,
-    collected: false,
-    value: ballInfo.value || SETTINGS.BALL_VALUE,
-    type: ballInfo.type || 'NORMAL'
-  };
-  
-  // Add to scene
-  scene.add(ballMesh);
-}
 
-// Remove a ball from the scene
-function removeBall(ballId) {
-  if (balls[ballId]) {
-    if (balls[ballId].mesh && scene) {
-      // Remove from scene
-      scene.remove(balls[ballId].mesh);
-      
-      // Dispose of geometry and material
-      if (balls[ballId].mesh.geometry) {
-        balls[ballId].mesh.geometry.dispose();
+  joinGame() {
+    if (!this.socket?.connected) return;
+
+    this.awaitingBallSnapshot = true;
+    this.socket.emit('joinGame', {
+      nickname: this.nickname,
+      sessionId: this.sessionId,
+    });
+  }
+
+  startAmbience() {
+    if (this.ambienceStarted) return;
+
+    this.ambienceStarted = true;
+    this.ambientAudio = new Audio('/assets/background_sound.mp3');
+    this.ambientAudio.loop = true;
+    this.ambientAudio.volume = 0.08;
+    this.ambientAudio.play().catch(() => {
+      // Audio is optional.
+    });
+  }
+
+  setConnectionState(text, tone) {
+    this.connectionText = text;
+    this.connectionTone = tone;
+    this.ui.setConnectionState(text, tone);
+  }
+
+  makePlayerState(payload) {
+    const position = new THREE.Vector3(payload.position.x, 0, payload.position.z);
+
+    return {
+      id: payload.id,
+      nickname: payload.nickname,
+      color: payload.color,
+      score: payload.score || 0,
+      sizeMultiplier: scoreToScale(payload.score || 0),
+      invulnerableUntil: payload.invulnerableUntil || 0,
+      speedBoostUntil: payload.speedBoostUntil || 0,
+      position,
+      targetPosition: position.clone(),
+      velocity: new THREE.Vector3(),
+      rotationY: 0,
+      bobPhase: 0,
+      bobOffset: 0,
+      tilt: 0,
+    };
+  }
+
+  upsertPlayerFromServer(payload, { hardSync = false } = {}) {
+    let player = this.players.get(payload.id);
+    if (!player) {
+      player = this.makePlayerState(payload);
+      this.players.set(payload.id, player);
+    }
+
+    player.nickname = payload.nickname;
+    player.color = payload.color;
+    player.score = payload.score || 0;
+    player.sizeMultiplier = scoreToScale(player.score);
+    player.invulnerableUntil = payload.invulnerableUntil || 0;
+    player.speedBoostUntil = payload.speedBoostUntil || 0;
+
+    if (hardSync || payload.id === this.localPlayerId) {
+      player.position.set(payload.position.x, 0, payload.position.z);
+      player.velocity.set(0, 0, 0);
+      player.bobOffset = 0;
+      player.tilt = 0;
+    }
+
+    player.targetPosition.set(payload.position.x, 0, payload.position.z);
+  }
+
+  syncPlayers(snapshot) {
+    const serverIds = new Set(Object.keys(snapshot));
+
+    [...this.players.keys()].forEach((playerId) => {
+      if (!serverIds.has(playerId)) {
+        this.removePlayer(playerId);
       }
-      if (balls[ballId].mesh.material) {
-        if (Array.isArray(balls[ballId].mesh.material)) {
-          balls[ballId].mesh.material.forEach(material => material.dispose());
-        } else {
-          balls[ballId].mesh.material.dispose();
+    });
+
+    Object.values(snapshot).forEach((payload) => {
+      this.upsertPlayerFromServer(payload, { hardSync: true });
+    });
+  }
+
+  makeBallState(payload) {
+    return {
+      id: payload.id,
+      type: payload.type,
+      value: payload.value,
+      color: payload.color,
+      position: new THREE.Vector3(payload.position.x, 0, payload.position.z),
+      hidden: false,
+      pendingUntilMs: 0,
+    };
+  }
+
+  syncBalls(payloads, { replaceAll = false } = {}) {
+    if (replaceAll) {
+      const ids = new Set(payloads.map((ball) => ball.id));
+      [...this.balls.keys()].forEach((ballId) => {
+        if (!ids.has(ballId)) {
+          this.balls.delete(ballId);
+          this.scene.removeBall(ballId);
         }
-      }
+      });
     }
-    
-    // Clean up references
-    delete balls[ballId];
-    pendingCollections.delete(ballId);
-    
-    console.log(`Ball ${ballId} removed and resources disposed`);
-  }
-}
 
-// Update camera position relative to player
-function updateCameraPosition() {
-  if (!players[localPlayerId]) return;
-
-  const playerMesh = players[localPlayerId].mesh;
-  const sizeMultiplier = players[localPlayerId].sizeMultiplier || 1.0;
-
-  // Adjust camera distance based on player size
-  const adjustedCameraDistance = SETTINGS.CAMERA_DISTANCE * Math.max(1, sizeMultiplier * 0.8) * 1.5; // Aumentado em 50%
-  const adjustedCameraHeight = SETTINGS.CAMERA_HEIGHT * Math.max(1, sizeMultiplier * 0.5) * 1.2; // Aumentado em 20%
-
-  // Get camera direction
-  const cameraDirection = camera.getWorldDirection(new THREE.Vector3());
-
-  // Position camera behind player
-  camera.position.copy(playerMesh.position)
-    .sub(cameraDirection.multiplyScalar(adjustedCameraDistance));
-
-  // Set camera height
-  camera.position.y = playerMesh.position.y + adjustedCameraHeight;
-
-  // Look at player
-  camera.lookAt(playerMesh.position);
-}
-
-// Update player count display
-function updatePlayerCount(count) {
-  const playerCount = count || Object.keys(players).length;
-  playerCountDisplay.innerHTML = `Players: ${playerCount}`;
-}
-
-// Animation loop
-function animate() {
-  requestAnimationFrame(animate);
-  
-  // Only process game logic and rendering if the game is active and all required objects exist
-  if (gameActive && scene && camera && renderer) {
-    // Handle player movement
-    updatePlayerMovement();
-    updatePlayerInterpolation();
-    
-    checkPlayerCollisions();
-
-    animateBalls();
-    checkBallCollisions();
-    
-    // Render the scene
-    renderer.render(scene, camera);
-    
-    // Update nametag orientations to face camera
-    updateNametagOrientations();
-  } else if (gameActive) {
-    console.warn('Cannot render: some required objects are not initialized', {
-      scene: !!scene,
-      camera: !!camera,
-      renderer: !!renderer
+    payloads.forEach((payload) => {
+      const existing = this.balls.get(payload.id) || this.makeBallState(payload);
+      existing.type = payload.type;
+      existing.value = payload.value;
+      existing.color = payload.color;
+      existing.position.set(payload.position.x, 0, payload.position.z);
+      existing.hidden = false;
+      existing.pendingUntilMs = 0;
+      this.balls.set(payload.id, existing);
     });
   }
-}
 
-// Update player movement based on keys
-function updatePlayerMovement() {
-  if (!players[localPlayerId]) return;
-  
-  const playerMesh = players[localPlayerId].mesh;
-  const cameraDirection = camera.getWorldDirection(tempVec3_1);
-  
-  // Keep movement on the xz plane
-  cameraDirection.y = 0;
-  cameraDirection.normalize();
-  
-  // Calculate movement vectors
-  const forwardVector = tempVec3_2.copy(cameraDirection);
-  const rightVector = tempVec3_3.crossVectors(
-    cameraDirection,
-    new THREE.Vector3(0, 1, 0)
-  ).normalize();
-  
-  // Determine max speed based on sprint/power-ups
-  let maxSpeed = keys.sprint ? SETTINGS.MOVE_SPEED * SETTINGS.SPRINT_MULTIPLIER : SETTINGS.MOVE_SPEED;
-  if (powerUps.SPEED.active) {
-    maxSpeed *= SETTINGS.SPEED_BOOST_MULTIPLIER;
-  }
-  
-  // Reset target velocity
-  targetVelocity.set(0, 0, 0);
-  
-  // Add movement vectors based on keys
-  if (keys.forward) targetVelocity.add(forwardVector);
-  if (keys.backward) targetVelocity.sub(forwardVector);
-  if (keys.left) targetVelocity.sub(rightVector);
-  if (keys.right) targetVelocity.add(rightVector);
-  
-  // Always normalize the velocity for consistent speed in all directions
-  if (targetVelocity.length() > 0) {
-    targetVelocity.normalize().multiplyScalar(maxSpeed);
+  handleBallCollected(payload) {
+    const ball = this.balls.get(payload.ballId);
+    if (ball) {
+      this.balls.delete(payload.ballId);
+    }
+    this.scene.removeBall(payload.ballId);
+
+    if (payload.playerId === this.localPlayerId) {
+      this.ui.hideToast();
+      this.ui.showPickup(`+${payload.value}`);
+      this.scene.spawnPickupBurst(payload.position, payload.color, this.simulationTimeMs);
+    }
   }
 
-  // Aplicar aceleração ou desaceleração para cada componente
-  if (targetVelocity.length() > 0) {
-    // Acelerando na direção desejada
-    currentVelocity.lerp(targetVelocity, SETTINGS.ACCELERATION);
-  } else {
-    // Desacelerando quando não há entrada
-    if (currentVelocity.length() > 0.001) {
-      currentVelocity.multiplyScalar(1 - SETTINGS.DECELERATION);
+  handlePlayerState(payload) {
+    this.upsertPlayerFromServer(payload, { hardSync: true });
+
+    if (payload?.id === this.localPlayerId) {
+      this.updateHud();
+      this.syncScene();
+      this.scene.render();
+    }
+  }
+
+  handlePlayerConsumed(payload) {
+    if (!payload?.winner || !payload?.loser) return;
+
+    this.upsertPlayerFromServer(payload.winner, { hardSync: true });
+    this.upsertPlayerFromServer(payload.loser, { hardSync: true });
+
+    const loserPlayer = this.players.get(payload.loser.id);
+    if (loserPlayer) {
+      loserPlayer.velocity.set(0, 0, 0);
+    }
+
+    this.scene.spawnConsumeBurst(
+      payload.consumedPosition || payload.winner.position,
+      payload.winner.color,
+      this.simulationTimeMs,
+    );
+    this.scene.spawnRespawnBurst(payload.loser.position, payload.loser.color, this.simulationTimeMs);
+
+    this.ui.showKillfeed(
+      `${payload.winner.nickname} engoliu ${payload.loser.nickname}`,
+      payload.winner.id === this.localPlayerId ? 'live' : 'warning',
+    );
+
+    this.updateHud();
+    this.syncScene();
+    this.scene.render();
+
+    if (payload.winner.id === this.localPlayerId) {
+      this.ui.hideToast();
+      this.ui.showToast(`Tu engoliu ${payload.loser.nickname}.`, 'live', 1800);
+    } else if (payload.loser.id === this.localPlayerId) {
+      this.ui.hideToast();
+      this.ui.showToast(`${payload.winner.nickname} te engoliu. Respawnando...`, 'danger', 2200);
+    }
+  }
+
+  removePlayer(playerId) {
+    this.players.delete(playerId);
+    this.scene.removePlayer(playerId);
+
+    if (playerId === this.localPlayerId && this.mode !== 'menu') {
+      this.localPlayerId = null;
+    }
+  }
+
+  startLoop() {
+    if (this.animationHandle) return;
+
+    const tick = (timestamp) => {
+      if (!this.lastFrameAt) {
+        this.lastFrameAt = timestamp;
+      }
+
+      const delta = Math.min(100, timestamp - this.lastFrameAt);
+      this.lastFrameAt = timestamp;
+      this.advanceSimulation(delta, { allowNetwork: true });
+      this.animationHandle = window.requestAnimationFrame(tick);
+    };
+
+    this.animationHandle = window.requestAnimationFrame(tick);
+  }
+
+  advanceSimulation(ms, { allowNetwork } = { allowNetwork: true }) {
+    this.accumulatorMs += ms;
+
+    while (this.accumulatorMs >= SETTINGS.frameMs) {
+      this.stepFixed({ allowNetwork });
+      this.accumulatorMs -= SETTINGS.frameMs;
+      this.simulationTimeMs += SETTINGS.frameMs;
+    }
+
+    this.syncScene();
+    this.scene.step(this.simulationTimeMs);
+    this.scene.render();
+  }
+
+  stepFixed({ allowNetwork }) {
+    this.balls.forEach((ball) => {
+      if (ball.hidden && ball.pendingUntilMs <= this.simulationTimeMs) {
+        ball.hidden = false;
+        ball.pendingUntilMs = 0;
+      }
+    });
+
+    this.updateRemotePlayers();
+
+    const localPlayer = this.players.get(this.localPlayerId);
+    if (localPlayer && this.mode === 'playing') {
+      this.updateLocalPlayer(localPlayer, { allowNetwork });
+      this.checkBallCollisions(localPlayer);
+    }
+
+    this.updateHud();
+  }
+
+  updateRemotePlayers() {
+    this.players.forEach((player) => {
+      if (player.id === this.localPlayerId) return;
+
+      const delta = new THREE.Vector3().subVectors(player.targetPosition, player.position);
+      if (delta.lengthSq() > 0.000001) {
+        player.position.lerp(player.targetPosition, SETTINGS.interpolationSpeed);
+        player.rotationY = lerpAngle(
+          player.rotationY,
+          Math.atan2(delta.x, delta.z),
+          SETTINGS.interpolationSpeed,
+        );
+        player.bobPhase += 0.12;
+        player.bobOffset = Math.sin(player.bobPhase) * 0.04;
+        player.tilt = Math.min(0.12, delta.length() * 0.15);
+      } else {
+        player.bobOffset *= 0.85;
+        player.tilt *= 0.8;
+      }
+    });
+  }
+
+  updateLocalPlayer(player, { allowNetwork }) {
+    const inputX = (this.keys.right ? 1 : 0) - (this.keys.left ? 1 : 0);
+    const inputZ = (this.keys.forward ? 1 : 0) - (this.keys.backward ? 1 : 0);
+    const hasInput = Math.abs(inputX) > 0 || Math.abs(inputZ) > 0;
+    const boosted = isTimedStateActive(player.speedBoostUntil);
+    let speed = this.keys.sprint ? SETTINGS.moveSpeed * SETTINGS.sprintMultiplier : SETTINGS.moveSpeed;
+    if (boosted) {
+      speed *= SETTINGS.speedBoostMultiplier;
+    }
+
+    const desiredVelocity = new THREE.Vector3();
+    if (hasInput) {
+      const length = Math.hypot(inputX, inputZ) || 1;
+      const localX = inputX / length;
+      const localZ = inputZ / length;
+      const forwardX = Math.sin(this.cameraHeading);
+      const forwardZ = Math.cos(this.cameraHeading);
+      const rightX = -forwardZ;
+      const rightZ = forwardX;
+
+      desiredVelocity.set(
+        (localX * rightX) + (localZ * forwardX),
+        0,
+        (localX * rightZ) + (localZ * forwardZ),
+      ).multiplyScalar(speed);
+    }
+
+    player.velocity.lerp(desiredVelocity, hasInput ? SETTINGS.acceleration : SETTINGS.deceleration);
+    if (!hasInput && player.velocity.lengthSq() < SETTINGS.inputDeadZone) {
+      player.velocity.set(0, 0, 0);
+    }
+
+    const previousX = player.position.x;
+    const previousZ = player.position.z;
+    player.position.add(player.velocity);
+    player.position.x = clamp(player.position.x, -this.worldSize, this.worldSize);
+    player.position.z = clamp(player.position.z, -this.worldSize, this.worldSize);
+
+    const isMoving = player.velocity.lengthSq() > 0.0002;
+    if (isMoving) {
+      const movementAngle = Math.atan2(player.velocity.x, player.velocity.z);
+      player.rotationY = lerpAngle(player.rotationY, movementAngle, 0.24);
+      player.bobPhase += player.velocity.length() * 1.45;
+      player.bobOffset = Math.sin(player.bobPhase) * 0.08;
+      player.tilt = Math.min(0.2, player.velocity.length() * 0.35);
     } else {
-      currentVelocity.set(0, 0, 0);
+      player.bobOffset *= 0.72;
+      player.tilt *= 0.75;
     }
+
+    if (!allowNetwork || !this.socket?.connected) {
+      return;
+    }
+
+    const moved = Math.abs(previousX - player.position.x) > 0.0005 || Math.abs(previousZ - player.position.z) > 0.0005;
+    const sinceLastSend = performance.now() - this.lastSentMovementAt;
+
+    if (moved && (sinceLastSend > 45 || (!isMoving && this.localWasMoving))) {
+      this.socket.emit('playerMovement', {
+        position: {
+          x: round(player.position.x, 3),
+          y: 0,
+          z: round(player.position.z, 3),
+        },
+      });
+      this.lastSentMovementAt = performance.now();
+      this.lastSentPosition.copy(player.position);
+    }
+
+    this.localWasMoving = isMoving;
   }
 
-  // Aplicar movimento se houver alguma velocidade
-  if (currentVelocity.length() > 0.001) {
-    // Atualizar posição do jogador
-    playerMesh.position.x += currentVelocity.x;
-    playerMesh.position.z += currentVelocity.z;
+  checkBallCollisions(localPlayer) {
+    if (!this.socket?.connected) return;
 
-    // Aplicar efeito de salto (bob)
-    bobTimer += currentVelocity.length() * SETTINGS.BOB_FREQUENCY * SETTINGS.BOB_SPEED_SCALING;
-    const bobOffset = Math.sin(bobTimer) * SETTINGS.BOB_AMPLITUDE * (currentVelocity.length() / maxSpeed);
-    playerMesh.position.y = players[localPlayerId].baseHeight + SETTINGS.PLAYER_HEIGHT + bobOffset;
+    const collectionRadius = SETTINGS.collectionDistance + ((localPlayer.sizeMultiplier - 1) * 0.3);
 
-    // Aplicar inclinação na direção do movimento
-    const movementAngle = Math.atan2(currentVelocity.x, currentVelocity.z);
-    const tiltIntensity = currentVelocity.length() / maxSpeed * SETTINGS.TILT_INTENSITY;
+    this.balls.forEach((ball) => {
+      if (ball.hidden) return;
 
-    // Rotação suave para a direção do movimento
-    const targetRotationY = movementAngle;
-    playerMesh.rotation.y = targetRotationY;
+      const distance = localPlayer.position.distanceTo(ball.position);
+      if (distance > collectionRadius) return;
 
-    // Inclinar para frente na direção do movimento
-    playerMesh.rotation.x = tiltIntensity;
+      ball.hidden = true;
+      ball.pendingUntilMs = this.simulationTimeMs + 5000;
 
-    // Manter jogador dentro dos limites do mundo
-    playerMesh.position.x = Math.max(-worldSize, Math.min(worldSize, playerMesh.position.x));
-    playerMesh.position.z = Math.max(-worldSize, Math.min(worldSize, playerMesh.position.z));
-
-    // Atualizar posição da câmera relativa ao jogador
-    updateCameraPosition();
-
-    // Enviar atualização de posição para o servidor
-    socket.emit('playerMovement', {
-      position: {
-        x: playerMesh.position.x,
-        y: playerMesh.position.y - SETTINGS.PLAYER_HEIGHT, // Ajustar pelo offset
-        z: playerMesh.position.z
-      }
+      this.socket.emit('collectBall', {
+        ballId: ball.id,
+      });
     });
-  } else {
-    // Recuperar altura normal quando parado
-    playerMesh.position.y = players[localPlayerId].baseHeight + SETTINGS.PLAYER_HEIGHT;
-
-    // Recuperar inclinação e rotação quando parado
-    playerMesh.rotation.x *= (1 - SETTINGS.TILT_RECOVERY_SPEED);
   }
-}
 
-// Update player interpolation for smooth movement
-function updatePlayerInterpolation() {
-  Object.keys(interpolationData).forEach(playerId => {
-    if (playerId !== localPlayerId && players[playerId]) {
-      const data = interpolationData[playerId];
-      const playerMesh = players[playerId].mesh;
+  syncScene() {
+    this.players.forEach((player) => {
+      this.scene.upsertPlayer(player, {
+        isLocal: player.id === this.localPlayerId,
+      });
+    });
 
-      // Adjust position with interpolation
-      playerMesh.position.lerp(data.targetPosition, SETTINGS.INTERPOLATION_SPEED);
+    this.balls.forEach((ball) => {
+      this.scene.upsertBall(ball);
+    });
+
+    const localPlayer = this.players.get(this.localPlayerId);
+    if (localPlayer && this.mode !== 'menu') {
+      this.scene.updateCamera(localPlayer, this.cameraHeading);
+    } else {
+      this.scene.updateIdleCamera(this.simulationTimeMs);
     }
-  });
-}
+  }
 
-// Animate all balls
-function animateBalls() {
-  Object.keys(balls).forEach(ballId => {
-    const ball = balls[ballId];
-    if (ball && ball.mesh) {
-      // Rotate ball
-      ball.mesh.rotation.y += SETTINGS.BALL_ROTATION_SPEED;
-      ball.mesh.rotation.x += SETTINGS.BALL_ROTATION_SPEED / 2;
+  getLeaderboard() {
+    return [...this.players.values()]
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+        return left.nickname.localeCompare(right.nickname);
+      })
+      .slice(0, 3)
+      .map((player) => ({
+        id: player.id,
+        nickname: player.nickname,
+        score: player.score,
+      }));
+  }
 
-      // Make ball hover up and down
-      const hoverOffset = Math.sin(Date.now() * 0.002) * 0.1;
-      ball.mesh.position.y = ball.baseHeight + hoverOffset;
+  updateHud() {
+    const localPlayer = this.players.get(this.localPlayerId);
+    const activeBalls = [...this.balls.values()].filter((ball) => !ball.hidden).length;
+    const statusLine = this.mode === 'playing'
+      ? `${activeBalls} bolas vivas na arena.`
+      : this.mode === 'reconnecting'
+        ? 'Segura a bronca. Estou tentando religar o circo.'
+        : 'Arena em banho-maria.';
+    const statusChip = this.getStatusChipState(localPlayer);
+
+    this.ui.updateHUD({
+      score: localPlayer?.score || 0,
+      playerCount: this.players.size,
+      leaderboard: this.getLeaderboard(),
+      localPlayerId: this.localPlayerId,
+      statusLine,
+      statusChip,
+    });
+  }
+
+  getStatusChipState(localPlayer) {
+    if (!localPlayer) return null;
+
+    const now = Date.now();
+    if (isTimedStateActive(localPlayer.invulnerableUntil, now)) {
+      return {
+        label: `Protegido ${Math.max(1, Math.ceil((localPlayer.invulnerableUntil - now) / 1000))}s`,
+        tone: 'live',
+      };
     }
-  });
-}
 
-// Check for ball collisions
-const pendingCollectionTimeouts = {};
+    if (isTimedStateActive(localPlayer.speedBoostUntil, now)) {
+      return {
+        label: `Turbo ${Math.max(1, Math.ceil((localPlayer.speedBoostUntil - now) / 1000))}s`,
+        tone: 'warning',
+      };
+    }
 
-function checkBallCollisions() {
-  if (!players[localPlayerId]) return;
-  
-  const playerMesh = players[localPlayerId].mesh;
-  const playerPosition = playerMesh.position.clone();
-  const playerRadius = SETTINGS.PLAYER_RADIUS * (players[localPlayerId].sizeMultiplier || 1.0);
-  
-  Object.keys(balls).forEach(ballId => {
-    const ball = balls[ballId];
-    if (ball && ball.mesh && !ball.collected && !pendingCollections.has(ballId)) {
-      const ballPosition = ball.mesh.position.clone();
-      const distance = playerPosition.distanceTo(ballPosition);
-      
-      // Use 3D distance and check if within collection range
-      // Adjust collection distance based on player size
-      const adjustedCollectionDistance = SETTINGS.COLLECTION_DISTANCE + playerRadius - SETTINGS.PLAYER_RADIUS;
-      
-      if (distance < adjustedCollectionDistance) {
-        // Mark ball as collected locally to prevent repeated attempts
-        ball.collected = true;
-        
-        // Optimistic collection: hide the ball immediately
-        ball.mesh.visible = false;
-        
-        // Add to pending collections set for debounce
-        pendingCollections.add(ballId);
-        
-        console.log(`Collecting ball ${ballId}, distance: ${distance}`);
-        
-        // Tell server this ball was collected
-        socket.emit('collectBall', { ballId: ballId });
-        
-        // Set up a safety timeout to clear pending status after 5 seconds
-        pendingCollectionTimeouts[ballId] = setTimeout(() => {
-          // If server didn't respond, make ball visible again
-          if (balls[ballId]) {
-            balls[ballId].collected = false;
-            balls[ballId].mesh.visible = true;
-            console.log(`Ball collection timeout for ${ballId}, making visible again`);
+    return null;
+  }
+
+  buildTextState() {
+    const localPlayer = this.players.get(this.localPlayerId);
+    const leaderboard = this.getLeaderboard();
+
+    const visibleBalls = [...this.balls.values()]
+      .filter((ball) => !ball.hidden)
+      .sort((left, right) => {
+        if (!localPlayer) return left.id.localeCompare(right.id);
+        return localPlayer.position.distanceTo(left.position) - localPlayer.position.distanceTo(right.position);
+      })
+      .map((ball) => ({
+        id: ball.id,
+        type: ball.type,
+        value: ball.value,
+        x: round(ball.position.x),
+        y: 0,
+        z: round(ball.position.z),
+      }));
+
+    return {
+      mode: this.mode,
+      connection: {
+        label: this.connectionText,
+        tone: this.connectionTone,
+      },
+      coordinates: 'origin=center, +x=right/east, +z=down/south from default menu view, +y=up',
+      localPlayer: localPlayer
+        ? {
+            id: localPlayer.id,
+            nickname: localPlayer.nickname,
+            x: round(localPlayer.position.x),
+            y: 0,
+            z: round(localPlayer.position.z),
+            score: localPlayer.score,
+            sizeMultiplier: round(localPlayer.sizeMultiplier),
+            invulnerableUntil: isTimedStateActive(localPlayer.invulnerableUntil)
+              ? localPlayer.invulnerableUntil
+              : null,
+            speedBoostUntil: isTimedStateActive(localPlayer.speedBoostUntil)
+              ? localPlayer.speedBoostUntil
+              : null,
+            moving: localPlayer.velocity.lengthSq() > 0.0002,
           }
-          pendingCollections.delete(ballId);
-          delete pendingCollectionTimeouts[ballId];
-        }, 5000);
-      }
-    }
-  });
-}
-
-const nametagTextureCache = {};
-
-// Create a nametag for a player
-function createNametag(name) {
-  // Check if we already have a texture for this name
-  if (nametagTextureCache[name]) {
-    // Use the cached texture
-    const texture = nametagTextureCache[name];
-    
-    // Create sprite material with the cached texture
-    const material = new THREE.SpriteMaterial({ 
-      map: texture,
-      transparent: true
-    });
-    
-    // Create sprite with the material
-    const sprite = new THREE.Sprite(material);
-    sprite.scale.set(3, 0.75, 1);
-    
-    // Create a group to hold the sprite
-    const group = new THREE.Group();
-    group.add(sprite);
-    
-    return group;
+        : null,
+      playerCount: this.players.size,
+      leaderboard,
+      visibleBalls,
+    };
   }
-  
-  // If no cached texture exists, create a new one
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  canvas.width = 512;
-  canvas.height = 128;
-  
-  // Fill with transparent background
-  context.fillStyle = 'rgba(0, 0, 0, 0)';
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  
-  // Draw text with outline and fill
-  context.font = 'bold 42px Arial';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  
-  context.strokeStyle = 'black';
-  context.lineWidth = 5;
-  context.strokeText(name, canvas.width / 2, canvas.height / 2);
-  
-  context.fillStyle = 'white';
-  context.fillText(name, canvas.width / 2, canvas.height / 2);
-  
-  // Create and cache the texture
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.needsUpdate = true;
-  nametagTextureCache[name] = texture;
-  
-  // Create sprite material and sprite as before
-  const material = new THREE.SpriteMaterial({ 
-    map: texture,
-    transparent: true
-  });
-  
-  const sprite = new THREE.Sprite(material);
-  sprite.scale.set(3, 0.75, 1);
-  
-  const group = new THREE.Group();
-  group.add(sprite);
-  
-  return group;
-}
 
-// Update nametag orientations to face the camera
-function updateNametagOrientations() {
-  Object.values(players).forEach(player => {
-    if (player.nametagGroup) {
-      // Make nametag face the camera
-      player.nametagGroup.quaternion.copy(camera.quaternion);
+  exposeTestingHooks() {
+    window.render_game_to_text = () => JSON.stringify(this.buildTextState());
+    window.advanceTime = async (ms) => {
+      this.advanceSimulation(ms, { allowNetwork: true });
+    };
+  }
+
+  toggleFullscreen() {
+    const canvas = this.scene.getCanvasElement();
+    if (!canvas) return;
+
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+      return;
     }
-  });
-}
 
-// Helper function to get a random color
-function getRandomColor() {
-  // Exclude very dark or light colors
-  const hue = Math.random() * 360;
-  const saturation = 70 + Math.random() * 30; // 70-100%
-  const lightness = 40 + Math.random() * 20;  // 40-60%
-
-  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-}
-
-// Initialize everything immediately since we're now loaded after menu handling
-function initGame() {
-  console.log('Initializing game with nickname:', playerNickname);
-  try {
-    // Create UI
-    createUI();
-    
-    // Initialize scene
-    initializeScene();
-    
-    // Create ground if not created already
-    if (!scene.getObjectByName('ground')) {
-      createGround(scene);
-    }
-    
-    // Initialize controls
-    initControls();
-    
-    // Connect to server
-    connectToServer();
-    
-    // Start animation loop (ONLY PLACE this should be called)
-    animate();
-    
-    console.log('Game initialized successfully');
-  } catch (error) {
-    console.error('Error initializing game:', error);
-    alert('Error starting game: ' + error.message);
+    canvas.requestFullscreen?.().catch(() => {});
   }
 }
 
-initGame();
+function getElements() {
+  return {
+    gameRoot: document.getElementById('game-root'),
+    menuScreen: document.getElementById('menu-screen'),
+    nicknameInput: document.getElementById('nickname-input'),
+    playButton: document.getElementById('play-button'),
+    menuStatus: document.getElementById('menu-status'),
+    hud: document.getElementById('hud'),
+    connectionBadge: document.getElementById('connection-badge'),
+    scoreValue: document.getElementById('score-value'),
+    playerCountValue: document.getElementById('player-count-value'),
+    statusLine: document.getElementById('status-line'),
+    hudTip: document.getElementById('hud-tip'),
+    instructionsPanel: document.getElementById('instructions-panel'),
+    leaderboard: document.getElementById('leaderboard'),
+    killfeed: document.getElementById('killfeed'),
+    statusChip: document.getElementById('status-chip'),
+    toast: document.getElementById('message-toast'),
+    pickupFlash: document.getElementById('pickup-flash'),
+  };
+}
 
-// Setup window resize handler
-window.addEventListener('resize', () => {
-  if (renderer && camera) {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    renderer.setSize(width, height);
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-    console.log('Window resized to', width, 'x', height);
-  }
+document.addEventListener('DOMContentLoaded', () => {
+  const app = new GameApp(getElements());
+  app.init();
+  window.__pegaBolaApp = app;
 });
-
-// Update leaderboard
-function updateLeaderboard() {
-  // Ordena jogadores por pontuação
-  leaderboardPlayers = Object.values(players).sort((a, b) => b.score - a.score);
-
-  const leaderboardEntries = document.getElementById('leaderboard-entries');
-  if (!leaderboardEntries) return;
-
-  leaderboardEntries.innerHTML = '';
-
-  // Apenas os 3 melhores
-  const topPlayers = leaderboardPlayers.slice(0, 3);
-  const medals = ['👑', '🥈', '🥉'];
-
-  topPlayers.forEach((player, index) => {
-    const entry = document.createElement('div');
-    entry.className = 'leaderboard-entry';
-    entry.style.margin = '6px 0';
-    entry.style.display = 'flex';
-    entry.style.justifyContent = 'space-between';
-    entry.style.alignItems = 'center';
-    entry.style.padding = '6px 10px';
-    entry.style.borderRadius = '6px';
-    entry.style.background = 'rgba(30, 30, 30, 0.6)';
-    entry.style.fontFamily = `'Playfair Display', serif`;
-    entry.style.fontSize = '1em';
-
-    // Destaque pro jogador local
-    if (player.id === localPlayerId) {
-      entry.style.fontWeight = 'bold';
-      entry.style.color = '#f9c80e';
-      entry.style.background = 'rgba(255, 255, 0, 0.1)';
-      entry.style.boxShadow = '0 0 8px rgba(255, 255, 0, 0.3)';
-    }
-
-    const nameSpan = document.createElement('span');
-    nameSpan.innerHTML = `${medals[index]}: ${player.nickname}`;
-    nameSpan.style.overflow = 'hidden';
-    nameSpan.style.textOverflow = 'ellipsis';
-    nameSpan.style.whiteSpace = 'nowrap';
-    nameSpan.style.maxWidth = '200px';
-
-    const scoreSpan = document.createElement('span');
-    scoreSpan.innerHTML = `💰 ${player.score}`;
-    scoreSpan.style.marginLeft = '10px';
-    scoreSpan.style.fontWeight = 'bold';
-
-    entry.appendChild(nameSpan);
-    entry.appendChild(scoreSpan);
-
-    leaderboardEntries.appendChild(entry);
-  });
-
-  // Preenche espaço se tiver menos que 3
-  for (let i = topPlayers.length; i < 3; i++) {
-    const emptyEntry = document.createElement('div');
-    emptyEntry.className = 'leaderboard-entry';
-    emptyEntry.style.margin = '6px 0';
-    emptyEntry.style.color = '#555';
-    emptyEntry.style.fontStyle = 'italic';
-    emptyEntry.style.textAlign = 'center';
-    emptyEntry.innerHTML = `${medals[i]}: --- um trono vazio ---`;
-    leaderboardEntries.appendChild(emptyEntry);
-  }
-}
-
-function checkPlayerCollisions() {
-  if (!players[localPlayerId] || !players[localPlayerId].mesh) return;
-  
-  const localPlayer = players[localPlayerId];
-  const localPosition = localPlayer.mesh.position.clone();
-  localPosition.y = 0; // Project onto the XZ plane for collision checking
-  
-  const localRadius = SETTINGS.PLAYER_RADIUS * (localPlayer.sizeMultiplier || 1.0);
-  
-  // Check collisions with other players
-  Object.values(players).forEach(otherPlayer => {
-    if (otherPlayer.id === localPlayerId || !otherPlayer.mesh) return;
-    
-    const otherPosition = otherPlayer.mesh.position.clone();
-    otherPosition.y = 0; // Project onto the XZ plane
-    
-    const otherRadius = SETTINGS.PLAYER_RADIUS * (otherPlayer.sizeMultiplier || 1.0);
-    
-    // Calculate distance between players
-    const distance = localPosition.distanceTo(otherPosition);
-    const minDistance = localRadius + otherRadius;
-    
-    // If players are colliding, push them apart
-    if (distance < minDistance) {
-      // Calculate direction to push
-      const pushDirection = localPosition.clone().sub(otherPosition).normalize();
-      
-      // Calculate push amount (half the overlap)
-      const overlap = minDistance - distance;
-      const pushAmount = overlap * 0.5;
-      
-      // Apply push to local player position
-      localPlayer.mesh.position.add(
-        pushDirection.multiplyScalar(pushAmount)
-      );
-      
-      // Keep player within world bounds
-      localPlayer.mesh.position.x = Math.max(-worldSize, Math.min(worldSize, localPlayer.mesh.position.x));
-      localPlayer.mesh.position.z = Math.max(-worldSize, Math.min(worldSize, localPlayer.mesh.position.z));
-      
-      // Update camera position
-      updateCameraPosition();
-    }
-  });
-}

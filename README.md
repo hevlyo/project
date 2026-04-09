@@ -18,8 +18,8 @@ Um jogo multiplayer em tempo real onde os jogadores competem para coletar bolas 
 
 ## 📋 Pré-requisitos
 
-- Node.js (versão 14 ou superior)
-- NPM ou Yarn
+- Node.js (versão 18 ou superior)
+- Bun
 
 ## 🔧 Instalação
 
@@ -28,23 +28,23 @@ Um jogo multiplayer em tempo real onde os jogadores competem para coletar bolas 
 ```bash
 git clone [URL_DO_REPOSITÓRIO]
 ```
-
+  
 1. Instale as dependências:
 
 ```bash
-npm install
+bun install
 ```
 
 1. Inicie o servidor:
 
 ```bash
-npm start
+bun run start
 ```
 
 1. Acesse o jogo em:
 
 ```url
-http://localhost:3000
+http://localhost:25565
 ```
 
 ## 🎮 Como Jogar
@@ -52,8 +52,9 @@ http://localhost:3000
 1. Digite seu nome de usuário na tela inicial
 2. Use as teclas WASD para mover seu personagem
 3. Colete as bolas para ganhar pontos
-4. Evite colisões com outros jogadores
-5. O jogador com mais pontos vence!
+4. Jogadores maiores podem engolir jogadores menores
+5. Ao ser engolido, você respawna com proteção curta
+6. O jogador com mais pontos vence!
 
 ## 🏗️ Estrutura do Projeto
 
@@ -84,30 +85,13 @@ http://localhost:3000
 
 ### Scripts Disponíveis
 
-- `npm start`: Inicia o servidor de desenvolvimento
-- `npm run dev`: Inicia o servidor com hot-reload (se configurado)
+- `bun run start`: inicia o servidor local do jogo
 
 ### Padrões de Código
 
 - Utilizamos ES6+ para o código JavaScript
 - Seguimos o padrão de módulos do Node.js
 - Comentários JSDoc para documentação do código
-
-## 🤝 Contribuindo
-
-1. Faça um fork do projeto
-1. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-1. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-1. Push para a branch (`git push origin feature/AmazingFeature`)
-1. Abra um Pull Request
-
-## 📝 Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
-
-## 📞 Suporte
-
-Para suporte, envie um email para [hevlyo@gmail.com] ou abra uma issue no GitHub.
 
 ---
 
