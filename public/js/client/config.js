@@ -5,9 +5,17 @@ export const SETTINGS = {
   playerHeight: 1.15,
   playerRadius: 0.52,
   arenaWallPadding: 0.7,
+  arenaEdgeSkin: 0.12,
+  arenaPostCount: 10,
+  arenaPostRingScale: 0.88,
+  arenaPostRadius: 0.72,
   consumeSizeRatio: 1.1,
   moveSpeed: 0.19,
   sprintMultiplier: 1.45,
+  dashSpeedMultiplier: 3.1,
+  dashDurationMs: 130,
+  dashCooldownMs: 1700,
+  dashAcceleration: 0.58,
   speedBoostMultiplier: 1.35,
   speedBoostDurationMs: 4000,
   respawnInvulnerableMs: 2000,
@@ -75,7 +83,8 @@ export const DISCONNECT_MESSAGES = [
 
 export const HUD_TIPS = [
   'WASD ou setas para se mexer. Shift para correr feito devedor.',
-  '`F` alterna tela cheia. `Esc` tira você do teatro inteiro.',
+  'Aperta Space para dash. Tem cooldown, então usa na hora certa.',
+  'R tenta devorar. Dash (Space) também ativa janela de devorar.',
   'Bola dourada vale mais. A verdinha vale menos, mas ainda paga o almoço.',
 ];
 

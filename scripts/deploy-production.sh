@@ -4,7 +4,7 @@ set -euo pipefail
 # Deploy script based on the method documented in progress.md:
 # 1) rsync workspace to remote host
 # 2) npm install on remote
-# 3) restart app with detached nohup node server.js
+# 3) build TypeScript and restart app with detached nohup node dist/server.js
 # 4) verify local and public HTTP health checks
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,8 +46,11 @@ rsync -az --delete "${EXCLUDES[@]}" "${REPO_ROOT}/" "${REMOTE_HOST}:${REMOTE_APP
 log "Installing dependencies on remote"
 ssh "${REMOTE_HOST}" "cd ${REMOTE_APP_DIR} && npm install"
 
+log "Building TypeScript on remote"
+ssh "${REMOTE_HOST}" "cd ${REMOTE_APP_DIR} && npm run build"
+
 log "Restarting remote app with nohup"
-REMOTE_PID="$(ssh "${REMOTE_HOST}" "cd ${REMOTE_APP_DIR} && PIDS=\$(pgrep -f '^${REMOTE_NODE_BIN}[[:space:]]+server\\.js$' || true) && if [ -n \"\$PIDS\" ]; then kill \$PIDS >/dev/null 2>&1 || true; fi; nohup ${REMOTE_NODE_BIN} server.js > server.log 2>&1 < /dev/null & echo \$!" | tr -d '\r' | tail -n 1)"
+REMOTE_PID="$(ssh "${REMOTE_HOST}" "cd ${REMOTE_APP_DIR} && PIDS=\$(pgrep -f '^${REMOTE_NODE_BIN}[[:space:]]+dist/server\\.js$' || true) && if [ -n \"\$PIDS\" ]; then kill \$PIDS >/dev/null 2>&1 || true; fi; nohup ${REMOTE_NODE_BIN} dist/server.js > server.log 2>&1 < /dev/null & echo \$!" | tr -d '\r' | tail -n 1)"
 
 if [[ -z "${REMOTE_PID}" ]]; then
   printf 'Failed to start remote process (empty pid).\n' >&2

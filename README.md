@@ -1,98 +1,73 @@
 # Pega Bola 3000
 
-Um jogo multiplayer em tempo real onde os jogadores competem para coletar bolas em um ambiente 3D.
+Jogo multiplayer em tempo real em que os jogadores entram, coletam bolas, crescem, disputam a liderança e podem consumir outros jogadores quando a regra de intenção permite.
 
-## 🚀 Tecnologias Utilizadas
+## Stack
 
-- **Frontend**:
-  - Three.js para renderização 3D
-  - Socket.IO para comunicação em tempo real
-  - HTML5 e CSS3 moderno
-  - JavaScript ES6+
+- Frontend em HTML, CSS e JavaScript carregado diretamente pelo navegador
+- Servidor em TypeScript com Node.js e Express
+- Socket.IO para sincronização em tempo real
+- Three.js no cliente para renderização 3D
 
-- **Backend**:
-  - Node.js
-  - Express.js
-  - Socket.IO
-  - Three.js (server-side)
+## Assets
 
-## 📋 Pré-requisitos
+- Modelos 3D externos da Khronos glTF Sample Assets, incluindo `Lantern` e `Diffuse Transmission Plant`
+- Assets baixados e servidos localmente em `public/assets/models/`
 
-- Node.js (versão 18 ou superior)
+## Requisitos
+
+- Node.js 18 ou superior
 - Bun
 
-## 🔧 Instalação
-
-1. Clone o repositório:
-
-```bash
-git clone [URL_DO_REPOSITÓRIO]
-```
-  
-1. Instale as dependências:
+## Instalação
 
 ```bash
 bun install
 ```
 
-1. Inicie o servidor:
+## Execução
 
 ```bash
 bun run start
 ```
 
-1. Acesse o jogo em:
+Depois, abra:
 
-```url
+```text
 http://localhost:25565
 ```
 
-## 🎮 Como Jogar
+## Controles
 
-1. Digite seu nome de usuário na tela inicial
-2. Use as teclas WASD para mover seu personagem
-3. Colete as bolas para ganhar pontos
-4. Jogadores maiores podem engolir jogadores menores
-5. Ao ser engolido, você respawna com proteção curta
-6. O jogador com mais pontos vence!
+- `WASD` para mover
+- `Space` para dash
+- `R` para tentativa de consumo
+- `f` para fullscreen
+- `Esc` para sair do fullscreen
 
-## 🏗️ Estrutura do Projeto
+## Loop Atual
+
+- Entrar com nickname
+- Movimentar pelo mapa
+- Coletar bolas para ganhar pontos e crescer
+- Disputar ranking
+- Consumir jogadores menores quando houver intenção ativa
+- Respawn com proteção curta
+- Reconnect curto sem duplicar o jogador local
+
+## Estrutura
 
 ```text
-├── public/              # Arquivos estáticos
-│   ├── assets/         # Recursos visuais
-│   ├── js/             # Scripts do cliente
-│   └── index.html      # Página principal
-├── src/                # Código fonte
-│   ├── config/         # Configurações do jogo
-│   ├── game/           # Lógica do jogo
-│   ├── models/         # Modelos 3D
-│   ├── socket/         # Gerenciamento de sockets
-│   └── utils/          # Utilitários
-├── server.js           # Ponto de entrada do servidor
-└── package.json        # Dependências e scripts
+├── public/      # Cliente, HTML e assets
+├── src/         # Config, estado do jogo e socket layer
+├── server.ts    # Entrada do servidor
+├── dist/        # Saída gerada no build
+└── package.json
 ```
 
-## 🔄 Funcionalidades
+## Scripts
 
-- **Multiplayer em Tempo Real**: Jogue com outros jogadores online
-- **Física 3D**: Sistema de colisão e movimento realista
-- **Sistema de Pontuação**: Competição por pontos
-- **Interface Intuitiva**: Design moderno e responsivo
-- **Personalização**: Escolha seu nome de usuário
-
-## 🛠️ Desenvolvimento
-
-### Scripts Disponíveis
-
-- `bun run start`: inicia o servidor local do jogo
-
-### Padrões de Código
-
-- Utilizamos ES6+ para o código JavaScript
-- Seguimos o padrão de módulos do Node.js
-- Comentários JSDoc para documentação do código
-
----
-
-Desenvolvido com ❤️ por [Riquelme]
+- `bun run build`: compila o TypeScript
+- `bun run start`: compila e inicia o servidor
+- `bun run test`: roda os testes
+- `bun run deploy:prod`: faz o deploy de produção

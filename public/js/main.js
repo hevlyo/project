@@ -1,8 +1,9 @@
-import { SETTINGS, STORAGE_KEY, SESSION_STORAGE_KEY, JOIN_MESSAGES, DISCONNECT_MESSAGES, HUD_TIPS, clamp, isTimedStateActive, lerpAngle, normalizeNickname, randomItem, round, scoreToScale } from './client/config.js?v=20260409';
-import { SceneController, THREE } from './client/scene.js?v=20260409';
-import { createUIController } from './client/ui.js?v=20260409';
+import { SETTINGS, STORAGE_KEY, SESSION_STORAGE_KEY, JOIN_MESSAGES, DISCONNECT_MESSAGES, HUD_TIPS, clamp, isTimedStateActive, lerpAngle, normalizeNickname, randomItem, round, scoreToScale } from './client/config.js?v=20260410-uinotifysync1';
+import { SceneController, THREE } from './client/scene.js?v=20260410-uinotifysync1';
+import { createUIController } from './client/ui.js?v=20260410-uinotifysync1';
 
 const MUSIC_VOLUME_STORAGE_KEY = 'pega-bola-music-volume';
+const MUSIC_MODE_STORAGE_KEY = 'pega-bola-music-mode';
 
 class GameApp {
   constructor(elements) {
@@ -43,18 +44,27 @@ class GameApp {
     this.nextHudUpdateAt = 0;
     this.ambienceStarted = false;
     this.ambientAudio = null;
+    this.ambientTrackUrls = this.buildAmbientTrackUrls();
     this.ambientPlaylist = [];
     this.ambientTrackIndex = 0;
     this.ambientTrackPlayCount = 0;
     this.onAmbientEnded = null;
     this.musicVolume = this.restoreMusicVolume();
     this.lastNonZeroMusicVolume = this.musicVolume > 0 ? this.musicVolume : 0.08;
+    this.musicMode = this.restoreMusicMode();
     this.hasShownSessionInstructions = false;
     this.hasShownJoinToast = false;
     this.destroyed = false;
     this.disposers = [];
     this.remoteDelta = new THREE.Vector3();
     this.desiredVelocity = new THREE.Vector3();
+    this.dashDirection = new THREE.Vector3(0, 0, 1);
+    this.pendingDash = false;
+    this.dashUntilMs = 0;
+    this.dashCooldownUntilMs = 0;
+    this.lastDashCooldownToastAt = -Infinity;
+    this.lastDashTrailAtMs = -Infinity;
+    this.pendingCollectionNotifs = new Map();
   }
 
   init() {
@@ -66,8 +76,10 @@ class GameApp {
     this.ui.setNickname(this.restoreNickname());
     this.ui.setMusicVolume(this.musicVolume);
     this.ui.setMusicMuted(this.musicVolume === 0);
+    this.ui.setMusicModeOptions(this.buildMusicModeOptions(), this.musicMode);
     this.ui.bindMusicVolumeChange((volume) => this.setMusicVolume(volume));
     this.ui.bindMusicMuteToggle(() => this.toggleMusicMuted());
+    this.ui.bindMusicModeChange((mode) => this.setMusicMode(mode));
     this.sessionId = this.restoreSessionId();
     this.ui.focusNickname();
 
@@ -130,6 +142,62 @@ class GameApp {
     } catch {
       // Ignore storage failures in private contexts.
     }
+  }
+
+  restoreMusicMode() {
+    const fallback = 'auto';
+    const validModes = new Set(this.buildMusicModeOptions().map((option) => option.value));
+
+    try {
+      const stored = localStorage.getItem(MUSIC_MODE_STORAGE_KEY);
+      if (!stored || !validModes.has(stored)) {
+        return fallback;
+      }
+      return stored;
+    } catch {
+      return fallback;
+    }
+  }
+
+  persistMusicMode(mode) {
+    try {
+      localStorage.setItem(MUSIC_MODE_STORAGE_KEY, mode);
+    } catch {
+      // Ignore storage failures in private contexts.
+    }
+  }
+
+  setMusicMode(mode) {
+    const validModes = new Set(this.buildMusicModeOptions().map((option) => option.value));
+    const safeMode = validModes.has(mode) ? mode : 'auto';
+    this.musicMode = safeMode;
+    this.persistMusicMode(safeMode);
+    this.ui.setMusicMode(safeMode);
+
+    if (this.ambientAudio) {
+      this.applyMusicModeToAmbient({ restart: true });
+      this.ambientAudio.play().catch(() => {
+        // Audio is optional.
+      });
+    }
+  }
+
+  isAutoMusicMode() {
+    return this.musicMode === 'auto';
+  }
+
+  getSelectedTrackUrl() {
+    if (this.isAutoMusicMode()) {
+      return null;
+    }
+
+    const [, indexToken] = String(this.musicMode).split(':');
+    const index = Number(indexToken);
+    if (!Number.isInteger(index) || index < 0 || index >= this.ambientTrackUrls.length) {
+      return null;
+    }
+
+    return this.ambientTrackUrls[index];
   }
 
   setMusicVolume(value) {
@@ -238,7 +306,21 @@ class GameApp {
           this.keys.sprint = true;
           event.preventDefault();
           break;
+        case ' ':
+        case 'Spacebar':
+          event.preventDefault();
+          this.tryStartDash();
+          break;
+        case 'r':
+        case 'R':
+          event.preventDefault();
+          this.tryConsume();
+          break;
         default:
+          if (event.code === 'Space') {
+            event.preventDefault();
+            this.tryStartDash();
+          }
           break;
       }
     });
@@ -285,6 +367,31 @@ class GameApp {
     Object.keys(this.keys).forEach((key) => {
       this.keys[key] = false;
     });
+    this.pendingDash = false;
+  }
+
+  tryStartDash() {
+    if (this.mode !== 'playing') return;
+    if (!this.players.has(this.localPlayerId)) return;
+
+    if (this.simulationTimeMs < this.dashCooldownUntilMs) {
+      if ((this.simulationTimeMs - this.lastDashCooldownToastAt) > 500) {
+        const remaining = Math.max(0, this.dashCooldownUntilMs - this.simulationTimeMs);
+        this.ui.showToast(`Dash em recarga: ${(remaining / 1000).toFixed(1)}s`, 'warning', 700);
+        this.lastDashCooldownToastAt = this.simulationTimeMs;
+      }
+      return;
+    }
+
+    this.pendingDash = true;
+  }
+
+  tryConsume() {
+    if (this.mode !== 'playing') return;
+    if (!this.localPlayerId) return;
+    if (!this.socket?.connected) return;
+
+    this.socket.emit('playerConsumeAttempt');
   }
 
   handleStart() {
@@ -297,6 +404,12 @@ class GameApp {
     this.mode = 'connecting';
     this.awaitingBallSnapshot = true;
     this.cameraHeading = 0;
+    this.pendingDash = false;
+    this.dashUntilMs = 0;
+    this.dashCooldownUntilMs = 0;
+    this.lastDashCooldownToastAt = -Infinity;
+    this.lastDashTrailAtMs = -Infinity;
+    this.pendingCollectionNotifs.clear();
     this.hasShownSessionInstructions = false;
     this.hasShownJoinToast = false;
 
@@ -339,6 +452,7 @@ class GameApp {
 
     this.socket.on('disconnect', (reason) => {
       this.mode = this.mode === 'menu' ? 'menu' : 'reconnecting';
+      this.pendingCollectionNotifs.clear();
       this.setConnectionState('Reconectando', 'warning');
       this.ui.setMenuStatus(randomItem(DISCONNECT_MESSAGES), 'warning');
       this.ui.showToast(`Conexão caiu: ${reason}`, 'warning', 2400);
@@ -414,8 +528,37 @@ class GameApp {
       Object.entries(scores).forEach(([playerId, score]) => {
         const player = this.players.get(playerId);
         if (!player) return;
-        player.score = score;
-        player.sizeMultiplier = scoreToScale(score);
+
+        const previousScore = Number(player.score) || 0;
+        const nextScore = Number(score) || 0;
+        const gainedScore = nextScore - previousScore;
+
+        if (gainedScore > 0) {
+          const pendingQueue = this.pendingCollectionNotifs.get(playerId);
+          const pending = pendingQueue?.shift();
+
+          if (pending) {
+            const popupScale = pending.sizeMultiplier || player.sizeMultiplier || 1;
+            this.scene.spawnFloatingValue(
+              pending.position,
+              `${gainedScore}`,
+              pending.color,
+              this.simulationTimeMs,
+              popupScale,
+            );
+
+            if (playerId === this.localPlayerId) {
+              this.scene.triggerPickupCameraBoost(gainedScore, popupScale);
+            }
+          }
+
+          if (pendingQueue && pendingQueue.length === 0) {
+            this.pendingCollectionNotifs.delete(playerId);
+          }
+        }
+
+        player.score = nextScore;
+        player.sizeMultiplier = scoreToScale(nextScore);
       });
     });
 
@@ -450,21 +593,20 @@ class GameApp {
 
   startAmbience() {
     if (!this.ambientAudio) {
-      const playlist = this.buildShuffledAmbientPlaylist();
-      if (!playlist.length) return;
+      if (!this.ambientTrackUrls.length) return;
 
       this.ambienceStarted = true;
-      this.ambientPlaylist = playlist;
+      this.ambientPlaylist = this.shufflePlaylist(this.ambientTrackUrls);
       this.ambientTrackIndex = 0;
       this.ambientTrackPlayCount = 1;
 
-      this.ambientAudio = new Audio(this.ambientPlaylist[this.ambientTrackIndex]);
-      this.ambientAudio.loop = false;
+      this.ambientAudio = new Audio();
 
       this.onAmbientEnded = () => {
         this.handleAmbientTrackEnded();
       };
       this.ambientAudio.addEventListener('ended', this.onAmbientEnded);
+      this.applyMusicModeToAmbient({ restart: false });
     }
 
     this.ambientAudio.volume = this.musicVolume;
@@ -473,8 +615,8 @@ class GameApp {
     });
   }
 
-  buildShuffledAmbientPlaylist() {
-    const fileNames = [
+  getAmbientTrackFileNames() {
+    return [
       '01. Battle Suit Aces.mp3',
       '02. Peaceful Times.mp3',
       '03. Cosmic Rendezvous.mp3',
@@ -519,9 +661,73 @@ class GameApp {
       '42. The Sun Eater.mp3',
       '43. Burning Memory.mp3',
     ];
+  }
 
-    const trackUrls = fileNames.map((fileName) => `/assets/background_sound/${encodeURIComponent(fileName)}`);
-    return this.shufflePlaylist(trackUrls);
+  buildAmbientTrackUrls() {
+    return this.getAmbientTrackFileNames()
+      .map((fileName) => `/assets/background_sound/${encodeURIComponent(fileName)}`);
+  }
+
+  formatAmbientTrackLabel(fileName) {
+    return fileName
+      .replace(/^\d+\.\s*/, '')
+      .replace(/\.mp3$/i, '');
+  }
+
+  buildMusicModeOptions() {
+    const options = [{
+      value: 'auto',
+      label: 'Automático aleatório',
+    }];
+
+    this.getAmbientTrackFileNames().forEach((fileName, index) => {
+      options.push({
+        value: `track:${index}`,
+        label: this.formatAmbientTrackLabel(fileName),
+      });
+    });
+
+    return options;
+  }
+
+  applyMusicModeToAmbient({ restart = true } = {}) {
+    if (!this.ambientAudio) return;
+
+    if (this.isAutoMusicMode()) {
+      if (this.ambientPlaylist.length === 0) {
+        this.ambientPlaylist = this.shufflePlaylist(this.ambientTrackUrls);
+        this.ambientTrackIndex = 0;
+      }
+
+      this.ambientAudio.loop = false;
+      const track = this.ambientPlaylist[this.ambientTrackIndex];
+      if (track && this.ambientAudio.src !== track) {
+        this.ambientAudio.src = track;
+      }
+      this.ambientTrackPlayCount = 1;
+      if (restart) {
+        this.ambientAudio.currentTime = 0;
+      }
+      return;
+    }
+
+    const selectedTrack = this.getSelectedTrackUrl();
+    if (!selectedTrack) {
+      this.musicMode = 'auto';
+      this.persistMusicMode(this.musicMode);
+      this.ui.setMusicMode(this.musicMode);
+      this.applyMusicModeToAmbient({ restart });
+      return;
+    }
+
+    this.ambientAudio.loop = true;
+    if (this.ambientAudio.src !== selectedTrack) {
+      this.ambientAudio.src = selectedTrack;
+    }
+    this.ambientTrackPlayCount = 1;
+    if (restart) {
+      this.ambientAudio.currentTime = 0;
+    }
   }
 
   shufflePlaylist(items) {
@@ -534,7 +740,7 @@ class GameApp {
   }
 
   playNextAmbientTrack() {
-    if (!this.ambientAudio || this.ambientPlaylist.length === 0) return;
+    if (!this.ambientAudio || this.ambientPlaylist.length === 0 || !this.isAutoMusicMode()) return;
 
     this.ambientTrackIndex += 1;
     if (this.ambientTrackIndex >= this.ambientPlaylist.length) {
@@ -551,7 +757,7 @@ class GameApp {
   }
 
   handleAmbientTrackEnded() {
-    if (!this.ambientAudio || this.ambientPlaylist.length === 0) return;
+    if (!this.ambientAudio || this.ambientPlaylist.length === 0 || !this.isAutoMusicMode()) return;
 
     if (this.ambientTrackPlayCount < 2) {
       this.ambientTrackPlayCount += 1;
@@ -582,6 +788,7 @@ class GameApp {
       sizeMultiplier: scoreToScale(payload.score || 0),
       invulnerableUntil: payload.invulnerableUntil || 0,
       speedBoostUntil: payload.speedBoostUntil || 0,
+      dashCooldownUntil: payload.dashCooldownUntil || 0,
       position,
       targetPosition: position.clone(),
       velocity: new THREE.Vector3(),
@@ -605,6 +812,7 @@ class GameApp {
     player.sizeMultiplier = scoreToScale(player.score);
     player.invulnerableUntil = payload.invulnerableUntil || 0;
     player.speedBoostUntil = payload.speedBoostUntil || 0;
+    player.dashCooldownUntil = payload.dashCooldownUntil || 0;
 
     if (hardSync) {
       player.position.set(payload.position.x, 0, payload.position.z);
@@ -677,11 +885,18 @@ class GameApp {
     }
     this.scene.removeBall(payload.ballId);
 
+    const pendingQueue = this.pendingCollectionNotifs.get(payload.playerId) || [];
+    pendingQueue.push({
+      position: payload.position,
+      color: payload.color,
+      sizeMultiplier: payload.sizeMultiplier || this.players.get(payload.playerId)?.sizeMultiplier || 1,
+    });
+    if (pendingQueue.length > 6) {
+      pendingQueue.splice(0, pendingQueue.length - 6);
+    }
+    this.pendingCollectionNotifs.set(payload.playerId, pendingQueue);
+
     if (payload.playerId === this.localPlayerId) {
-      this.ui.hideToast();
-      this.ui.showPickup(`+${payload.value}`);
-      const localScale = this.players.get(this.localPlayerId)?.sizeMultiplier || 1;
-      this.scene.triggerPickupCameraBoost(payload.value, localScale);
       this.scene.spawnPickupBurst(payload.position, payload.color, this.simulationTimeMs);
     }
   }
@@ -691,6 +906,10 @@ class GameApp {
     this.upsertPlayerFromServer(payload, { hardSync });
 
     if (payload?.id === this.localPlayerId) {
+      if (payload?.dashCooldownUntil) {
+        const remaining = Math.max(0, payload.dashCooldownUntil - Date.now());
+        this.dashCooldownUntilMs = Math.max(this.dashCooldownUntilMs, this.simulationTimeMs + remaining);
+      }
       this.updateHud({ force: true });
       this.syncScene();
       this.scene.render();
@@ -699,6 +918,8 @@ class GameApp {
 
   handlePlayerConsumed(payload) {
     if (!payload?.winner || !payload?.loser) return;
+
+    const consumePosition = payload.consumedPosition || payload.winner.position;
 
     this.upsertPlayerFromServer(payload.winner, { hardSync: true });
     this.upsertPlayerFromServer(payload.loser, { hardSync: true });
@@ -709,11 +930,30 @@ class GameApp {
     }
 
     this.scene.spawnConsumeBurst(
-      payload.consumedPosition || payload.winner.position,
+      consumePosition,
       payload.winner.color,
       this.simulationTimeMs,
     );
+    this.scene.spawnConsumeBurst(
+      consumePosition,
+      payload.loser.color,
+      this.simulationTimeMs,
+    );
     this.scene.spawnRespawnBurst(payload.loser.position, payload.loser.color, this.simulationTimeMs);
+    this.scene.spawnFloatingValue(
+      consumePosition,
+      `+${payload.transferredScore || 0}`,
+      payload.winner.color,
+      this.simulationTimeMs,
+      payload.winner.sizeMultiplier || this.players.get(payload.winner.id)?.sizeMultiplier || 1,
+    );
+    this.scene.spawnFloatingValue(
+      payload.loser.position,
+      '-DEVORADO-',
+      payload.loser.color,
+      this.simulationTimeMs,
+      payload.loser.sizeMultiplier || 1,
+    );
 
     this.ui.showKillfeed(
       `${payload.winner.nickname} engoliu ${payload.loser.nickname}`,
@@ -726,16 +966,19 @@ class GameApp {
 
     if (payload.winner.id === this.localPlayerId) {
       this.ui.hideToast();
+      this.ui.showPickup(`DEVOROU +${payload.transferredScore || 0}`);
       this.ui.showToast(`Tu engoliu ${payload.loser.nickname}.`, 'live', 1800);
     } else if (payload.loser.id === this.localPlayerId) {
       this.resetInputState();
       this.ui.hideToast();
+      this.ui.showPickup('DEVORADO!');
       this.ui.showToast(`${payload.winner.nickname} te engoliu. Respawnando...`, 'danger', 2200);
     }
   }
 
   removePlayer(playerId) {
     this.players.delete(playerId);
+    this.pendingCollectionNotifs.delete(playerId);
     this.scene.removePlayer(playerId);
 
     if (playerId === this.localPlayerId && this.mode !== 'menu') {
@@ -837,6 +1080,8 @@ class GameApp {
   }
 
   updateLocalPlayer(player, { allowNetwork }) {
+    this.cameraHeading = this.scene.getCameraHeading(this.cameraHeading);
+
     const inputX = (this.keys.right ? 1 : 0) - (this.keys.left ? 1 : 0);
     const inputZ = (this.keys.forward ? 1 : 0) - (this.keys.backward ? 1 : 0);
     const hasInput = Math.abs(inputX) > 0 || Math.abs(inputZ) > 0;
@@ -846,8 +1091,47 @@ class GameApp {
       speed *= SETTINGS.speedBoostMultiplier;
     }
 
+    const dashReady = this.simulationTimeMs >= this.dashCooldownUntilMs;
+    if (this.pendingDash && dashReady) {
+      const forwardX = Math.sin(this.cameraHeading);
+      const forwardZ = Math.cos(this.cameraHeading);
+      const rightX = -forwardZ;
+      const rightZ = forwardX;
+
+      if (hasInput) {
+        const length = Math.hypot(inputX, inputZ) || 1;
+        const localX = inputX / length;
+        const localZ = inputZ / length;
+        this.dashDirection.set(
+          (localX * rightX) + (localZ * forwardX),
+          0,
+          (localX * rightZ) + (localZ * forwardZ),
+        ).normalize();
+      } else {
+        this.dashDirection.set(forwardX, 0, forwardZ).normalize();
+      }
+
+      this.dashCooldownUntilMs = this.simulationTimeMs + SETTINGS.dashCooldownMs;
+      this.dashUntilMs = this.simulationTimeMs + SETTINGS.dashDurationMs;
+      this.pendingDash = false;
+      this.lastDashTrailAtMs = -Infinity;
+      if (allowNetwork && this.socket?.connected) {
+        this.socket.emit('playerDash');
+      }
+      this.ui.showToast('DASH!', 'live', 500);
+    } else if (this.pendingDash && !dashReady) {
+      this.pendingDash = false;
+    }
+
+    const dashActive = this.simulationTimeMs < this.dashUntilMs;
+    if (dashActive) {
+      speed *= SETTINGS.dashSpeedMultiplier;
+    }
+
     const desiredVelocity = this.desiredVelocity.set(0, 0, 0);
-    if (hasInput) {
+    if (dashActive) {
+      desiredVelocity.copy(this.dashDirection).multiplyScalar(speed);
+    } else if (hasInput) {
       const length = Math.hypot(inputX, inputZ) || 1;
       const localX = inputX / length;
       const localZ = inputZ / length;
@@ -863,17 +1147,32 @@ class GameApp {
       ).multiplyScalar(speed);
     }
 
-    player.velocity.lerp(desiredVelocity, hasInput ? SETTINGS.acceleration : SETTINGS.deceleration);
-    if (!hasInput && player.velocity.lengthSq() < SETTINGS.inputDeadZone) {
+    const movementSmoothing = dashActive
+      ? SETTINGS.dashAcceleration
+      : (hasInput ? SETTINGS.acceleration : SETTINGS.deceleration);
+    player.velocity.lerp(desiredVelocity, movementSmoothing);
+    if (!hasInput && !dashActive && player.velocity.lengthSq() < SETTINGS.inputDeadZone) {
       player.velocity.set(0, 0, 0);
     }
 
     const previousX = player.position.x;
     const previousZ = player.position.z;
     player.position.add(player.velocity);
-    this.clampPlayerToArena(player);
+    const previousPosition = new THREE.Vector3(previousX, 0, previousZ);
+    const slidOnArena = this.slidePlayerAlongArena(previousPosition, player);
+    const slidOnPosts = this.resolvePostCollisions(previousPosition, player);
+    const pushedByPlayers = this.resolveLocalPlayerPush(player);
 
-    const isMoving = player.velocity.lengthSq() > 0.0002;
+    const isMoving = player.velocity.lengthSq() > 0.0002 || slidOnArena || slidOnPosts || pushedByPlayers;
+    if (dashActive && (this.simulationTimeMs - this.lastDashTrailAtMs) >= 34) {
+      this.scene.spawnDashTrail(
+        player.position,
+        player.color,
+        this.simulationTimeMs,
+        player.sizeMultiplier || 1,
+      );
+      this.lastDashTrailAtMs = this.simulationTimeMs;
+    }
     if (isMoving) {
       const movementAngle = Math.atan2(player.velocity.x, player.velocity.z);
       player.rotationY = lerpAngle(player.rotationY, movementAngle, 0.24);
@@ -984,7 +1283,18 @@ class GameApp {
       localPlayerId: this.localPlayerId,
       statusLine,
       statusChip,
+      dashCooldownRatio: this.getDashCooldownRatio(),
+      dashReady: this.simulationTimeMs >= this.dashCooldownUntilMs,
     });
+  }
+
+  getDashCooldownRatio() {
+    if (this.simulationTimeMs >= this.dashCooldownUntilMs) {
+      return 1;
+    }
+
+    const remaining = this.dashCooldownUntilMs - this.simulationTimeMs;
+    return clamp(1 - (remaining / SETTINGS.dashCooldownMs), 0, 1);
   }
 
   getStatusChipState(localPlayer) {
@@ -1013,10 +1323,174 @@ class GameApp {
     return Math.max(0, this.worldSize - radius - SETTINGS.arenaWallPadding);
   }
 
-  clampPlayerToArena(player) {
+  clampPlayerToArena(player, skin = SETTINGS.arenaEdgeSkin || 0) {
     const limit = this.getArenaLimitForScale(player.sizeMultiplier || 1);
-    player.position.x = clamp(player.position.x, -limit, limit);
-    player.position.z = clamp(player.position.z, -limit, limit);
+    const effectiveLimit = Math.max(0, limit - skin);
+    const { x, z } = player.position;
+    const distanceSq = (x * x) + (z * z);
+    const limitSq = effectiveLimit * effectiveLimit;
+
+    if (distanceSq <= limitSq || distanceSq === 0) {
+      return;
+    }
+
+    const distance = Math.sqrt(distanceSq);
+    const scale = effectiveLimit / distance;
+    player.position.x = x * scale;
+    player.position.z = z * scale;
+  }
+
+  slidePlayerAlongArena(previousPosition, player) {
+    const limit = this.getArenaLimitForScale(player.sizeMultiplier || 1);
+    const nextX = player.position.x;
+    const nextZ = player.position.z;
+    const nextDistanceSq = (nextX * nextX) + (nextZ * nextZ);
+
+    if (nextDistanceSq <= (limit * limit)) {
+      return false;
+    }
+
+    const deltaX = nextX - previousPosition.x;
+    const deltaZ = nextZ - previousPosition.z;
+    const currentDistanceSq = (previousPosition.x * previousPosition.x) + (previousPosition.z * previousPosition.z);
+
+    if (currentDistanceSq > 0.000001) {
+      const currentDistance = Math.sqrt(currentDistanceSq);
+      const normalX = previousPosition.x / currentDistance;
+      const normalZ = previousPosition.z / currentDistance;
+      const outwardSpeed = (deltaX * normalX) + (deltaZ * normalZ);
+
+      if (outwardSpeed > 0) {
+        player.position.x -= normalX * outwardSpeed;
+        player.position.z -= normalZ * outwardSpeed;
+      }
+    }
+
+    this.clampPlayerToArena(player, SETTINGS.arenaEdgeSkin || 0);
+    return true;
+  }
+
+  getArenaPosts() {
+    const ringRadius = this.worldSize * SETTINGS.arenaPostRingScale;
+    const postCount = SETTINGS.arenaPostCount;
+
+    return Array.from({ length: postCount }, (_, index) => {
+      const angle = (Math.PI * 2 * index) / postCount;
+      return {
+        x: Math.cos(angle) * ringRadius,
+        z: Math.sin(angle) * ringRadius,
+      };
+    });
+  }
+
+  resolveObstacleSlide(previousPosition, player, obstaclePosition, obstacleRadius, skin = 0) {
+    const moverRadius = SETTINGS.playerRadius * (player.sizeMultiplier || 1);
+    const minDistance = moverRadius + obstacleRadius;
+    const effectiveDistance = minDistance + skin;
+    const nextDx = player.position.x - obstaclePosition.x;
+    const nextDz = player.position.z - obstaclePosition.z;
+    const nextDistanceSq = (nextDx * nextDx) + (nextDz * nextDz);
+
+    if (nextDistanceSq > (minDistance * minDistance)) {
+      return false;
+    }
+
+    const deltaX = player.position.x - previousPosition.x;
+    const deltaZ = player.position.z - previousPosition.z;
+    let normalX = nextDx;
+    let normalZ = nextDz;
+    let normalDistanceSq = nextDistanceSq;
+
+    if (normalDistanceSq < 0.000001) {
+      const previousDx = previousPosition.x - obstaclePosition.x;
+      const previousDz = previousPosition.z - obstaclePosition.z;
+      normalX = previousDx;
+      normalZ = previousDz;
+      normalDistanceSq = (previousDx * previousDx) + (previousDz * previousDz);
+    }
+
+    if (normalDistanceSq < 0.000001) {
+      normalX = -obstaclePosition.x;
+      normalZ = -obstaclePosition.z;
+      normalDistanceSq = (normalX * normalX) + (normalZ * normalZ);
+    }
+
+    if (normalDistanceSq < 0.000001) {
+      return false;
+    }
+
+    const normalDistance = Math.sqrt(normalDistanceSq);
+    normalX /= normalDistance;
+    normalZ /= normalDistance;
+
+    const outwardSpeed = (deltaX * normalX) + (deltaZ * normalZ);
+    if (outwardSpeed > 0) {
+      player.position.x -= normalX * outwardSpeed;
+      player.position.z -= normalZ * outwardSpeed;
+    }
+
+    player.position.x = obstaclePosition.x + (normalX * effectiveDistance);
+    player.position.z = obstaclePosition.z + (normalZ * effectiveDistance);
+    return true;
+  }
+
+  resolvePostCollisions(previousPosition, player) {
+    const posts = this.getArenaPosts();
+    const obstacleRadius = SETTINGS.arenaPostRadius + SETTINGS.collisionPadding;
+    const skin = SETTINGS.arenaEdgeSkin || 0;
+    let corrected = false;
+
+    for (let pass = 0; pass < 2; pass += 1) {
+      let passCorrected = false;
+      for (const obstaclePosition of posts) {
+        if (this.resolveObstacleSlide(previousPosition, player, obstaclePosition, obstacleRadius, skin)) {
+          corrected = true;
+          passCorrected = true;
+        }
+      }
+
+      if (!passCorrected) {
+        break;
+      }
+    }
+
+    return corrected;
+  }
+
+  resolveLocalPlayerPush(localPlayer) {
+    const localRadius = SETTINGS.playerRadius * (localPlayer.sizeMultiplier || 1);
+    let corrected = false;
+
+    this.players.forEach((otherPlayer) => {
+      if (otherPlayer.id === this.localPlayerId) return;
+
+      const otherRadius = SETTINGS.playerRadius * (otherPlayer.sizeMultiplier || 1);
+      const minDistance = localRadius + otherRadius + SETTINGS.collisionPadding;
+      let dx = localPlayer.position.x - otherPlayer.position.x;
+      let dz = localPlayer.position.z - otherPlayer.position.z;
+      let distance = Math.sqrt((dx * dx) + (dz * dz));
+
+      if (distance >= minDistance) {
+        return;
+      }
+
+      if (distance < 0.0001) {
+        dx = localPlayer.id > otherPlayer.id ? 1 : -1;
+        dz = 0;
+        distance = 1;
+      }
+
+      const overlap = (minDistance - distance) + 0.001;
+      localPlayer.position.x += (dx / distance) * overlap;
+      localPlayer.position.z += (dz / distance) * overlap;
+      corrected = true;
+    });
+
+    if (corrected) {
+      this.clampPlayerToArena(localPlayer, SETTINGS.arenaEdgeSkin || 0);
+    }
+
+    return corrected;
   }
 
   buildTextState() {
@@ -1139,6 +1613,7 @@ function getElements() {
     musicVolumeInput: document.getElementById('music-volume-input'),
     musicVolumeValue: document.getElementById('music-volume-value'),
     musicMuteButton: document.getElementById('music-mute-button'),
+    musicModeSelect: document.getElementById('music-mode-select'),
     playButton: document.getElementById('play-button'),
     menuStatus: document.getElementById('menu-status'),
     hud: document.getElementById('hud'),
@@ -1147,6 +1622,8 @@ function getElements() {
     statusLine: document.getElementById('status-line'),
     hudTip: document.getElementById('hud-tip'),
     instructionsPanel: document.getElementById('instructions-panel'),
+    dashLabel: document.getElementById('dash-label'),
+    dashCooldownFill: document.getElementById('dash-cooldown-fill'),
     leaderboard: document.getElementById('leaderboard'),
     statusChip: document.getElementById('status-chip'),
     toast: document.getElementById('message-toast'),

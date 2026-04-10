@@ -15,6 +15,7 @@ export function createUIController(elements) {
     nicknameKeydownHandler: null,
     musicVolumeInputHandler: null,
     musicMuteClickHandler: null,
+    musicModeChangeHandler: null,
     lastScoreText: null,
     lastPlayerCountText: null,
     lastStatusLineText: null,
@@ -22,6 +23,8 @@ export function createUIController(elements) {
     lastStatusChipTone: null,
     lastStatusChipVisible: null,
     lastLeaderboardKey: null,
+    lastDashLabel: null,
+    lastDashScaleX: null,
   };
 
   function bindStart(handler) {
@@ -66,7 +69,47 @@ export function createUIController(elements) {
     if (elements.musicMuteButton) {
       elements.musicMuteButton.disabled = isBusy;
     }
+    if (elements.musicModeSelect) {
+      elements.musicModeSelect.disabled = isBusy;
+    }
     elements.playButton.textContent = buttonLabel;
+  }
+
+  function setMusicModeOptions(options, selectedValue = 'auto') {
+    if (!elements.musicModeSelect) return;
+
+    elements.musicModeSelect.innerHTML = '';
+    options.forEach((option) => {
+      const item = document.createElement('option');
+      item.value = option.value;
+      item.textContent = option.label;
+      elements.musicModeSelect.appendChild(item);
+    });
+    elements.musicModeSelect.value = selectedValue;
+  }
+
+  function getMusicMode() {
+    if (!elements.musicModeSelect) return 'auto';
+    return elements.musicModeSelect.value || 'auto';
+  }
+
+  function setMusicMode(value) {
+    if (!elements.musicModeSelect) return;
+    elements.musicModeSelect.value = value;
+  }
+
+  function bindMusicModeChange(handler) {
+    if (!elements.musicModeSelect) return;
+
+    if (state.musicModeChangeHandler) {
+      elements.musicModeSelect.removeEventListener('change', state.musicModeChangeHandler);
+    }
+
+    state.musicModeChangeHandler = () => {
+      handler(getMusicMode());
+    };
+
+    elements.musicModeSelect.addEventListener('change', state.musicModeChangeHandler);
   }
 
   function getMusicVolume() {
@@ -151,7 +194,7 @@ export function createUIController(elements) {
     // Connection state display removed; info shown in status line
   }
 
-  function updateHUD({ score, playerCount, leaderboard, localPlayerId, statusLine, statusChip }) {
+  function updateHUD({ score, playerCount, leaderboard, localPlayerId, statusLine, statusChip, dashCooldownRatio, dashReady }) {
     const scoreText = String(score);
     if (state.lastScoreText !== scoreText) {
       elements.scoreValue.textContent = scoreText;
@@ -191,6 +234,23 @@ export function createUIController(elements) {
         // No-op: updates are handled by cached writes above.
       } else {
         state.lastStatusChipTone = null;
+      }
+    }
+
+    if (elements.dashLabel && elements.dashCooldownFill) {
+      const safeRatio = Number.isFinite(dashCooldownRatio)
+        ? Math.max(0, Math.min(1, dashCooldownRatio))
+        : 1;
+      const dashLabel = dashReady ? 'Pronto' : 'Recarregando';
+
+      if (state.lastDashLabel !== dashLabel) {
+        elements.dashLabel.textContent = dashLabel;
+        state.lastDashLabel = dashLabel;
+      }
+
+      if (state.lastDashScaleX !== safeRatio) {
+        elements.dashCooldownFill.style.transform = `scaleX(${safeRatio})`;
+        state.lastDashScaleX = safeRatio;
       }
     }
 
@@ -348,6 +408,10 @@ export function createUIController(elements) {
       elements.musicMuteButton.removeEventListener('click', state.musicMuteClickHandler);
       state.musicMuteClickHandler = null;
     }
+    if (state.musicModeChangeHandler && elements.musicModeSelect) {
+      elements.musicModeSelect.removeEventListener('change', state.musicModeChangeHandler);
+      state.musicModeChangeHandler = null;
+    }
     if (state.toastTimer) {
       window.clearTimeout(state.toastTimer);
     }
@@ -374,6 +438,10 @@ export function createUIController(elements) {
     getMusicVolume,
     setMusicVolume,
     bindMusicVolumeChange,
+    setMusicModeOptions,
+    getMusicMode,
+    setMusicMode,
+    bindMusicModeChange,
     setMusicMuted,
     bindMusicMuteToggle,
     focusNickname,

@@ -378,6 +378,37 @@ Collect transition smoothing fix on 2026-04-09 17:28:58 -03:
     - `output/web-game/collect-smoothing-smoke`
   - focused score-sync probe:
     - `output/web-game/collect-smoothing-verify/result.json`
+
+  Consume-by-action rework on 2026-04-10:
+  - Motivation:
+    - with smoother player collision, passive auto-consume on touch became confusing and created accidental devours
+    - gameplay needed a clear intention signal to keep collisions readable
+  - Rule change implemented:
+    - devour no longer happens by mere contact
+    - devour now requires consume intent from:
+      - explicit key action (`R`)
+      - or dash window (dash also arms consume intent briefly)
+    - existing size and distance validation were preserved
+  - Server-side changes:
+    - added `CONSUME_INTENT_WINDOW_MS` in `src/config/gameConfig.js`
+    - added `consumeIntentUntil` to player state in `src/models/GameState.js`
+    - dash activation now also grants consume intent window
+    - added `triggerConsumeIntent(socketId)` to process explicit consume attempts
+    - consume candidate checks (`checkPassiveConsumption` and `resolvePlayerConsumption`) now require active consume intent
+    - consume intent timeout now expires in timed-state refresh
+    - new socket event handling in `src/socket/socketManager.js`:
+      - `playerConsumeAttempt` -> immediate consume attempt + response broadcast
+  - Client-side changes:
+    - bound `R` key in `public/js/main.js` to emit `playerConsumeAttempt`
+    - kept dash trigger on `Space`; dash remains valid consume-intent source
+    - updated HUD tips in `public/js/client/config.js` to reflect the new mechanic
+  - Verification:
+    - static checks passed with no new editor errors in:
+      - `public/js/main.js`
+      - `src/models/GameState.js`
+      - `src/socket/socketManager.js`
+      - `src/config/gameConfig.js`
+      - `public/js/client/config.js`
     - `output/web-game/collect-smoothing-verify/after-score-sync.png`
     - `output/web-game/collect-smoothing-verify/verify.mjs`
 - Key verification results:

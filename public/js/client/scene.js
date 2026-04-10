@@ -1,10 +1,12 @@
-import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 import { SETTINGS } from './config.js';
 
 function createTextTexture(label, accent) {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
+  const safeLabel = String(label);
 
   canvas.width = 512;
   canvas.height = 128;
@@ -22,11 +24,14 @@ function createTextTexture(label, accent) {
   context.fill();
   context.stroke();
 
-  context.font = '700 42px "IBM Plex Mono", monospace';
+  context.font = '700 48px sans-serif';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
+  context.lineWidth = 10;
+  context.strokeStyle = 'rgba(8, 16, 20, 0.92)';
+  context.strokeText(safeLabel, canvas.width / 2, canvas.height / 2 + 2);
   context.fillStyle = '#fff7dd';
-  context.fillText(label, canvas.width / 2, canvas.height / 2 + 2);
+  context.fillText(safeLabel, canvas.width / 2, canvas.height / 2 + 2);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
@@ -122,6 +127,184 @@ function createBrassBandTexture(width = 512, height = 64) {
   return texture;
 }
 
+function createSkyTexture(width = 1024, height = 512) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const verticalGradient = context.createLinearGradient(0, 0, 0, height);
+  verticalGradient.addColorStop(0, '#93c2cf');
+  verticalGradient.addColorStop(0.42, '#b7dce0');
+  verticalGradient.addColorStop(1, '#f4dfb7');
+  context.fillStyle = verticalGradient;
+  context.fillRect(0, 0, width, height);
+
+  const hazeGradient = context.createRadialGradient(
+    width * 0.52,
+    height * 0.26,
+    width * 0.1,
+    width * 0.52,
+    height * 0.26,
+    width * 0.7,
+  );
+  hazeGradient.addColorStop(0, 'rgba(255,255,255,0.42)');
+  hazeGradient.addColorStop(0.6, 'rgba(255,255,255,0.08)');
+  hazeGradient.addColorStop(1, 'rgba(255,255,255,0)');
+  context.fillStyle = hazeGradient;
+  context.fillRect(0, 0, width, height);
+
+  const sunGradient = context.createRadialGradient(
+    width * 0.78,
+    height * 0.22,
+    width * 0.02,
+    width * 0.78,
+    height * 0.22,
+    width * 0.2,
+  );
+  sunGradient.addColorStop(0, 'rgba(255, 244, 200, 0.96)');
+  sunGradient.addColorStop(0.2, 'rgba(255, 231, 166, 0.5)');
+  sunGradient.addColorStop(1, 'rgba(255, 231, 166, 0)');
+  context.fillStyle = sunGradient;
+  context.fillRect(0, 0, width, height);
+
+  const cloudCount = 14;
+  for (let index = 0; index < cloudCount; index += 1) {
+    const cloudX = (width * 0.12) + (Math.random() * width * 0.78);
+    const cloudY = (height * 0.08) + (Math.random() * height * 0.42);
+    const cloudWidth = width * (0.08 + (Math.random() * 0.12));
+    const cloudHeight = height * (0.035 + (Math.random() * 0.04));
+    const cloudGradient = context.createRadialGradient(
+      cloudX,
+      cloudY,
+      0,
+      cloudX,
+      cloudY,
+      Math.max(cloudWidth, cloudHeight),
+    );
+    cloudGradient.addColorStop(0, 'rgba(255,255,255,0.34)');
+    cloudGradient.addColorStop(0.55, 'rgba(255,255,255,0.14)');
+    cloudGradient.addColorStop(1, 'rgba(255,255,255,0)');
+    context.fillStyle = cloudGradient;
+    context.beginPath();
+    context.ellipse(cloudX, cloudY, cloudWidth, cloudHeight, Math.random() * 0.4, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function createArenaPatchTexture(size = 256) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+
+  canvas.width = size;
+  canvas.height = size;
+  context.clearRect(0, 0, size, size);
+
+  const blotchGradient = context.createRadialGradient(
+    size * 0.5,
+    size * 0.5,
+    size * 0.08,
+    size * 0.5,
+    size * 0.5,
+    size * 0.5,
+  );
+  blotchGradient.addColorStop(0, 'rgba(58, 88, 44, 0.68)');
+  blotchGradient.addColorStop(0.52, 'rgba(77, 115, 54, 0.48)');
+  blotchGradient.addColorStop(1, 'rgba(32, 40, 24, 0)');
+  context.fillStyle = blotchGradient;
+  context.fillRect(0, 0, size, size);
+
+  const dirtGradient = context.createRadialGradient(
+    size * 0.46,
+    size * 0.54,
+    size * 0.04,
+    size * 0.46,
+    size * 0.54,
+    size * 0.42,
+  );
+  dirtGradient.addColorStop(0, 'rgba(134, 108, 64, 0.78)');
+  dirtGradient.addColorStop(1, 'rgba(134, 108, 64, 0)');
+  context.fillStyle = dirtGradient;
+  context.beginPath();
+  context.ellipse(size * 0.46, size * 0.54, size * 0.34, size * 0.22, -0.42, 0, Math.PI * 2);
+  context.fill();
+
+  for (let index = 0; index < 42; index += 1) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const radius = size * (0.012 + (Math.random() * 0.03));
+    const color = Math.random() > 0.6
+      ? 'rgba(214, 175, 106, 0.08)'
+      : 'rgba(13, 34, 19, 0.16)';
+    context.fillStyle = color;
+    context.beginPath();
+    context.ellipse(x, y, radius, radius * (0.55 + Math.random() * 0.8), Math.random() * Math.PI, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function createStoneTexture(width = 256, height = 512) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const gradient = context.createLinearGradient(0, 0, width, 0);
+  gradient.addColorStop(0, '#3d4345');
+  gradient.addColorStop(0.38, '#677173');
+  gradient.addColorStop(0.62, '#4b5457');
+  gradient.addColorStop(1, '#2f3537');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, width, height);
+
+  for (let x = 0; x < width; x += 16) {
+    context.fillStyle = `rgba(255, 255, 255, ${0.02 + (Math.random() * 0.05)})`;
+    context.fillRect(x, 0, 3, height);
+  }
+
+  for (let y = 0; y < height; y += 28) {
+    context.strokeStyle = 'rgba(18, 22, 24, 0.28)';
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(0, y + (Math.random() * 4));
+    context.lineTo(width, y + (Math.random() * 4));
+    context.stroke();
+  }
+
+  const cracks = 24;
+  for (let index = 0; index < cracks; index += 1) {
+    const startX = Math.random() * width;
+    const startY = Math.random() * height;
+    const segments = 3 + Math.floor(Math.random() * 5);
+    context.strokeStyle = 'rgba(14, 16, 17, 0.22)';
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(startX, startY);
+    let cursorX = startX;
+    let cursorY = startY;
+    for (let segment = 0; segment < segments; segment += 1) {
+      cursorX += (Math.random() - 0.5) * 34;
+      cursorY += (Math.random() - 0.5) * 42;
+      context.lineTo(cursorX, cursorY);
+    }
+    context.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
 function disposeMaterial(material) {
   if (!material) return;
   if (Array.isArray(material)) {
@@ -151,9 +334,16 @@ export class SceneController {
     this.boundaryRing = null;
     this.grid = null;
     this.posts = [];
+    this.skyDome = null;
+    this.arenaDecorGroup = null;
+    this.arenaAssetGroup = null;
+    this.arenaAssetRoots = [];
     this.playerMeshes = new Map();
     this.ballMeshes = new Map();
     this.pickupBursts = [];
+    this.valuePopups = [];
+    this.valuePopupLayer = null;
+    this.valuePopupProjectPoint = new THREE.Vector3();
     this.cameraLookTarget = new THREE.Vector3(0, 1.2, 0);
     this.cameraTrackedPlayerId = null;
     this.cameraCurrentFov = SETTINGS.cameraBaseFov;
@@ -168,14 +358,15 @@ export class SceneController {
     this.cameraPickupFovBoostTarget = 0;
     this.cameraDesiredPosition = new THREE.Vector3();
     this.cameraDesiredLookAt = new THREE.Vector3();
+    this.cameraForward = new THREE.Vector3();
     this.idleCameraPosition = new THREE.Vector3();
     this.idleCameraLookAt = new THREE.Vector3(0, 1.8, 0);
   }
 
   init() {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x95b7ba);
-    this.scene.fog = new THREE.Fog(0x95b7ba, this.worldSize * 0.95, this.worldSize * 2.8);
+    this.scene.background = new THREE.Color(0x8fb8bf);
+    this.scene.fog = new THREE.Fog(0x8fb8bf, this.worldSize * 0.9, this.worldSize * 3.1);
 
     this.camera = new THREE.PerspectiveCamera(SETTINGS.cameraBaseFov, 1, 0.1, 500);
     this.camera.position.set(0, SETTINGS.cameraHeight, SETTINGS.cameraDistance);
@@ -190,15 +381,31 @@ export class SceneController {
       this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     }
     this.container.appendChild(this.renderer.domElement);
+    this.ensureValuePopupLayer();
 
     // Chamar resize ANTES de criar luzes e arena para garantir que o renderer tem tamanho válido
     this.resize();
 
     this.createLights();
     this.createArena();
+    void this.loadArenaAssets();
+  }
+
+  ensureValuePopupLayer() {
+    if (this.valuePopupLayer) {
+      return;
+    }
+
+    const layer = document.createElement('div');
+    layer.className = 'floating-value-layer';
+    this.container.appendChild(layer);
+    this.valuePopupLayer = layer;
   }
 
   createLights() {
+    const ambient = new THREE.AmbientLight(0xfff4d7, 0.34);
+    this.scene.add(ambient);
+
     const hemi = new THREE.HemisphereLight(0xf7e8c5, 0x0f2a32, 1.15);
     this.scene.add(hemi);
 
@@ -272,6 +479,39 @@ export class SceneController {
     pillarDetailMap.repeat.set(8, 4);
     pillarDetailMap.anisotropy = maxAnisotropy;
 
+    const skyTexture = createSkyTexture();
+    skyTexture.colorSpace = THREE.SRGBColorSpace;
+    skyTexture.wrapS = THREE.RepeatWrapping;
+    skyTexture.wrapT = THREE.ClampToEdgeWrapping;
+    skyTexture.repeat.set(1, 1);
+
+    const patchTexture = createArenaPatchTexture();
+    patchTexture.colorSpace = THREE.SRGBColorSpace;
+    patchTexture.wrapS = THREE.RepeatWrapping;
+    patchTexture.wrapT = THREE.RepeatWrapping;
+    patchTexture.anisotropy = maxAnisotropy;
+
+    const stoneTexture = createStoneTexture();
+    stoneTexture.wrapS = THREE.RepeatWrapping;
+    stoneTexture.wrapT = THREE.RepeatWrapping;
+    stoneTexture.repeat.set(1.1, 1);
+    stoneTexture.anisotropy = maxAnisotropy;
+
+    this.skyDome = new THREE.Mesh(
+      new THREE.SphereGeometry(250, 40, 24),
+      new THREE.MeshBasicMaterial({
+        map: skyTexture,
+        side: THREE.BackSide,
+      }),
+    );
+    this.scene.add(this.skyDome);
+
+    this.arenaDecorGroup = new THREE.Group();
+    this.scene.add(this.arenaDecorGroup);
+
+    this.arenaAssetGroup = new THREE.Group();
+    this.scene.add(this.arenaAssetGroup);
+
     this.floor = new THREE.Mesh(
       new THREE.CircleGeometry(50, 72),
       new THREE.MeshStandardMaterial({
@@ -341,7 +581,7 @@ export class SceneController {
     this.grid.material.transparent = true;
     this.scene.add(this.grid);
 
-    for (let index = 0; index < 10; index += 1) {
+    for (let index = 0; index < SETTINGS.arenaPostCount; index += 1) {
       const pillar = new THREE.Mesh(
         new THREE.CylinderGeometry(0.45, 0.65, 4.8, 14),
         new THREE.MeshStandardMaterial({
@@ -359,18 +599,192 @@ export class SceneController {
       this.posts.push(pillar);
     }
 
+    this.arenaDecorations = [];
+    for (let index = 0; index < 8; index += 1) {
+      const angle = (Math.PI * 2 * index) / 8;
+      const monolith = new THREE.Group();
+
+      const pedestal = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.85, 1.1, 1.15, 10),
+        new THREE.MeshStandardMaterial({
+          color: 0x4c5759,
+          map: stoneTexture,
+          roughness: 0.84,
+          metalness: 0.06,
+        }),
+      );
+      pedestal.castShadow = true;
+      pedestal.receiveShadow = true;
+      monolith.add(pedestal);
+
+      const spire = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.48, 0.74, 3.9, 10),
+        new THREE.MeshStandardMaterial({
+          color: 0x667376,
+          map: stoneTexture.clone(),
+          roughness: 0.8,
+          metalness: 0.08,
+        }),
+      );
+      spire.position.y = 2.52;
+      spire.castShadow = true;
+      spire.receiveShadow = true;
+      monolith.add(spire);
+
+      const cap = new THREE.Mesh(
+        new THREE.SphereGeometry(0.36, 14, 14),
+        new THREE.MeshBasicMaterial({
+          color: index % 2 === 0 ? 0x7bdff2 : 0xffd166,
+          transparent: true,
+          opacity: 0.82,
+        }),
+      );
+      cap.position.y = 4.75;
+      monolith.add(cap);
+
+      const band = new THREE.Mesh(
+        new THREE.TorusGeometry(0.86, 0.06, 8, 24),
+        new THREE.MeshBasicMaterial({
+          color: index % 2 === 0 ? 0x7bdff2 : 0xffd166,
+          transparent: true,
+          opacity: 0.24,
+          side: THREE.DoubleSide,
+        }),
+      );
+      band.rotation.x = Math.PI / 2;
+      band.position.y = 2.12;
+      monolith.add(band);
+
+      monolith.userData = {
+        angle,
+        radius: 41.5 + (Math.random() * 4),
+        baseY: 0.15,
+        bobPhase: Math.random() * Math.PI * 2,
+      };
+      this.arenaDecorGroup.add(monolith);
+      this.arenaDecorations.push(monolith);
+    }
+
+    for (let index = 0; index < 12; index += 1) {
+      const patch = new THREE.Mesh(
+        new THREE.PlaneGeometry(8 + (Math.random() * 4), 4.8 + (Math.random() * 2.6), 1, 1),
+        new THREE.MeshBasicMaterial({
+          map: patchTexture.clone(),
+          transparent: true,
+          opacity: 0.82,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
+      );
+      patch.rotation.x = -Math.PI / 2;
+      patch.rotation.z = Math.random() * Math.PI;
+      patch.position.set(
+        (Math.cos((Math.PI * 2 * index) / 12) * (13 + (Math.random() * 18))),
+        0.03,
+        (Math.sin((Math.PI * 2 * index) / 12) * (13 + (Math.random() * 18))),
+      );
+      patch.userData = {
+        pulsePhase: Math.random() * Math.PI * 2,
+      };
+      this.arenaDecorGroup.add(patch);
+      this.arenaDecorations.push(patch);
+    }
+
+    this.layoutArenaDecor();
+  }
+
+  async loadArenaAssets() {
+    const loader = new GLTFLoader();
+    const assetDefinitions = [
+      {
+        url: '/assets/models/lantern.glb',
+        count: 8,
+        radius: 40.5,
+        scale: 0.68,
+        y: 0.03,
+        yOffset: 0.02,
+        yRotationOffset: Math.PI,
+        phaseOffset: 0,
+      },
+      {
+        url: '/assets/models/diffuse-transmission-plant.glb',
+        count: 6,
+        radius: 28.5,
+        scale: 0.52,
+        y: 0.02,
+        yOffset: 0.05,
+        yRotationOffset: Math.PI / 2,
+        phaseOffset: Math.PI / 7,
+      },
+    ];
+
+    const loadedAssets = await Promise.all(assetDefinitions.map(async (definition) => {
+      try {
+        const gltf = await loader.loadAsync(definition.url);
+        return { definition, root: gltf.scene || gltf.scenes?.[0] || null };
+      } catch (error) {
+        console.warn('Failed to load arena asset', definition.url, error);
+        return { definition, root: null };
+      }
+    }));
+
+    if (!this.arenaAssetGroup || !this.scene) {
+      return;
+    }
+
+    loadedAssets.forEach(({ definition, root }) => {
+      if (!root) {
+        return;
+      }
+
+      root.traverse((node) => {
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+          const materials = Array.isArray(node.material) ? node.material : [node.material];
+          materials.forEach((material) => {
+            if (!material) return;
+            material.roughness = Math.min(0.95, material.roughness ?? 0.8);
+            material.metalness = Math.max(0, Math.min(0.2, material.metalness ?? 0));
+          });
+        }
+      });
+
+      for (let index = 0; index < definition.count; index += 1) {
+        const angle = (Math.PI * 2 * index) / definition.count;
+        const instance = root.clone(true);
+        instance.userData = {
+          angle,
+          radius: definition.radius + ((index % 2 === 0) ? 1.1 : -0.8),
+          baseY: definition.y,
+          bobPhase: definition.phaseOffset + (Math.random() * Math.PI * 2),
+          rotationOffset: definition.yRotationOffset,
+          yOffset: definition.yOffset,
+        };
+        instance.scale.setScalar(definition.scale);
+        this.arenaAssetGroup.add(instance);
+        this.arenaAssetRoots.push(instance);
+      }
+    });
+
     this.layoutArenaDecor();
   }
 
   layoutArenaDecor() {
     const scale = this.worldSize / 50;
-    const postRadius = this.worldSize * 0.88;
+    const postRadius = this.worldSize * SETTINGS.arenaPostRingScale;
 
     this.floor.scale.setScalar(scale);
     this.innerDisk.scale.setScalar(scale);
     this.brassRing.scale.setScalar(scale);
     this.boundaryRing.scale.setScalar(scale);
     this.grid.scale.setScalar(scale);
+    if (this.skyDome) {
+      this.skyDome.scale.setScalar(scale);
+    }
+    if (this.arenaDecorGroup) {
+      this.arenaDecorGroup.scale.setScalar(scale);
+    }
 
     this.posts.forEach((post, index) => {
       const angle = (Math.PI * 2 * index) / this.posts.length;
@@ -381,6 +795,40 @@ export class SceneController {
       );
       post.rotation.y = -angle;
     });
+
+    if (this.arenaDecorations?.length) {
+      this.arenaDecorations.forEach((decor) => {
+        if (!decor.userData) return;
+        if (decor.geometry?.type === 'PlaneGeometry') {
+          return;
+        }
+
+        const { angle, radius, baseY } = decor.userData;
+        decor.position.set(
+          Math.cos(angle) * radius,
+          baseY,
+          Math.sin(angle) * radius,
+        );
+        decor.rotation.y = -angle + (Math.PI / 2);
+      });
+    }
+
+    if (this.arenaAssetRoots?.length) {
+      this.arenaAssetRoots.forEach((asset) => {
+        const { angle, radius, baseY, rotationOffset = 0, yOffset = 0, bobPhase = 0 } = asset.userData || {};
+        if (!Number.isFinite(angle) || !Number.isFinite(radius)) {
+          return;
+        }
+
+        const bob = Math.sin((simulationTimeMs * 0.001) + bobPhase) * 0.08;
+        asset.position.set(
+          Math.cos(angle) * radius,
+          baseY + yOffset + bob,
+          Math.sin(angle) * radius,
+        );
+        asset.rotation.y = -angle + rotationOffset;
+      });
+    }
   }
 
   setWorldSize(worldSize) {
@@ -403,13 +851,29 @@ export class SceneController {
     const avatar = new THREE.Group();
     group.add(avatar);
 
+    const baseColor = new THREE.Color(player.color);
+    const bodyColor = baseColor.clone().offsetHSL(0, -0.05, -0.05);
+    const capColor = baseColor.clone().offsetHSL(0, 0.02, 0.06);
+    const accentColor = baseColor.clone().offsetHSL(0.02, -0.12, -0.18);
+    const bellyColor = baseColor.clone().lerp(new THREE.Color(0xf9f1da), 0.52);
+
+    const bodyMaterial = new THREE.MeshStandardMaterial({
+      color: bodyColor,
+      roughness: 0.36,
+      metalness: 0.08,
+      emissive: bodyColor.clone().multiplyScalar(0.06),
+    });
+
+    const capMaterial = new THREE.MeshStandardMaterial({
+      color: capColor,
+      roughness: 0.26,
+      metalness: 0.1,
+      emissive: capColor.clone().multiplyScalar(0.05),
+    });
+
     const body = new THREE.Mesh(
       new THREE.CylinderGeometry(0.62, 0.72, 1.8, 24),
-      new THREE.MeshStandardMaterial({
-        color: player.color,
-        roughness: 0.42,
-        metalness: 0.16,
-      }),
+      bodyMaterial,
     );
     body.castShadow = true;
     body.receiveShadow = true;
@@ -417,15 +881,147 @@ export class SceneController {
 
     const cap = new THREE.Mesh(
       new THREE.SphereGeometry(0.58, 20, 20),
-      new THREE.MeshStandardMaterial({
-        color: player.color,
-        roughness: 0.28,
-        metalness: 0.12,
-      }),
+      capMaterial,
     );
     cap.position.y = 0.95;
     cap.castShadow = true;
+    cap.receiveShadow = true;
     avatar.add(cap);
+
+    const belly = new THREE.Mesh(
+      new THREE.SphereGeometry(0.42, 16, 16),
+      new THREE.MeshStandardMaterial({
+        color: bellyColor,
+        roughness: 0.48,
+        metalness: 0.03,
+      }),
+    );
+    belly.position.set(0, 0.12, 0.38);
+    belly.scale.set(1.1, 0.9, 0.62);
+    belly.castShadow = true;
+    belly.receiveShadow = true;
+    avatar.add(belly);
+
+    const facePanel = new THREE.Mesh(
+      new THREE.SphereGeometry(0.36, 14, 14),
+      new THREE.MeshStandardMaterial({
+        color: bellyColor,
+        roughness: 0.42,
+        metalness: 0.03,
+      }),
+    );
+    facePanel.position.set(0, 0.98, 0.43);
+    facePanel.scale.set(0.94, 0.84, 0.54);
+    facePanel.castShadow = true;
+    facePanel.receiveShadow = true;
+    avatar.add(facePanel);
+
+    const snout = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.14, 0.17, 0.22, 14),
+      new THREE.MeshStandardMaterial({
+        color: bellyColor.clone().offsetHSL(0, 0, -0.06),
+        roughness: 0.46,
+        metalness: 0.02,
+      }),
+    );
+    snout.rotation.x = Math.PI / 2;
+    snout.position.set(0, 0.87, 0.61);
+    snout.castShadow = true;
+    snout.receiveShadow = true;
+    avatar.add(snout);
+
+    const eyeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x121f25,
+      roughness: 0.2,
+      metalness: 0.36,
+      emissive: 0x3d5963,
+      emissiveIntensity: 0.35,
+    });
+
+    const eyeLeft = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 12), eyeMaterial.clone());
+    eyeLeft.position.set(-0.16, 1.05, 0.58);
+    avatar.add(eyeLeft);
+
+    const eyeRight = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 12), eyeMaterial.clone());
+    eyeRight.position.set(0.16, 1.05, 0.58);
+    avatar.add(eyeRight);
+
+    const nostrilMaterial = new THREE.MeshBasicMaterial({ color: 0x2f383d });
+    const nostrilLeft = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 8), nostrilMaterial);
+    nostrilLeft.position.set(-0.056, 0.87, 0.72);
+    avatar.add(nostrilLeft);
+
+    const nostrilRight = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 8), nostrilMaterial);
+    nostrilRight.position.set(0.056, 0.87, 0.72);
+    avatar.add(nostrilRight);
+
+    const earMaterial = new THREE.MeshStandardMaterial({
+      color: accentColor,
+      roughness: 0.34,
+      metalness: 0.08,
+    });
+
+    const leftEar = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.32, 10), earMaterial);
+    leftEar.position.set(-0.33, 1.42, 0.03);
+    leftEar.rotation.z = 0.24;
+    leftEar.castShadow = true;
+    avatar.add(leftEar);
+
+    const rightEar = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.32, 10), earMaterial.clone());
+    rightEar.position.set(0.33, 1.42, 0.03);
+    rightEar.rotation.z = -0.24;
+    rightEar.castShadow = true;
+    avatar.add(rightEar);
+
+    const belt = new THREE.Mesh(
+      new THREE.TorusGeometry(0.56, 0.055, 10, 40),
+      new THREE.MeshStandardMaterial({
+        color: accentColor.clone().offsetHSL(0, 0, 0.03),
+        roughness: 0.24,
+        metalness: 0.58,
+        emissive: accentColor.clone().multiplyScalar(0.12),
+        emissiveIntensity: 0.3,
+      }),
+    );
+    belt.rotation.x = Math.PI / 2;
+    belt.position.y = 0.28;
+    belt.castShadow = true;
+    belt.receiveShadow = true;
+    avatar.add(belt);
+
+    const leftArm = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.11, 0.46, 6, 10),
+      bodyMaterial.clone(),
+    );
+    leftArm.position.set(-0.56, 0.32, 0.04);
+    leftArm.rotation.z = -0.24;
+    leftArm.castShadow = true;
+    avatar.add(leftArm);
+
+    const rightArm = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.11, 0.46, 6, 10),
+      bodyMaterial.clone(),
+    );
+    rightArm.position.set(0.56, 0.32, 0.04);
+    rightArm.rotation.z = 0.24;
+    rightArm.castShadow = true;
+    avatar.add(rightArm);
+
+    const leftLeg = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.12, 0.26, 5, 8),
+      bodyMaterial.clone(),
+    );
+    leftLeg.position.set(-0.22, -0.8, 0.03);
+    leftLeg.castShadow = true;
+    avatar.add(leftLeg);
+
+    const rightLeg = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.12, 0.26, 5, 8),
+      bodyMaterial.clone(),
+    );
+    rightLeg.position.set(0.22, -0.8, 0.03);
+    rightLeg.castShadow = true;
+    avatar.add(rightLeg);
 
     const localRing = new THREE.Mesh(
       new THREE.TorusGeometry(0.92, 0.06, 10, 48),
@@ -480,6 +1076,12 @@ export class SceneController {
       avatar,
       body,
       cap,
+      belly,
+      facePanel,
+      leftEar,
+      rightEar,
+      leftArm,
+      rightArm,
       localRing,
       statusRing,
       shadow,
@@ -531,6 +1133,13 @@ export class SceneController {
     entry.avatar.position.y = SETTINGS.playerHeight * scale + bobOffset;
     entry.avatar.rotation.x = player.tilt || 0;
     entry.avatar.scale.set(scale, scale, scale);
+
+    const movementEnergy = Math.min(1, Math.abs(player.tilt || 0) * 4.5 + Math.abs(bobOffset) * 5);
+    const gaitWave = Math.sin(now * 0.018 + (player.position.x * 0.4));
+    entry.leftArm.rotation.x = (-0.24 * movementEnergy) + (gaitWave * 0.34 * movementEnergy);
+    entry.rightArm.rotation.x = (-0.24 * movementEnergy) - (gaitWave * 0.34 * movementEnergy);
+    entry.leftEar.rotation.x = 0.06 + (gaitWave * 0.04);
+    entry.rightEar.rotation.x = 0.06 - (gaitWave * 0.04);
 
     entry.localRing.material.opacity = isLocal ? 0.95 : 0.08;
     entry.localRing.scale.setScalar(1 + ((scale - 1) * 0.25));
@@ -623,6 +1232,18 @@ export class SceneController {
     };
   }
 
+  getBallValueAccent(ball) {
+    if (ball.type === 'GOLDEN') {
+      return '#ffd166';
+    }
+
+    if (ball.type === 'SPEED') {
+      return '#7bdff2';
+    }
+
+    return '#fff5d8';
+  }
+
   upsertBall(ball) {
     let entry = this.ballMeshes.get(ball.id);
     if (!entry) {
@@ -668,6 +1289,31 @@ export class SceneController {
     });
   }
 
+  spawnFloatingValue(position, text, color, simulationTimeMs, scaleMultiplier = 1) {
+    const safeScale = THREE.MathUtils.clamp(scaleMultiplier || 1, 1, SETTINGS.maxSizeMultiplier);
+    const popupScale = 1 + ((safeScale - 1) * 0.7);
+    this.ensureValuePopupLayer();
+
+    const element = document.createElement('div');
+    element.className = 'floating-value-popup';
+    element.textContent = String(text);
+    element.style.setProperty('--popup-accent', new THREE.Color(color).getStyle());
+    this.valuePopupLayer?.appendChild(element);
+
+    this.valuePopups.push({
+      element,
+      bornAt: simulationTimeMs,
+      duration: 1150,
+      startX: position.x,
+      startY: position.y + (1.12 * popupScale),
+      startZ: position.z,
+      riseHeight: 1.75 + ((popupScale - 1) * 0.5),
+      driftX: (Math.random() - 0.5) * 0.34,
+      driftZ: (Math.random() - 0.5) * 0.3,
+      baseScale: popupScale,
+    });
+  }
+
   spawnConsumeBurst(position, color, simulationTimeMs) {
     this.spawnBurst({
       position,
@@ -692,6 +1338,21 @@ export class SceneController {
       opacity: 0.68,
       grow: 3.4,
       y: 0.18,
+    });
+  }
+
+  spawnDashTrail(position, color, simulationTimeMs, scale = 1) {
+    const safeScale = Math.max(0.8, Math.min(2.8, scale || 1));
+    this.spawnBurst({
+      position,
+      color,
+      simulationTimeMs,
+      innerRadius: 0.24 * safeScale,
+      outerRadius: 0.42 * safeScale,
+      duration: 260,
+      opacity: 0.42,
+      grow: 1.35,
+      y: 0.22,
     });
   }
 
@@ -729,6 +1390,10 @@ export class SceneController {
   }
 
   step(simulationTimeMs) {
+    if (this.skyDome) {
+      this.skyDome.rotation.y = simulationTimeMs * 0.000015;
+    }
+
     this.ballMeshes.forEach((entry) => {
       const hover = Math.sin((simulationTimeMs * 0.004) + entry.phase) * 0.18;
       entry.group.position.y = entry.baseY + hover;
@@ -751,6 +1416,71 @@ export class SceneController {
       burst.mesh.material.opacity = burst.opacity * (1 - progress);
       return true;
     });
+
+    this.valuePopups = this.valuePopups.filter((popup) => {
+      const age = simulationTimeMs - popup.bornAt;
+      const progress = age / popup.duration;
+
+      if (progress >= 1) {
+        popup.element?.remove();
+        return false;
+      }
+
+      const eased = 1 - Math.pow(1 - progress, 2);
+      this.valuePopupProjectPoint.set(
+        popup.startX + (popup.driftX * eased),
+        popup.startY + (popup.riseHeight * eased),
+        popup.startZ + (popup.driftZ * eased),
+      );
+      this.valuePopupProjectPoint.project(this.camera);
+
+      const isBehindCamera = this.valuePopupProjectPoint.z > 1;
+      if (isBehindCamera) {
+        popup.element.style.opacity = '0';
+        return true;
+      }
+
+      const width = this.container.clientWidth || window.innerWidth;
+      const height = this.container.clientHeight || window.innerHeight;
+      const screenX = (this.valuePopupProjectPoint.x * 0.5 + 0.5) * width;
+      const screenY = (-this.valuePopupProjectPoint.y * 0.5 + 0.5) * height;
+      const visualScale = popup.baseScale * (1 + (progress * 0.1));
+      const opacity = Math.max(0, 1 - Math.pow(progress, 1.35));
+
+      popup.element.style.opacity = opacity.toFixed(3);
+      popup.element.style.transform = `translate3d(${screenX.toFixed(1)}px, ${screenY.toFixed(1)}px, 0) translate(-50%, -50%) scale(${visualScale.toFixed(3)})`;
+      return true;
+    });
+
+    if (this.arenaDecorations?.length) {
+      this.arenaDecorations.forEach((decor) => {
+        if (!decor.userData?.pulsePhase) return;
+        if (decor.geometry?.type === 'PlaneGeometry') {
+          decor.material.opacity = 0.66 + (Math.sin((simulationTimeMs * 0.0011) + decor.userData.pulsePhase) * 0.08);
+          decor.position.y = 0.03 + (Math.sin((simulationTimeMs * 0.0014) + decor.userData.pulsePhase) * 0.02);
+          return;
+        }
+
+        decor.position.y = decor.userData.baseY + (Math.sin((simulationTimeMs * 0.0017) + decor.userData.bobPhase) * 0.08);
+      });
+    }
+
+    if (this.arenaAssetRoots?.length) {
+      this.arenaAssetRoots.forEach((asset) => {
+        const { angle, radius, baseY, rotationOffset = 0, yOffset = 0, bobPhase = 0 } = asset.userData || {};
+        if (!Number.isFinite(angle) || !Number.isFinite(radius)) {
+          return;
+        }
+
+        const bob = Math.sin((simulationTimeMs * 0.001) + bobPhase) * 0.08;
+        asset.position.set(
+          Math.cos(angle) * radius,
+          baseY + yOffset + bob,
+          Math.sin(angle) * radius,
+        );
+        asset.rotation.y = -angle + rotationOffset + (Math.sin((simulationTimeMs * 0.0004) + bobPhase) * 0.02);
+      });
+    }
   }
 
   updateCamera(player, heading) {
@@ -929,6 +1659,20 @@ export class SceneController {
     this.renderer.render(this.scene, this.camera);
   }
 
+  getCameraHeading(fallback = 0) {
+    if (!this.camera) {
+      return fallback;
+    }
+
+    this.camera.getWorldDirection(this.cameraForward);
+    const planarLengthSq = (this.cameraForward.x * this.cameraForward.x) + (this.cameraForward.z * this.cameraForward.z);
+    if (planarLengthSq < 0.000001) {
+      return fallback;
+    }
+
+    return Math.atan2(this.cameraForward.x, this.cameraForward.z);
+  }
+
   getCanvasElement() {
     return this.renderer?.domElement || null;
   }
@@ -980,8 +1724,8 @@ export class SceneController {
   }
 
   dispose() {
-    this.playerMeshes.forEach((_, playerId) => this.removePlayer(playerId));
-    this.ballMeshes.forEach((_, ballId) => this.removeBall(ballId));
+    this.playerMeshes.forEach((_, playerId) => { this.removePlayer(playerId); });
+    this.ballMeshes.forEach((_, ballId) => { this.removeBall(ballId); });
 
     this.pickupBursts.forEach((burst) => {
       this.scene?.remove(burst.mesh);
@@ -990,8 +1734,20 @@ export class SceneController {
     });
     this.pickupBursts = [];
 
-    this.posts.forEach((post) => this.disposeStaticNode(post));
+    this.valuePopups.forEach((popup) => {
+      popup.element?.remove();
+    });
+    this.valuePopups = [];
+    this.valuePopupLayer?.remove();
+    this.valuePopupLayer = null;
+
+    this.posts.forEach((post) => { this.disposeStaticNode(post); });
     this.posts = [];
+    this.disposeStaticNode(this.skyDome);
+    this.disposeStaticNode(this.arenaDecorGroup);
+    this.disposeStaticNode(this.arenaAssetGroup);
+    this.arenaDecorations = [];
+    this.arenaAssetRoots = [];
     this.disposeStaticNode(this.floor);
     this.disposeStaticNode(this.innerDisk);
     this.disposeStaticNode(this.brassRing);
@@ -1014,6 +1770,9 @@ export class SceneController {
     this.brassRing = null;
     this.boundaryRing = null;
     this.grid = null;
+    this.skyDome = null;
+    this.arenaDecorGroup = null;
+    this.arenaAssetGroup = null;
   }
 }
 
