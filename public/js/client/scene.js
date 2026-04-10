@@ -332,7 +332,6 @@ export class SceneController {
     this.innerDisk = null;
     this.brassRing = null;
     this.boundaryRing = null;
-    this.grid = null;
     this.posts = [];
     this.skyDome = null;
     this.arenaDecorGroup = null;
@@ -575,12 +574,6 @@ export class SceneController {
     this.boundaryRing.castShadow = true;
     this.scene.add(this.boundaryRing);
 
-    this.grid = new THREE.GridHelper(100, 18, 0xf7e8c5, 0x0f2a32);
-    this.grid.position.y = 0.04;
-    this.grid.material.opacity = 0.12;
-    this.grid.material.transparent = true;
-    this.scene.add(this.grid);
-
     for (let index = 0; index < SETTINGS.arenaPostCount; index += 1) {
       const pillar = new THREE.Mesh(
         new THREE.CylinderGeometry(0.45, 0.65, 4.8, 14),
@@ -778,7 +771,6 @@ export class SceneController {
     this.innerDisk.scale.setScalar(scale);
     this.brassRing.scale.setScalar(scale);
     this.boundaryRing.scale.setScalar(scale);
-    this.grid.scale.setScalar(scale);
     if (this.skyDome) {
       this.skyDome.scale.setScalar(scale);
     }
@@ -1752,7 +1744,6 @@ export class SceneController {
     this.disposeStaticNode(this.innerDisk);
     this.disposeStaticNode(this.brassRing);
     this.disposeStaticNode(this.boundaryRing);
-    this.disposeStaticNode(this.grid);
 
     if (this.renderer) {
       this.renderer.renderLists?.dispose?.();
@@ -1769,7 +1760,6 @@ export class SceneController {
     this.innerDisk = null;
     this.brassRing = null;
     this.boundaryRing = null;
-    this.grid = null;
     this.skyDome = null;
     this.arenaDecorGroup = null;
     this.arenaAssetGroup = null;
