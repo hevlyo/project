@@ -1,8 +1,10 @@
 export const SETTINGS = {
   frameMs: 1000 / 60,
-  worldSize: 50,
+  hudUpdateIntervalMs: 120,
+  worldSize: 100,
   playerHeight: 1.15,
   playerRadius: 0.52,
+  arenaWallPadding: 0.7,
   consumeSizeRatio: 1.1,
   moveSpeed: 0.19,
   sprintMultiplier: 1.45,
@@ -14,20 +16,48 @@ export const SETTINGS = {
   collisionPadding: 0.2,
   interpolationSpeed: 0.18,
   collectionDistance: 1.45,
+  cameraBaseFov: 60,
+  cameraMaxFov: 74,
   cameraDistance: 8.8,
-  cameraHeight: 6.2,
-  cameraLookHeight: 1.25,
+  cameraHeight: 5.75,
+  cameraLookHeight: 1.05,
+  cameraDistanceGrowthFactor: 1.9,
+  cameraDistanceProgressFactor: 0.35,
+  cameraHeightGrowthFactor: 1.25,
+  cameraHeightProgressFactor: 0.22,
+  cameraFovGrowthFactor: 8,
+  cameraFovProgressFactor: 10,
   cameraSmoothing: 0.12,
-  cameraZoomOutSmoothing: 0.045,
-  cameraZoomInSmoothing: 0.08,
+  cameraZoomOutSmoothing: 0.024,
+  cameraZoomInSmoothing: 0.05,
+  cameraLookHeightSmoothing: 0.05,
+  cameraFovZoomOutSmoothing: 0.035,
+  cameraFovZoomInSmoothing: 0.06,
+  cameraPickupZoomPerPoint: 0.024,
+  cameraPickupHeightPerPoint: 0.013,
+  cameraPickupFovPerPoint: 0.048,
+  cameraPickupBoostSmoothing: 0.22,
+  cameraPickupBoostDecay: 0.075,
+  cameraPickupZoomResponseSmoothing: 0.075,
+  cameraPickupMaxZoomBoost: 1.85,
+  cameraPickupMaxHeightBoost: 1.15,
+  cameraPickupMaxFovBoost: 3.2,
+  playerScaleGrowSmoothing: 0.08,
+  playerScaleShrinkSmoothing: 0.12,
   maxSizeMultiplier: 2.5,
   sizeIncreasePerBall: 0.05,
   defaultBallValue: 10,
   inputDeadZone: 0.0001,
+  renderPixelRatioCap: 2,
+  renderAntialias: true,
+  renderShadows: true,
+  renderPowerPreference: 'high-performance',
+  renderShadowMapSize: 2048,
 };
 
 export const STORAGE_KEY = 'pega-bola-nickname';
 export const SESSION_STORAGE_KEY = 'pega-bola-session';
+export const NICKNAME_MAX_LENGTH = 16;
 
 export const NICKNAME_PATTERN = /^[a-zA-Z0-9\s\-_]+$/;
 
@@ -78,7 +108,7 @@ export function normalizeNickname(rawValue) {
     .trim()
     .replace(/[^a-zA-Z0-9\s\-_]/g, '')
     .replace(/\s+/g, ' ')
-    .slice(0, 15);
+    .slice(0, NICKNAME_MAX_LENGTH);
 
   if (cleaned.length >= 2 && NICKNAME_PATTERN.test(cleaned)) {
     return cleaned;

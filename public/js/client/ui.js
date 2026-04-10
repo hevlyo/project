@@ -9,17 +9,39 @@ export function createUIController(elements) {
     pickupTimer: null,
     instructionTimer: null,
     instructionHideTimer: null,
+    menuHideTimer: null,
     killfeedTimers: new Set(),
+    startClickHandler: null,
+    nicknameKeydownHandler: null,
+    musicVolumeInputHandler: null,
+    musicMuteClickHandler: null,
+    lastScoreText: null,
+    lastPlayerCountText: null,
+    lastStatusLineText: null,
+    lastStatusChipLabel: null,
+    lastStatusChipTone: null,
+    lastStatusChipVisible: null,
+    lastLeaderboardKey: null,
   };
 
   function bindStart(handler) {
-    elements.playButton.addEventListener('click', handler);
-    elements.nicknameInput.addEventListener('keydown', (event) => {
+    if (state.startClickHandler) {
+      elements.playButton.removeEventListener('click', state.startClickHandler);
+    }
+    if (state.nicknameKeydownHandler) {
+      elements.nicknameInput.removeEventListener('keydown', state.nicknameKeydownHandler);
+    }
+
+    state.startClickHandler = handler;
+    state.nicknameKeydownHandler = (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
         handler();
       }
-    });
+    };
+
+    elements.playButton.addEventListener('click', state.startClickHandler);
+    elements.nicknameInput.addEventListener('keydown', state.nicknameKeydownHandler);
   }
 
   function getNickname() {
@@ -38,7 +60,65 @@ export function createUIController(elements) {
   function setMenuBusy(isBusy, buttonLabel = 'Entrar na pocilga') {
     elements.playButton.disabled = isBusy;
     elements.nicknameInput.disabled = isBusy;
+    if (elements.musicVolumeInput) {
+      elements.musicVolumeInput.disabled = isBusy;
+    }
+    if (elements.musicMuteButton) {
+      elements.musicMuteButton.disabled = isBusy;
+    }
     elements.playButton.textContent = buttonLabel;
+  }
+
+  function getMusicVolume() {
+    if (!elements.musicVolumeInput) return 0.08;
+    return Number(elements.musicVolumeInput.value) / 100;
+  }
+
+  function setMusicVolume(value) {
+    if (!elements.musicVolumeInput || !elements.musicVolumeValue) return;
+
+    const safeValue = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0.08;
+    const percent = Math.round(safeValue * 100);
+    elements.musicVolumeInput.value = String(percent);
+    elements.musicVolumeValue.textContent = `${percent}%`;
+  }
+
+  function bindMusicVolumeChange(handler) {
+    if (!elements.musicVolumeInput) return;
+
+    if (state.musicVolumeInputHandler) {
+      elements.musicVolumeInput.removeEventListener('input', state.musicVolumeInputHandler);
+    }
+
+    state.musicVolumeInputHandler = () => {
+      const volume = getMusicVolume();
+      setMusicVolume(volume);
+      handler(volume);
+    };
+
+    elements.musicVolumeInput.addEventListener('input', state.musicVolumeInputHandler);
+  }
+
+  function setMusicMuted(isMuted) {
+    if (!elements.musicMuteButton) return;
+
+    const muted = Boolean(isMuted);
+    elements.musicMuteButton.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    elements.musicMuteButton.textContent = muted ? 'Som off' : 'Mutar';
+  }
+
+  function bindMusicMuteToggle(handler) {
+    if (!elements.musicMuteButton) return;
+
+    if (state.musicMuteClickHandler) {
+      elements.musicMuteButton.removeEventListener('click', state.musicMuteClickHandler);
+    }
+
+    state.musicMuteClickHandler = () => {
+      handler();
+    };
+
+    elements.musicMuteButton.addEventListener('click', state.musicMuteClickHandler);
   }
 
   function setMenuStatus(text, tone = 'idle') {
@@ -53,7 +133,10 @@ export function createUIController(elements) {
 
   function hideMenu() {
     elements.menuScreen.classList.add('is-hidden');
-    window.setTimeout(() => {
+    if (state.menuHideTimer) {
+      window.clearTimeout(state.menuHideTimer);
+    }
+    state.menuHideTimer = window.setTimeout(() => {
       if (elements.menuScreen.classList.contains('is-hidden')) {
         elements.menuScreen.hidden = true;
       }
@@ -65,26 +148,59 @@ export function createUIController(elements) {
   }
 
   function setConnectionState(text, tone = 'live') {
-    if (!elements.connectionBadge) return;
-    elements.connectionBadge.textContent = text;
-    setToneClass(elements.connectionBadge, tone);
+    // Connection state display removed; info shown in status line
   }
 
   function updateHUD({ score, playerCount, leaderboard, localPlayerId, statusLine, statusChip }) {
-    elements.scoreValue.textContent = String(score);
-    elements.playerCountValue.textContent = String(playerCount);
-    elements.statusLine.textContent = statusLine;
+    const scoreText = String(score);
+    if (state.lastScoreText !== scoreText) {
+      elements.scoreValue.textContent = scoreText;
+      state.lastScoreText = scoreText;
+    }
+
+    const playerCountText = String(playerCount);
+    if (state.lastPlayerCountText !== playerCountText) {
+      elements.playerCountValue.textContent = playerCountText;
+      state.lastPlayerCountText = playerCountText;
+    }
+
+    if (state.lastStatusLineText !== statusLine) {
+      elements.statusLine.textContent = statusLine;
+      state.lastStatusLineText = statusLine;
+    }
 
     if (elements.statusChip) {
+      const chipVisible = Boolean(statusChip?.label);
+      const chipLabel = chipVisible ? statusChip.label : '';
+      const chipTone = chipVisible ? (statusChip.tone || 'live') : 'idle';
+
+      if (state.lastStatusChipVisible !== chipVisible) {
+        elements.statusChip.hidden = !chipVisible;
+        state.lastStatusChipVisible = chipVisible;
+      }
+      if (state.lastStatusChipLabel !== chipLabel) {
+        elements.statusChip.textContent = chipLabel;
+        state.lastStatusChipLabel = chipLabel;
+      }
+      if (chipVisible && state.lastStatusChipTone !== chipTone) {
+        setToneClass(elements.statusChip, chipTone);
+        state.lastStatusChipTone = chipTone;
+      }
+
       if (statusChip?.label) {
-        elements.statusChip.hidden = false;
-        elements.statusChip.textContent = statusChip.label;
-        setToneClass(elements.statusChip, statusChip.tone || 'live');
+        // No-op: updates are handled by cached writes above.
       } else {
-        elements.statusChip.hidden = true;
-        elements.statusChip.textContent = '';
+        state.lastStatusChipTone = null;
       }
     }
+
+    const leaderboardKey = leaderboard.map((player, index) => (
+      `${index}:${player.id}:${player.score}:${player.id === localPlayerId ? 1 : 0}`
+    )).join('|');
+    if (state.lastLeaderboardKey === leaderboardKey) {
+      return;
+    }
+    state.lastLeaderboardKey = leaderboardKey;
 
     elements.leaderboard.innerHTML = '';
 
@@ -215,10 +331,51 @@ export function createUIController(elements) {
     }, duration);
   }
 
+  function destroy() {
+    if (state.startClickHandler) {
+      elements.playButton.removeEventListener('click', state.startClickHandler);
+      state.startClickHandler = null;
+    }
+    if (state.nicknameKeydownHandler) {
+      elements.nicknameInput.removeEventListener('keydown', state.nicknameKeydownHandler);
+      state.nicknameKeydownHandler = null;
+    }
+    if (state.musicVolumeInputHandler && elements.musicVolumeInput) {
+      elements.musicVolumeInput.removeEventListener('input', state.musicVolumeInputHandler);
+      state.musicVolumeInputHandler = null;
+    }
+    if (state.musicMuteClickHandler && elements.musicMuteButton) {
+      elements.musicMuteButton.removeEventListener('click', state.musicMuteClickHandler);
+      state.musicMuteClickHandler = null;
+    }
+    if (state.toastTimer) {
+      window.clearTimeout(state.toastTimer);
+    }
+    if (state.pickupTimer) {
+      window.clearTimeout(state.pickupTimer);
+    }
+    if (state.instructionTimer) {
+      window.clearTimeout(state.instructionTimer);
+    }
+    if (state.instructionHideTimer) {
+      window.clearTimeout(state.instructionHideTimer);
+    }
+    if (state.menuHideTimer) {
+      window.clearTimeout(state.menuHideTimer);
+    }
+    state.killfeedTimers.forEach((timer) => window.clearTimeout(timer));
+    state.killfeedTimers.clear();
+  }
+
   return {
     bindStart,
     getNickname,
     setNickname,
+    getMusicVolume,
+    setMusicVolume,
+    bindMusicVolumeChange,
+    setMusicMuted,
+    bindMusicMuteToggle,
     focusNickname,
     setMenuBusy,
     setMenuStatus,
@@ -232,5 +389,6 @@ export function createUIController(elements) {
     showPickup,
     showKillfeed,
     showSessionInstructions,
+    destroy,
   };
 }

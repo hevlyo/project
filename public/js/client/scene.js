@@ -63,7 +63,20 @@ export class SceneController {
     this.pickupBursts = [];
     this.cameraLookTarget = new THREE.Vector3(0, 1.2, 0);
     this.cameraTrackedPlayerId = null;
-    this.cameraTrackedScale = 1;
+    this.cameraCurrentFov = SETTINGS.cameraBaseFov;
+    this.cameraCurrentDistance = SETTINGS.cameraDistance;
+    this.cameraCurrentHeight = SETTINGS.cameraHeight;
+    this.cameraCurrentLookHeight = SETTINGS.cameraLookHeight;
+    this.cameraPickupDistanceBoost = 0;
+    this.cameraPickupHeightBoost = 0;
+    this.cameraPickupFovBoost = 0;
+    this.cameraPickupDistanceBoostTarget = 0;
+    this.cameraPickupHeightBoostTarget = 0;
+    this.cameraPickupFovBoostTarget = 0;
+    this.cameraDesiredPosition = new THREE.Vector3();
+    this.cameraDesiredLookAt = new THREE.Vector3();
+    this.idleCameraPosition = new THREE.Vector3();
+    this.idleCameraLookAt = new THREE.Vector3(0, 1.8, 0);
   }
 
   init() {
@@ -71,18 +84,25 @@ export class SceneController {
     this.scene.background = new THREE.Color(0x95b7ba);
     this.scene.fog = new THREE.Fog(0x95b7ba, this.worldSize * 0.95, this.worldSize * 2.8);
 
-    this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
+    this.camera = new THREE.PerspectiveCamera(SETTINGS.cameraBaseFov, 1, 0.1, 500);
     this.camera.position.set(0, SETTINGS.cameraHeight, SETTINGS.cameraDistance);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: SETTINGS.renderAntialias,
+      powerPreference: SETTINGS.renderPowerPreference,
+    });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, SETTINGS.renderPixelRatioCap));
+    this.renderer.shadowMap.enabled = SETTINGS.renderShadows;
+    if (SETTINGS.renderShadows) {
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
     this.container.appendChild(this.renderer.domElement);
+
+    // Chamar resize ANTES de criar luzes e arena para garantir que o renderer tem tamanho válido
+    this.resize();
 
     this.createLights();
     this.createArena();
-    this.resize();
   }
 
   createLights() {
@@ -91,14 +111,16 @@ export class SceneController {
 
     const directional = new THREE.DirectionalLight(0xfff0be, 1.55);
     directional.position.set(18, 28, 12);
-    directional.castShadow = true;
-    directional.shadow.mapSize.width = 2048;
-    directional.shadow.mapSize.height = 2048;
-    directional.shadow.camera.left = -80;
-    directional.shadow.camera.right = 80;
-    directional.shadow.camera.top = 80;
-    directional.shadow.camera.bottom = -80;
-    directional.shadow.camera.far = 120;
+    directional.castShadow = SETTINGS.renderShadows;
+    if (SETTINGS.renderShadows) {
+      directional.shadow.mapSize.width = SETTINGS.renderShadowMapSize;
+      directional.shadow.mapSize.height = SETTINGS.renderShadowMapSize;
+      directional.shadow.camera.left = -80;
+      directional.shadow.camera.right = 80;
+      directional.shadow.camera.top = 80;
+      directional.shadow.camera.bottom = -80;
+      directional.shadow.camera.far = 120;
+    }
     this.scene.add(directional);
 
     const rim = new THREE.PointLight(0x7bdff2, 12, 100, 2);
@@ -310,6 +332,7 @@ export class SceneController {
       labelTexture,
       labelText: player.nickname,
       localState: isLocal,
+      displayScale: player.sizeMultiplier || 1,
     };
   }
 
@@ -329,7 +352,19 @@ export class SceneController {
       entry.localState = isLocal;
     }
 
-    const scale = player.sizeMultiplier || 1;
+    const targetScale = player.sizeMultiplier || 1;
+    if (!Number.isFinite(entry.displayScale)) {
+      entry.displayScale = targetScale;
+    }
+    const scaleSmoothing = targetScale > entry.displayScale
+      ? SETTINGS.playerScaleGrowSmoothing
+      : SETTINGS.playerScaleShrinkSmoothing;
+    entry.displayScale = THREE.MathUtils.lerp(entry.displayScale, targetScale, scaleSmoothing);
+    if (Math.abs(entry.displayScale - targetScale) < 0.002) {
+      entry.displayScale = targetScale;
+    }
+
+    const scale = entry.displayScale;
     const bobOffset = player.bobOffset || 0;
     const now = Date.now();
     const invulnerable = (player.invulnerableUntil || 0) > now;
@@ -564,33 +599,131 @@ export class SceneController {
   }
 
   updateCamera(player, heading) {
-    const scale = player.sizeMultiplier || 1;
+    const scale = this.playerMeshes.get(player.id)?.displayScale || player.sizeMultiplier || 1;
+    const growth = Math.max(0, scale - 1);
+    const maxGrowth = Math.max(0.001, SETTINGS.maxSizeMultiplier - 1);
+    const growthProgress = THREE.MathUtils.clamp(growth / maxGrowth, 0, 1);
+    const targetDistance = SETTINGS.cameraDistance * (
+      1
+      + (growth * SETTINGS.cameraDistanceGrowthFactor)
+      + (growthProgress * SETTINGS.cameraDistanceProgressFactor)
+    );
+    const targetHeight = SETTINGS.cameraHeight * (
+      1
+      + (growth * SETTINGS.cameraHeightGrowthFactor)
+      + (growthProgress * SETTINGS.cameraHeightProgressFactor)
+    );
+    const targetLookHeight = SETTINGS.cameraLookHeight * scale;
+    const targetFov = THREE.MathUtils.clamp(
+      SETTINGS.cameraBaseFov
+      + (growth * SETTINGS.cameraFovGrowthFactor)
+      + (growthProgress * SETTINGS.cameraFovProgressFactor),
+      SETTINGS.cameraBaseFov,
+      SETTINGS.cameraMaxFov,
+    );
+
     if (this.cameraTrackedPlayerId !== player.id) {
       this.cameraTrackedPlayerId = player.id;
-      this.cameraTrackedScale = scale;
+      this.cameraCurrentFov = targetFov;
+      this.cameraCurrentDistance = targetDistance;
+      this.cameraCurrentHeight = targetHeight;
+      this.cameraCurrentLookHeight = targetLookHeight;
+      this.cameraPickupFovBoost = 0;
+      this.cameraPickupDistanceBoost = 0;
+      this.cameraPickupHeightBoost = 0;
+      this.cameraPickupFovBoostTarget = 0;
+      this.cameraPickupDistanceBoostTarget = 0;
+      this.cameraPickupHeightBoostTarget = 0;
     } else {
-      const smoothing = scale > this.cameraTrackedScale
+      this.cameraPickupFovBoost = THREE.MathUtils.lerp(
+        this.cameraPickupFovBoost,
+        this.cameraPickupFovBoostTarget,
+        SETTINGS.cameraPickupBoostSmoothing,
+      );
+      this.cameraPickupDistanceBoost = THREE.MathUtils.lerp(
+        this.cameraPickupDistanceBoost,
+        this.cameraPickupDistanceBoostTarget,
+        SETTINGS.cameraPickupBoostSmoothing,
+      );
+      this.cameraPickupHeightBoost = THREE.MathUtils.lerp(
+        this.cameraPickupHeightBoost,
+        this.cameraPickupHeightBoostTarget,
+        SETTINGS.cameraPickupBoostSmoothing,
+      );
+      this.cameraPickupDistanceBoostTarget = THREE.MathUtils.lerp(
+        this.cameraPickupDistanceBoostTarget,
+        0,
+        SETTINGS.cameraPickupBoostDecay,
+      );
+      this.cameraPickupHeightBoostTarget = THREE.MathUtils.lerp(
+        this.cameraPickupHeightBoostTarget,
+        0,
+        SETTINGS.cameraPickupBoostDecay,
+      );
+      this.cameraPickupFovBoostTarget = THREE.MathUtils.lerp(
+        this.cameraPickupFovBoostTarget,
+        0,
+        SETTINGS.cameraPickupBoostDecay,
+      );
+
+      const zoomingOut = targetDistance > this.cameraCurrentDistance;
+      let smoothing = zoomingOut
         ? SETTINGS.cameraZoomOutSmoothing
         : SETTINGS.cameraZoomInSmoothing;
-      this.cameraTrackedScale = THREE.MathUtils.lerp(this.cameraTrackedScale, scale, smoothing);
-      if (Math.abs(this.cameraTrackedScale - scale) < 0.002) {
-        this.cameraTrackedScale = scale;
+      if (this.cameraPickupDistanceBoost > 0.02 || this.cameraPickupDistanceBoostTarget > 0.02) {
+        smoothing = Math.max(smoothing, SETTINGS.cameraPickupZoomResponseSmoothing);
+      }
+      this.cameraCurrentDistance = THREE.MathUtils.lerp(
+        this.cameraCurrentDistance,
+        targetDistance + this.cameraPickupDistanceBoost,
+        smoothing,
+      );
+      this.cameraCurrentHeight = THREE.MathUtils.lerp(
+        this.cameraCurrentHeight,
+        targetHeight + this.cameraPickupHeightBoost,
+        smoothing,
+      );
+      this.cameraCurrentLookHeight = THREE.MathUtils.lerp(
+        this.cameraCurrentLookHeight,
+        targetLookHeight,
+        SETTINGS.cameraLookHeightSmoothing,
+      );
+      const wideningFov = (targetFov + this.cameraPickupFovBoost) > this.cameraCurrentFov;
+      let fovSmoothing = wideningFov
+        ? SETTINGS.cameraFovZoomOutSmoothing
+        : SETTINGS.cameraFovZoomInSmoothing;
+      if (this.cameraPickupFovBoost > 0.05 || this.cameraPickupFovBoostTarget > 0.05) {
+        fovSmoothing = Math.max(fovSmoothing, SETTINGS.cameraPickupZoomResponseSmoothing);
+      }
+      this.cameraCurrentFov = THREE.MathUtils.lerp(
+        this.cameraCurrentFov,
+        targetFov + this.cameraPickupFovBoost,
+        fovSmoothing,
+      );
+      if (Math.abs(this.cameraCurrentDistance - targetDistance) < 0.01) {
+        this.cameraCurrentDistance = targetDistance;
+      }
+      if (Math.abs(this.cameraCurrentHeight - targetHeight) < 0.01) {
+        this.cameraCurrentHeight = targetHeight;
+      }
+      if (Math.abs(this.cameraCurrentLookHeight - targetLookHeight) < 0.01) {
+        this.cameraCurrentLookHeight = targetLookHeight;
+      }
+      if (Math.abs(this.cameraCurrentFov - targetFov) < 0.05) {
+        this.cameraCurrentFov = targetFov;
       }
     }
 
-    const growth = Math.max(0, this.cameraTrackedScale - 1);
-    const distance = SETTINGS.cameraDistance * (1 + (growth * 1.45));
-    const height = SETTINGS.cameraHeight * (1 + (growth * 1.1));
     const cameraLimit = this.worldSize * 0.84;
 
-    const desiredPosition = new THREE.Vector3(
-      player.position.x - (Math.sin(heading) * distance),
-      height,
-      player.position.z - (Math.cos(heading) * distance),
+    const desiredPosition = this.cameraDesiredPosition.set(
+      player.position.x - (Math.sin(heading) * this.cameraCurrentDistance),
+      this.cameraCurrentHeight,
+      player.position.z - (Math.cos(heading) * this.cameraCurrentDistance),
     );
-    const desiredLookAt = new THREE.Vector3(
+    const desiredLookAt = this.cameraDesiredLookAt.set(
       player.position.x,
-      SETTINGS.cameraLookHeight * this.cameraTrackedScale,
+      this.cameraCurrentLookHeight,
       player.position.z,
     );
 
@@ -599,24 +732,41 @@ export class SceneController {
 
     this.camera.position.lerp(desiredPosition, SETTINGS.cameraSmoothing);
     this.cameraLookTarget.lerp(desiredLookAt, SETTINGS.cameraSmoothing + 0.04);
+    if (Math.abs(this.camera.fov - this.cameraCurrentFov) > 0.01) {
+      this.camera.fov = this.cameraCurrentFov;
+      this.camera.updateProjectionMatrix();
+    }
     this.camera.lookAt(this.cameraLookTarget);
   }
 
   updateIdleCamera(simulationTimeMs) {
     this.cameraTrackedPlayerId = null;
-    this.cameraTrackedScale = 1;
+    this.cameraCurrentFov = SETTINGS.cameraBaseFov;
+    this.cameraCurrentDistance = SETTINGS.cameraDistance;
+    this.cameraCurrentHeight = SETTINGS.cameraHeight;
+    this.cameraCurrentLookHeight = SETTINGS.cameraLookHeight;
+    this.cameraPickupFovBoost = 0;
+    this.cameraPickupDistanceBoost = 0;
+    this.cameraPickupHeightBoost = 0;
+    this.cameraPickupFovBoostTarget = 0;
+    this.cameraPickupDistanceBoostTarget = 0;
+    this.cameraPickupHeightBoostTarget = 0;
 
     const angle = simulationTimeMs * 0.00022;
     const radius = this.worldSize * 0.85;
-    const desiredPosition = new THREE.Vector3(
+    const desiredPosition = this.idleCameraPosition.set(
       Math.cos(angle) * radius,
       this.worldSize * 0.17,
       Math.sin(angle) * radius,
     );
-    const desiredLookAt = new THREE.Vector3(0, 1.8, 0);
+    const desiredLookAt = this.idleCameraLookAt;
 
     this.camera.position.lerp(desiredPosition, 0.035);
     this.cameraLookTarget.lerp(desiredLookAt, 0.05);
+    if (Math.abs(this.camera.fov - SETTINGS.cameraBaseFov) > 0.01) {
+      this.camera.fov = SETTINGS.cameraBaseFov;
+      this.camera.updateProjectionMatrix();
+    }
     this.camera.lookAt(this.cameraLookTarget);
   }
 
@@ -626,6 +776,89 @@ export class SceneController {
 
   getCanvasElement() {
     return this.renderer?.domElement || null;
+  }
+
+  triggerPickupCameraBoost(value = 10, playerScale = 1) {
+    const growth = Math.max(0, playerScale - 1);
+    const maxGrowth = Math.max(0.001, SETTINGS.maxSizeMultiplier - 1);
+    const growthProgress = THREE.MathUtils.clamp(growth / maxGrowth, 0, 1);
+    const proportionalFactor = 0.85 + (growthProgress * 0.95);
+
+    const distanceBoost = Math.min(
+      SETTINGS.cameraPickupMaxZoomBoost,
+      value * SETTINGS.cameraPickupZoomPerPoint * proportionalFactor,
+    );
+    const heightBoost = Math.min(
+      SETTINGS.cameraPickupMaxHeightBoost,
+      value * SETTINGS.cameraPickupHeightPerPoint * proportionalFactor,
+    );
+    const fovBoost = Math.min(
+      SETTINGS.cameraPickupMaxFovBoost,
+      value * SETTINGS.cameraPickupFovPerPoint * proportionalFactor,
+    );
+
+    this.cameraPickupDistanceBoostTarget = Math.min(
+      SETTINGS.cameraPickupMaxZoomBoost,
+      this.cameraPickupDistanceBoostTarget + distanceBoost,
+    );
+    this.cameraPickupHeightBoostTarget = Math.min(
+      SETTINGS.cameraPickupMaxHeightBoost,
+      this.cameraPickupHeightBoostTarget + heightBoost,
+    );
+    this.cameraPickupFovBoostTarget = Math.min(
+      SETTINGS.cameraPickupMaxFovBoost,
+      this.cameraPickupFovBoostTarget + fovBoost,
+    );
+  }
+
+  disposeStaticNode(node) {
+    if (!node) return;
+    this.scene?.remove(node);
+    node.traverse?.((child) => {
+      if (child.geometry) {
+        child.geometry.dispose();
+      }
+      if (child.material) {
+        disposeMaterial(child.material);
+      }
+    });
+  }
+
+  dispose() {
+    this.playerMeshes.forEach((_, playerId) => this.removePlayer(playerId));
+    this.ballMeshes.forEach((_, ballId) => this.removeBall(ballId));
+
+    this.pickupBursts.forEach((burst) => {
+      this.scene?.remove(burst.mesh);
+      burst.mesh.geometry.dispose();
+      disposeMaterial(burst.mesh.material);
+    });
+    this.pickupBursts = [];
+
+    this.posts.forEach((post) => this.disposeStaticNode(post));
+    this.posts = [];
+    this.disposeStaticNode(this.floor);
+    this.disposeStaticNode(this.innerDisk);
+    this.disposeStaticNode(this.brassRing);
+    this.disposeStaticNode(this.boundaryRing);
+    this.disposeStaticNode(this.grid);
+
+    if (this.renderer) {
+      this.renderer.renderLists?.dispose?.();
+      this.renderer.dispose();
+      this.renderer.forceContextLoss?.();
+      this.renderer.domElement?.remove();
+    }
+
+    this.scene?.clear();
+    this.scene = null;
+    this.camera = null;
+    this.renderer = null;
+    this.floor = null;
+    this.innerDisk = null;
+    this.brassRing = null;
+    this.boundaryRing = null;
+    this.grid = null;
   }
 }
 

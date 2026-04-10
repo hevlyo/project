@@ -1,0 +1,161 @@
+{
+  "result": {
+    "before": {
+      "joinToastVisible": true,
+      "joinToastText": "O salão abriu. Tente não passar vergonha logo no primeiro giro.",
+      "score": 0,
+      "sizeMultiplier": 1,
+      "cameraDistance": 24.36
+    },
+    "after": {
+      "score": 30,
+      "sizeMultiplier": 1.15,
+      "cameraDistance": 19.6,
+      "toastVisible": false,
+      "toastText": "O salão abriu. Tente não passar vergonha logo no primeiro giro.",
+      "pickupVisible": true,
+      "pickupText": "+30"
+    },
+    "renderState": {
+      "mode": "playing",
+      "connection": {
+        "label": "Arena ao vivo",
+        "tone": "live"
+      },
+      "coordinates": "origin=center, +x=right/east, +z=down/south from default menu view, +y=up",
+      "localPlayer": {
+        "id": "KXg_QJfT_FuEkk3xAAAh",
+        "nickname": "Kemell Pinto",
+        "x": -7.75,
+        "y": 0,
+        "z": -39.64,
+        "score": 30,
+        "sizeMultiplier": 1.15,
+        "moving": false
+      },
+      "playerCount": 1,
+      "leaderboard": [
+        {
+          "id": "KXg_QJfT_FuEkk3xAAAh",
+          "nickname": "Kemell Pinto",
+          "score": 30
+        }
+      ],
+      "visibleBalls": [
+        {
+          "id": "ball-30-1775236262791",
+          "type": "GOLDEN",
+          "value": 30,
+          "x": -14.93,
+          "y": 0,
+          "z": -39.59
+        },
+        {
+          "id": "ball-19-1775234765878",
+          "type": "NORMAL",
+          "value": 10,
+          "x": 16.95,
+          "y": 0,
+          "z": -34.32
+        },
+        {
+          "id": "ball-7-1775234624909",
+          "type": "NORMAL",
+          "value": 10,
+          "x": -29.2,
+          "y": 0,
+          "z": -23.25
+        },
+        {
+          "id": "ball-11-1775234624909",
+          "type": "SPEED",
+          "value": 5,
+          "x": -37.62,
+          "y": 0,
+          "z": -27.52
+        },
+        {
+          "id": "ball-35-1775236273107",
+          "type": "NORMAL",
+          "value": 10,
+          "x": -40.26,
+          "y": 0,
+          "z": -40.86
+        },
+        {
+          "id": "ball-9-1775234624909",
+          "type": "SPEED",
+          "value": 5,
+          "x": 25.59,
+          "y": 0,
+          "z": -40.11
+        },
+        {
+          "id": "ball-34-1775236271558",
+          "type": "NORMAL",
+          "value": 10,
+          "x": 21.08,
+          "y": 0,
+          "z": -22.06
+        },
+        {
+          "id": "ball-38-1775236303227",
+          "type": "GOLDEN",
+          "value": 30,
+          "x": 27.69,
+          "y": 0,
+          "z": -25.72
+        },
+        {
+          "id": "ball-37-1775236275340",
+          "type": "NORMAL",
+          "value": 10,
+          "x": 19.5,
+          "y": 0,
+          "z": -4.9
+        },
+        {
+          "id": "ball-15-1775234624909",
+          "type": "NORMAL",
+          "value": 10,
+          "x": 36.53,
+          "y": 0,
+          "z": -32.23
+        },
+        {
+          "id": "ball-4-1775234624909",
+          "type": "SPEED",
+          "value": 5,
+          "x": 39.27,
+          "y": 0,
+          "z": -42.36
+        },
+        {
+          "id": "ball-41-1775236563413",
+          "type": "GOLDEN",
+          "value": 30,
+          "x": 39.52,
+          "y": 0,
+          "z": -21.47
+        },
+        {
+          "id": "ball-31-1775236264307",
+          "type": "NORMAL",
+          "value": 10,
+          "x": 33.16,
+          "y": 0,
+          "z": 16
+        },
+        {
+          "id": "ball-40-1775236307959",
+          "type": "SPEED",
+          "value": 5,
+          "x": 0.99,
+          "y": 0,
+          "z": 41.87
+        }
+      ]
+    }
+  },
+  "consoleErrors": []
+}

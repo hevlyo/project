@@ -229,11 +229,14 @@ class GameState {
     const now = Date.now();
     this.refreshAllTimedStates(now);
 
-    player.position = {
-      x: this.clamp(nextPosition.x, -this.config.WORLD_SIZE, this.config.WORLD_SIZE),
+    const nextArenaPosition = {
+      x: nextPosition.x,
       y: 0,
-      z: this.clamp(nextPosition.z, -this.config.WORLD_SIZE, this.config.WORLD_SIZE),
+      z: nextPosition.z,
     };
+    const clampedByArena = !this.isInsideArena(nextArenaPosition, this.getPlayerRadius(player));
+    this.clampPositionToArena(nextArenaPosition, this.getPlayerRadius(player));
+    player.position = nextArenaPosition;
     player.lastUpdate = now;
 
     const consumed = this.resolvePlayerConsumption(player.id, now);
@@ -246,7 +249,7 @@ class GameState {
     }
 
     const corrected = this.resolvePlayerPush(player.id);
-    return { player: this.serializePlayer(player, now), corrected };
+    return { player: this.serializePlayer(player, now), corrected: corrected || clampedByArena };
   }
 
   collectBall(socketId, ballId) {
@@ -383,6 +386,40 @@ class GameState {
     return (player?.invulnerableUntil || 0) > now;
   }
 
+  checkPassiveConsumption(now = Date.now()) {
+    const connected = this.getConnectedPlayers();
+    if (connected.length < 2) return null;
+
+    for (let i = 0; i < connected.length; i += 1) {
+      for (let j = 0; j < connected.length; j += 1) {
+        if (i === j) continue;
+
+        const playerA = connected[i];
+        const playerB = connected[j];
+
+        if (this.isInvulnerable(playerA, now) || this.isInvulnerable(playerB, now)) {
+          continue;
+        }
+
+        const radiusA = this.getPlayerRadius(playerA);
+        const radiusB = this.getPlayerRadius(playerB);
+        const dx = playerA.position.x - playerB.position.x;
+        const dz = playerA.position.z - playerB.position.z;
+        const distance = Math.sqrt((dx * dx) + (dz * dz));
+
+        if (radiusA >= (radiusB * this.config.PLAYER_CONSUME_SIZE_RATIO) && distance <= radiusA) {
+          return this.consumePlayer(playerA.id, playerB.id, now);
+        }
+
+        if (radiusB >= (radiusA * this.config.PLAYER_CONSUME_SIZE_RATIO) && distance <= radiusB) {
+          return this.consumePlayer(playerB.id, playerA.id, now);
+        }
+      }
+    }
+
+    return null;
+  }
+
   resolvePlayerConsumption(movedPlayerId, now = Date.now()) {
     const movedPlayer = this.players[movedPlayerId];
     if (!movedPlayer) return null;
@@ -391,6 +428,7 @@ class GameState {
 
     Object.values(this.players).forEach((otherPlayer) => {
       if (otherPlayer.id === movedPlayerId) return;
+      if (!otherPlayer.connected) return;
 
       if (this.isInvulnerable(movedPlayer, now) || this.isInvulnerable(otherPlayer, now)) {
         return;
@@ -516,16 +554,7 @@ class GameState {
       const overlap = minDistance - distance;
       movedPlayer.position.x += (dx / distance) * overlap;
       movedPlayer.position.z += (dz / distance) * overlap;
-      movedPlayer.position.x = this.clamp(
-        movedPlayer.position.x,
-        -this.config.WORLD_SIZE,
-        this.config.WORLD_SIZE,
-      );
-      movedPlayer.position.z = this.clamp(
-        movedPlayer.position.z,
-        -this.config.WORLD_SIZE,
-        this.config.WORLD_SIZE,
-      );
+      this.clampPositionToArena(movedPlayer.position, movedRadius);
       corrected = true;
     });
 
@@ -578,15 +607,17 @@ class GameState {
   }
 
   getSpawnPosition(excludedPlayerId = null) {
+    const near = Math.round(this.config.WORLD_SIZE * 0.28);
+    const far = Math.round(this.config.WORLD_SIZE * 0.38);
     const slots = [
-      { x: -14, z: -14 },
-      { x: 14, z: -14 },
-      { x: -14, z: 14 },
-      { x: 14, z: 14 },
-      { x: 0, z: -18 },
-      { x: 0, z: 18 },
-      { x: -18, z: 0 },
-      { x: 18, z: 0 },
+      { x: -near, z: -near },
+      { x: near, z: -near },
+      { x: -near, z: near },
+      { x: near, z: near },
+      { x: 0, z: -far },
+      { x: 0, z: far },
+      { x: -far, z: 0 },
+      { x: far, z: 0 },
       { x: 0, z: 0 },
     ];
 
@@ -623,6 +654,25 @@ class GameState {
 
   clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
+  }
+
+  getArenaLimit(radius = 0) {
+    return Math.max(
+      0,
+      this.config.WORLD_SIZE - radius - this.config.ARENA_WALL_PADDING,
+    );
+  }
+
+  clampPositionToArena(position, radius = 0) {
+    const limit = this.getArenaLimit(radius);
+    position.x = this.clamp(position.x, -limit, limit);
+    position.z = this.clamp(position.z, -limit, limit);
+    return position;
+  }
+
+  isInsideArena(position, radius = 0) {
+    const limit = this.getArenaLimit(radius);
+    return Math.abs(position.x) <= limit && Math.abs(position.z) <= limit;
   }
 }
 

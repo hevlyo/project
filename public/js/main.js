@@ -1,6 +1,8 @@
-import { SETTINGS, STORAGE_KEY, SESSION_STORAGE_KEY, JOIN_MESSAGES, DISCONNECT_MESSAGES, HUD_TIPS, clamp, isTimedStateActive, lerpAngle, normalizeNickname, randomItem, round, scoreToScale } from './client/config.js';
-import { SceneController, THREE } from './client/scene.js';
-import { createUIController } from './client/ui.js';
+import { SETTINGS, STORAGE_KEY, SESSION_STORAGE_KEY, JOIN_MESSAGES, DISCONNECT_MESSAGES, HUD_TIPS, clamp, isTimedStateActive, lerpAngle, normalizeNickname, randomItem, round, scoreToScale } from './client/config.js?v=20260409';
+import { SceneController, THREE } from './client/scene.js?v=20260409';
+import { createUIController } from './client/ui.js?v=20260409';
+
+const MUSIC_VOLUME_STORAGE_KEY = 'pega-bola-music-volume';
 
 class GameApp {
   constructor(elements) {
@@ -37,10 +39,22 @@ class GameApp {
     this.lastSentPosition = new THREE.Vector3();
     this.localWasMoving = false;
     this.awaitingBallSnapshot = false;
+    this.visibleBallCount = 0;
+    this.nextHudUpdateAt = 0;
     this.ambienceStarted = false;
     this.ambientAudio = null;
+    this.ambientPlaylist = [];
+    this.ambientTrackIndex = 0;
+    this.ambientTrackPlayCount = 0;
+    this.onAmbientEnded = null;
+    this.musicVolume = this.restoreMusicVolume();
+    this.lastNonZeroMusicVolume = this.musicVolume > 0 ? this.musicVolume : 0.08;
     this.hasShownSessionInstructions = false;
     this.hasShownJoinToast = false;
+    this.destroyed = false;
+    this.disposers = [];
+    this.remoteDelta = new THREE.Vector3();
+    this.desiredVelocity = new THREE.Vector3();
   }
 
   init() {
@@ -50,8 +64,14 @@ class GameApp {
     this.ui.setConnectionState(this.connectionText, this.connectionTone);
     this.ui.setHUDVisible(false);
     this.ui.setNickname(this.restoreNickname());
+    this.ui.setMusicVolume(this.musicVolume);
+    this.ui.setMusicMuted(this.musicVolume === 0);
+    this.ui.bindMusicVolumeChange((volume) => this.setMusicVolume(volume));
+    this.ui.bindMusicMuteToggle(() => this.toggleMusicMuted());
     this.sessionId = this.restoreSessionId();
     this.ui.focusNickname();
+
+    this.bindMenuAmbienceWarmup();
 
     this.bindWindowEvents();
     this.exposeTestingHooks();
@@ -91,17 +111,101 @@ class GameApp {
     return fallback;
   }
 
-  bindWindowEvents() {
-    window.addEventListener('resize', () => this.scene.resize());
-    document.addEventListener('fullscreenchange', () => this.scene.resize());
+  restoreMusicVolume() {
+    try {
+      const stored = localStorage.getItem(MUSIC_VOLUME_STORAGE_KEY);
+      if (!stored) return 0.08;
 
-    window.addEventListener('keydown', (event) => {
-      const targetTag = event.target?.tagName;
-      const typing = targetTag === 'INPUT' || targetTag === 'TEXTAREA';
+      const parsed = Number(stored);
+      if (!Number.isFinite(parsed)) return 0.08;
+      return clamp(parsed, 0, 1);
+    } catch {
+      return 0.08;
+    }
+  }
+
+  persistMusicVolume(value) {
+    try {
+      localStorage.setItem(MUSIC_VOLUME_STORAGE_KEY, String(value));
+    } catch {
+      // Ignore storage failures in private contexts.
+    }
+  }
+
+  setMusicVolume(value) {
+    const safeVolume = clamp(Number(value) || 0, 0, 1);
+    this.musicVolume = safeVolume;
+    this.persistMusicVolume(safeVolume);
+    if (safeVolume > 0) {
+      this.lastNonZeroMusicVolume = safeVolume;
+    }
+
+    this.ui.setMusicVolume(safeVolume);
+    this.ui.setMusicMuted(safeVolume === 0);
+
+    if (this.ambientAudio) {
+      this.ambientAudio.volume = safeVolume;
+    }
+  }
+
+  toggleMusicMuted() {
+    if (this.musicVolume === 0) {
+      const restored = this.lastNonZeroMusicVolume > 0 ? this.lastNonZeroMusicVolume : 0.08;
+      this.setMusicVolume(restored);
+      return;
+    }
+
+    this.setMusicVolume(0);
+  }
+
+  bindMenuAmbienceWarmup() {
+    const attemptStart = () => {
+      this.startAmbience();
+    };
+
+    this.bindEvent(window, 'pointerdown', attemptStart, { passive: true });
+    this.bindEvent(window, 'keydown', (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      attemptStart();
+    });
+  }
+
+  bindWindowEvents() {
+    this.bindEvent(window, 'resize', () => this.scene.resize());
+    this.bindEvent(document, 'fullscreenchange', () => this.scene.resize());
+    this.bindEvent(document, 'visibilitychange', () => {
+      if (document.hidden) {
+        this.resetInputState();
+      }
+    });
+    this.bindEvent(window, 'blur', () => {
+      this.resetInputState();
+    });
+    this.bindEvent(document, 'contextmenu', (event) => {
+      event.preventDefault();
+      this.resetInputState();
+    });
+    this.bindEvent(window, 'pointerdown', (event) => {
+      if (event.button === 2) {
+        event.preventDefault();
+        this.resetInputState();
+      }
+    });
+    this.bindEvent(window, 'keydown', (event) => {
+      const target = event.target;
+      const targetTag = target?.tagName;
+      const typing = targetTag === 'INPUT'
+        || targetTag === 'TEXTAREA'
+        || target?.isContentEditable === true;
+      const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
 
       if (event.key.toLowerCase() === 'f' && !typing) {
         event.preventDefault();
         this.toggleFullscreen();
+        return;
+      }
+
+      if (typing || hasModifier) {
         return;
       }
 
@@ -139,7 +243,7 @@ class GameApp {
       }
     });
 
-    window.addEventListener('keyup', (event) => {
+    this.bindEvent(window, 'keyup', (event) => {
       switch (event.key) {
         case 'ArrowUp':
         case 'w':
@@ -168,11 +272,18 @@ class GameApp {
           break;
       }
     });
+  }
 
-    window.addEventListener('blur', () => {
-      Object.keys(this.keys).forEach((key) => {
-        this.keys[key] = false;
-      });
+  bindEvent(target, eventName, handler, options) {
+    target.addEventListener(eventName, handler, options);
+    this.disposers.push(() => {
+      target.removeEventListener(eventName, handler, options);
+    });
+  }
+
+  resetInputState() {
+    Object.keys(this.keys).forEach((key) => {
+      this.keys[key] = false;
     });
   }
 
@@ -309,7 +420,7 @@ class GameApp {
     });
 
     this.socket.on('playerCount', () => {
-      this.updateHud();
+      this.updateHud({ force: true });
     });
 
     if (this.socket.io) {
@@ -338,15 +449,120 @@ class GameApp {
   }
 
   startAmbience() {
-    if (this.ambienceStarted) return;
+    if (!this.ambientAudio) {
+      const playlist = this.buildShuffledAmbientPlaylist();
+      if (!playlist.length) return;
 
-    this.ambienceStarted = true;
-    this.ambientAudio = new Audio('/assets/background_sound.mp3');
-    this.ambientAudio.loop = true;
-    this.ambientAudio.volume = 0.08;
+      this.ambienceStarted = true;
+      this.ambientPlaylist = playlist;
+      this.ambientTrackIndex = 0;
+      this.ambientTrackPlayCount = 1;
+
+      this.ambientAudio = new Audio(this.ambientPlaylist[this.ambientTrackIndex]);
+      this.ambientAudio.loop = false;
+
+      this.onAmbientEnded = () => {
+        this.handleAmbientTrackEnded();
+      };
+      this.ambientAudio.addEventListener('ended', this.onAmbientEnded);
+    }
+
+    this.ambientAudio.volume = this.musicVolume;
+    this.ambientAudio.play().catch(() => {
+      // Browsers can block autoplay until user gesture; later interactions retry.
+    });
+  }
+
+  buildShuffledAmbientPlaylist() {
+    const fileNames = [
+      '01. Battle Suit Aces.mp3',
+      '02. Peaceful Times.mp3',
+      '03. Cosmic Rendezvous.mp3',
+      '04. Pholians.mp3',
+      '05. Under Attack.mp3',
+      '06. To the Battle Line!.mp3',
+      '07. Defeat.mp3',
+      '08. Space Station.mp3',
+      '09. USS Zephyr.mp3',
+      '10. Mission Complete!.mp3',
+      '11. SIM Chamber.mp3',
+      '12. Wilderness.mp3',
+      '13. Distant Settlement.mp3',
+      '14. Suitsmiths.mp3',
+      "15. A Captain's Speech.mp3",
+      '16. Metropolis.mp3',
+      "17. Hunter's Guild.mp3",
+      '18. Spring in Our Step.mp3',
+      '19. Unknown Truth.mp3',
+      "20. You're Not Alone.mp3",
+      '21. Crisis!.mp3',
+      '22. Conspiracy.mp3',
+      '23. Carrion Riders.mp3',
+      '24. Quiet on the Ship.mp3',
+      '25. Bounty Board.mp3',
+      '26. Suit Gala.mp3',
+      '27. Frenzied Swarm.mp3',
+      '28. Steadfast.mp3',
+      '29. Raring to Go!.mp3',
+      '30. Starball Match.mp3',
+      '31. Growing Pride.mp3',
+      '32. Shady Dealings.mp3',
+      '33. Typhoons.mp3',
+      '34. Patchworks.mp3',
+      '35. Suit Up!.mp3',
+      '36. Our Precious Days Together.mp3',
+      '37. Enigmas.mp3',
+      '38. Blooming Love.mp3',
+      '39. Skiads.mp3',
+      '40. Grey Wraith.mp3',
+      '41. The Summoning.mp3',
+      '42. The Sun Eater.mp3',
+      '43. Burning Memory.mp3',
+    ];
+
+    const trackUrls = fileNames.map((fileName) => `/assets/background_sound/${encodeURIComponent(fileName)}`);
+    return this.shufflePlaylist(trackUrls);
+  }
+
+  shufflePlaylist(items) {
+    const shuffled = items.slice();
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }
+
+  playNextAmbientTrack() {
+    if (!this.ambientAudio || this.ambientPlaylist.length === 0) return;
+
+    this.ambientTrackIndex += 1;
+    if (this.ambientTrackIndex >= this.ambientPlaylist.length) {
+      this.ambientPlaylist = this.shufflePlaylist(this.ambientPlaylist);
+      this.ambientTrackIndex = 0;
+    }
+
+    this.ambientAudio.src = this.ambientPlaylist[this.ambientTrackIndex];
+    this.ambientAudio.currentTime = 0;
+    this.ambientTrackPlayCount = 1;
     this.ambientAudio.play().catch(() => {
       // Audio is optional.
     });
+  }
+
+  handleAmbientTrackEnded() {
+    if (!this.ambientAudio || this.ambientPlaylist.length === 0) return;
+
+    if (this.ambientTrackPlayCount < 2) {
+      this.ambientTrackPlayCount += 1;
+      this.ambientAudio.currentTime = 0;
+      this.ambientAudio.play().catch(() => {
+        // Audio is optional.
+      });
+      return;
+    }
+
+    this.playNextAmbientTrack();
   }
 
   setConnectionState(text, tone) {
@@ -390,7 +606,7 @@ class GameApp {
     player.invulnerableUntil = payload.invulnerableUntil || 0;
     player.speedBoostUntil = payload.speedBoostUntil || 0;
 
-    if (hardSync || payload.id === this.localPlayerId) {
+    if (hardSync) {
       player.position.set(payload.position.x, 0, payload.position.z);
       player.velocity.set(0, 0, 0);
       player.bobOffset = 0;
@@ -447,11 +663,16 @@ class GameApp {
       existing.pendingUntilMs = 0;
       this.balls.set(payload.id, existing);
     });
+
+    this.refreshVisibleBallCount();
   }
 
   handleBallCollected(payload) {
     const ball = this.balls.get(payload.ballId);
     if (ball) {
+      if (!ball.hidden) {
+        this.visibleBallCount = Math.max(0, this.visibleBallCount - 1);
+      }
       this.balls.delete(payload.ballId);
     }
     this.scene.removeBall(payload.ballId);
@@ -459,15 +680,18 @@ class GameApp {
     if (payload.playerId === this.localPlayerId) {
       this.ui.hideToast();
       this.ui.showPickup(`+${payload.value}`);
+      const localScale = this.players.get(this.localPlayerId)?.sizeMultiplier || 1;
+      this.scene.triggerPickupCameraBoost(payload.value, localScale);
       this.scene.spawnPickupBurst(payload.position, payload.color, this.simulationTimeMs);
     }
   }
 
   handlePlayerState(payload) {
-    this.upsertPlayerFromServer(payload, { hardSync: true });
+    const hardSync = payload?.syncMode === 'corrected';
+    this.upsertPlayerFromServer(payload, { hardSync });
 
     if (payload?.id === this.localPlayerId) {
-      this.updateHud();
+      this.updateHud({ force: true });
       this.syncScene();
       this.scene.render();
     }
@@ -496,7 +720,7 @@ class GameApp {
       payload.winner.id === this.localPlayerId ? 'live' : 'warning',
     );
 
-    this.updateHud();
+    this.updateHud({ force: true });
     this.syncScene();
     this.scene.render();
 
@@ -504,6 +728,7 @@ class GameApp {
       this.ui.hideToast();
       this.ui.showToast(`Tu engoliu ${payload.loser.nickname}.`, 'live', 1800);
     } else if (payload.loser.id === this.localPlayerId) {
+      this.resetInputState();
       this.ui.hideToast();
       this.ui.showToast(`${payload.winner.nickname} te engoliu. Respawnando...`, 'danger', 2200);
     }
@@ -522,6 +747,10 @@ class GameApp {
     if (this.animationHandle) return;
 
     const tick = (timestamp) => {
+      if (this.destroyed) {
+        this.animationHandle = 0;
+        return;
+      }
       if (!this.lastFrameAt) {
         this.lastFrameAt = timestamp;
       }
@@ -550,12 +779,19 @@ class GameApp {
   }
 
   stepFixed({ allowNetwork }) {
+    let becameVisible = 0;
+
     this.balls.forEach((ball) => {
       if (ball.hidden && ball.pendingUntilMs <= this.simulationTimeMs) {
         ball.hidden = false;
         ball.pendingUntilMs = 0;
+        becameVisible += 1;
       }
     });
+
+    if (becameVisible) {
+      this.visibleBallCount += becameVisible;
+    }
 
     this.updateRemotePlayers();
 
@@ -568,11 +804,21 @@ class GameApp {
     this.updateHud();
   }
 
+  refreshVisibleBallCount() {
+    let count = 0;
+    this.balls.forEach((ball) => {
+      if (!ball.hidden) {
+        count += 1;
+      }
+    });
+    this.visibleBallCount = count;
+  }
+
   updateRemotePlayers() {
     this.players.forEach((player) => {
       if (player.id === this.localPlayerId) return;
 
-      const delta = new THREE.Vector3().subVectors(player.targetPosition, player.position);
+      const delta = this.remoteDelta.subVectors(player.targetPosition, player.position);
       if (delta.lengthSq() > 0.000001) {
         player.position.lerp(player.targetPosition, SETTINGS.interpolationSpeed);
         player.rotationY = lerpAngle(
@@ -600,7 +846,7 @@ class GameApp {
       speed *= SETTINGS.speedBoostMultiplier;
     }
 
-    const desiredVelocity = new THREE.Vector3();
+    const desiredVelocity = this.desiredVelocity.set(0, 0, 0);
     if (hasInput) {
       const length = Math.hypot(inputX, inputZ) || 1;
       const localX = inputX / length;
@@ -625,8 +871,7 @@ class GameApp {
     const previousX = player.position.x;
     const previousZ = player.position.z;
     player.position.add(player.velocity);
-    player.position.x = clamp(player.position.x, -this.worldSize, this.worldSize);
-    player.position.z = clamp(player.position.z, -this.worldSize, this.worldSize);
+    this.clampPlayerToArena(player);
 
     const isMoving = player.velocity.lengthSq() > 0.0002;
     if (isMoving) {
@@ -675,6 +920,7 @@ class GameApp {
 
       ball.hidden = true;
       ball.pendingUntilMs = this.simulationTimeMs + 5000;
+      this.visibleBallCount = Math.max(0, this.visibleBallCount - 1);
 
       this.socket.emit('collectBall', {
         ballId: ball.id,
@@ -717,11 +963,15 @@ class GameApp {
       }));
   }
 
-  updateHud() {
+  updateHud({ force = false } = {}) {
+    if (!force && this.simulationTimeMs < this.nextHudUpdateAt) {
+      return;
+    }
+    this.nextHudUpdateAt = this.simulationTimeMs + SETTINGS.hudUpdateIntervalMs;
+
     const localPlayer = this.players.get(this.localPlayerId);
-    const activeBalls = [...this.balls.values()].filter((ball) => !ball.hidden).length;
     const statusLine = this.mode === 'playing'
-      ? `${activeBalls} bolas vivas na arena.`
+      ? `${this.visibleBallCount} bolas vivas na arena.`
       : this.mode === 'reconnecting'
         ? 'Segura a bronca. Estou tentando religar o circo.'
         : 'Arena em banho-maria.';
@@ -756,6 +1006,17 @@ class GameApp {
     }
 
     return null;
+  }
+
+  getArenaLimitForScale(scale = 1) {
+    const radius = SETTINGS.playerRadius * scale;
+    return Math.max(0, this.worldSize - radius - SETTINGS.arenaWallPadding);
+  }
+
+  clampPlayerToArena(player) {
+    const limit = this.getArenaLimitForScale(player.sizeMultiplier || 1);
+    player.position.x = clamp(player.position.x, -limit, limit);
+    player.position.z = clamp(player.position.z, -limit, limit);
   }
 
   buildTextState() {
@@ -815,35 +1076,78 @@ class GameApp {
     };
   }
 
+  destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.resetInputState();
+
+    if (this.animationHandle) {
+      window.cancelAnimationFrame(this.animationHandle);
+      this.animationHandle = 0;
+    }
+
+    this.disposers.forEach((dispose) => dispose());
+    this.disposers = [];
+
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+    }
+
+    if (this.ambientAudio) {
+      if (this.onAmbientEnded) {
+        this.ambientAudio.removeEventListener('ended', this.onAmbientEnded);
+      }
+      this.ambientAudio.pause();
+      this.ambientAudio.src = '';
+      this.ambientAudio.load();
+      this.ambientAudio = null;
+      this.onAmbientEnded = null;
+      this.ambientPlaylist = [];
+      this.ambientTrackIndex = 0;
+      this.ambientTrackPlayCount = 0;
+      this.ambienceStarted = false;
+    }
+
+    this.ui.destroy?.();
+    this.scene.dispose?.();
+    delete window.render_game_to_text;
+    delete window.advanceTime;
+    delete window.__pegaBolaApp;
+  }
+
   toggleFullscreen() {
-    const canvas = this.scene.getCanvasElement();
-    if (!canvas) return;
+    const appShell = this.elements.appShell;
+    if (!appShell) return;
 
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
       return;
     }
 
-    canvas.requestFullscreen?.().catch(() => {});
+    appShell.requestFullscreen?.().catch(() => {});
   }
 }
 
 function getElements() {
   return {
+    appShell: document.getElementById('app-shell'),
     gameRoot: document.getElementById('game-root'),
     menuScreen: document.getElementById('menu-screen'),
     nicknameInput: document.getElementById('nickname-input'),
+    musicVolumeInput: document.getElementById('music-volume-input'),
+    musicVolumeValue: document.getElementById('music-volume-value'),
+    musicMuteButton: document.getElementById('music-mute-button'),
     playButton: document.getElementById('play-button'),
     menuStatus: document.getElementById('menu-status'),
     hud: document.getElementById('hud'),
-    connectionBadge: document.getElementById('connection-badge'),
     scoreValue: document.getElementById('score-value'),
     playerCountValue: document.getElementById('player-count-value'),
     statusLine: document.getElementById('status-line'),
     hudTip: document.getElementById('hud-tip'),
     instructionsPanel: document.getElementById('instructions-panel'),
     leaderboard: document.getElementById('leaderboard'),
-    killfeed: document.getElementById('killfeed'),
     statusChip: document.getElementById('status-chip'),
     toast: document.getElementById('message-toast'),
     pickupFlash: document.getElementById('pickup-flash'),
@@ -854,4 +1158,5 @@ document.addEventListener('DOMContentLoaded', () => {
   const app = new GameApp(getElements());
   app.init();
   window.__pegaBolaApp = app;
+  window.addEventListener('pagehide', () => app.destroy(), { once: true });
 });

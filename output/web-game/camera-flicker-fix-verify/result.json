@@ -1,0 +1,321 @@
+{
+  "setup": {
+    "playerId": "1101fa7a-85f0-4020-8081-886e5b922e61",
+    "before": {
+      "score": 0,
+      "sizeMultiplier": 1,
+      "displayScale": 1,
+      "x": -14,
+      "z": -14,
+      "cameraDistance": 10.765
+    },
+    "nearestBall": {
+      "id": "ball-12-1775759814906",
+      "x": -16.336,
+      "z": -21.126
+    }
+  },
+  "samples": [
+    {
+      "frame": 1,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.006,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 8.101,
+      "cameraY": 6.209
+    },
+    {
+      "frame": 2,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.01,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 8.884,
+      "cameraY": 6.225
+    },
+    {
+      "frame": 3,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.013,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 9.498,
+      "cameraY": 6.243
+    },
+    {
+      "frame": 4,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.016,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 9.953,
+      "cameraY": 6.262
+    },
+    {
+      "frame": 5,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.018,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 10.283,
+      "cameraY": 6.28
+    },
+    {
+      "frame": 6,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.018,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 10.371,
+      "cameraY": 6.285
+    },
+    {
+      "frame": 7,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.019,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 10.52,
+      "cameraY": 6.296
+    },
+    {
+      "frame": 8,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.02,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 10.583,
+      "cameraY": 6.3
+    },
+    {
+      "frame": 9,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.021,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 10.689,
+      "cameraY": 6.309
+    },
+    {
+      "frame": 10,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.021,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 10.774,
+      "cameraY": 6.317
+    },
+    {
+      "frame": 11,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.022,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 10.842,
+      "cameraY": 6.324
+    },
+    {
+      "frame": 12,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.023,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 10.92,
+      "cameraY": 6.333
+    },
+    {
+      "frame": 13,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 10.979,
+      "cameraY": 6.342
+    },
+    {
+      "frame": 14,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.025,
+      "cameraY": 6.351
+    },
+    {
+      "frame": 15,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.056,
+      "cameraY": 6.357
+    },
+    {
+      "frame": 16,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.078,
+      "cameraY": 6.362
+    },
+    {
+      "frame": 17,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.092,
+      "cameraY": 6.364
+    },
+    {
+      "frame": 18,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.102,
+      "cameraY": 6.366
+    },
+    {
+      "frame": 19,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.109,
+      "cameraY": 6.368
+    },
+    {
+      "frame": 20,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.114,
+      "cameraY": 6.369
+    },
+    {
+      "frame": 21,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.117,
+      "cameraY": 6.369
+    },
+    {
+      "frame": 22,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.119,
+      "cameraY": 6.37
+    },
+    {
+      "frame": 23,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.121,
+      "cameraY": 6.37
+    },
+    {
+      "frame": 24,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.122,
+      "cameraY": 6.37
+    },
+    {
+      "frame": 25,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.122,
+      "cameraY": 6.37
+    },
+    {
+      "frame": 26,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.123,
+      "cameraY": 6.37
+    },
+    {
+      "frame": 27,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.123,
+      "cameraY": 6.37
+    },
+    {
+      "frame": 28,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.123,
+      "cameraY": 6.37
+    },
+    {
+      "frame": 29,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.124,
+      "cameraY": 6.37
+    },
+    {
+      "frame": 30,
+      "score": 5,
+      "sizeMultiplier": 1.025,
+      "displayScale": 1.025,
+      "x": -16.336,
+      "z": -21.126,
+      "cameraDistance": 11.124,
+      "cameraY": 6.37
+    }
+  ],
+  "errors": []
+}

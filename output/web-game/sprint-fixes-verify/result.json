@@ -1,0 +1,63 @@
+{
+  "contextMenu": {
+    "prevented": true,
+    "keys": {
+      "forward": false,
+      "backward": false,
+      "left": false,
+      "right": false,
+      "sprint": false
+    }
+  },
+  "scoresBeforeConsume": {
+    "playerA": 35,
+    "playerB": 85
+  },
+  "beforeConsume": {
+    "local": {
+      "score": 35,
+      "x": -49.333,
+      "z": -6.237
+    },
+    "other": {
+      "id": "e426111a-1434-4ee0-a294-c485b5a764dd",
+      "score": 85,
+      "x": -55.698,
+      "z": -33.54
+    }
+  },
+  "afterConsume": {
+    "score": 0,
+    "invulnerable": true,
+    "x": 20,
+    "z": 20,
+    "message": "Grandao te engoliu. Respawnando..."
+  },
+  "winnerAfterConsume": {
+    "score": 120,
+    "x": -55.698,
+    "z": -33.54
+  },
+  "border": {
+    "worldSize": 72,
+    "limit": 70.78,
+    "x": 63.131,
+    "z": 63.131,
+    "inside": true
+  },
+  "pickupCleanup": {
+    "score": 10,
+    "scoreIncreased": true,
+    "pickupBursts": 0
+  },
+  "cleanup": {
+    "globalRemoved": true,
+    "sceneDisposed": true,
+    "socketCleared": true,
+    "canvasCount": 0
+  },
+  "errors": {
+    "playerA": [],
+    "playerB": []
+  }
+}

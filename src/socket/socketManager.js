@@ -12,6 +12,7 @@ class SocketManager {
     this.lastMovementAt = new Map();
     this.lastCollectionAt = new Map();
     this.initialized = false;
+    this.consumptionInterval = null;
     this.initialize();
   }
 
@@ -27,6 +28,31 @@ class SocketManager {
       socket.on('collectBall', (data) => this.handleBallCollection(socket, data));
       socket.on('disconnect', () => this.handlePlayerDisconnect(socket));
     });
+
+    this.consumptionInterval = setInterval(() => {
+      this.checkAllPlayerConsumption();
+    }, 500);
+  }
+
+  checkAllPlayerConsumption() {
+    const now = Date.now();
+    const consumed = this.gameState.checkPassiveConsumption(now);
+    if (consumed) {
+      this.io.emit('playerConsumed', {
+        winner: consumed.winner,
+        loser: consumed.loser,
+        transferredScore: consumed.transferredScore,
+        consumedPosition: consumed.consumedPosition,
+      });
+      this.io.emit('updateScores', this.gameState.getScoreMap());
+    }
+  }
+
+  destroy() {
+    if (this.consumptionInterval) {
+      clearInterval(this.consumptionInterval);
+      this.consumptionInterval = null;
+    }
   }
 
   handleJoinGame(socket, playerData) {
@@ -70,6 +96,10 @@ class SocketManager {
         consumedPosition: result.consumed.consumedPosition,
       });
       this.io.emit('updateScores', result.scores);
+      socket.emit('playerState', {
+        ...result.player,
+        syncMode: 'consumed',
+      });
       return;
     }
 
@@ -79,7 +109,10 @@ class SocketManager {
     });
 
     if (result.corrected) {
-      socket.emit('playerState', result.player);
+      socket.emit('playerState', {
+        ...result.player,
+        syncMode: 'corrected',
+      });
     }
   }
 
@@ -104,7 +137,10 @@ class SocketManager {
       position: result.ball.position,
     });
     this.io.emit('updateScores', result.scores);
-    this.io.emit('playerState', result.player);
+    this.io.emit('playerState', {
+      ...result.player,
+      syncMode: 'score',
+    });
 
     setTimeout(() => {
       const newBall = this.gameState.respawnBall();
