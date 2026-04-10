@@ -33,15 +33,108 @@ function createTextTexture(label, accent) {
   return texture;
 }
 
+function createDetailBumpTexture(size = 192) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+
+  canvas.width = size;
+  canvas.height = size;
+
+  const image = context.createImageData(size, size);
+  const data = image.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const grain = 120 + Math.floor(Math.random() * 95);
+    data[i] = grain;
+    data[i + 1] = grain;
+    data[i + 2] = grain;
+    data[i + 3] = 255;
+  }
+  context.putImageData(image, 0, 0);
+
+  // Add broad soft variation to avoid flat repeated noise patterns.
+  const gradient = context.createRadialGradient(
+    size * 0.5,
+    size * 0.5,
+    size * 0.1,
+    size * 0.5,
+    size * 0.5,
+    size * 0.7,
+  );
+  gradient.addColorStop(0, 'rgba(255,255,255,0.16)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0.16)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function createPillarColorTexture(width = 160, height = 384) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const baseGradient = context.createLinearGradient(0, 0, width, 0);
+  baseGradient.addColorStop(0, '#4e351f');
+  baseGradient.addColorStop(0.5, '#6b4727');
+  baseGradient.addColorStop(1, '#4b321d');
+  context.fillStyle = baseGradient;
+  context.fillRect(0, 0, width, height);
+
+  for (let x = 0; x < width; x += 8) {
+    const alpha = 0.06 + (Math.random() * 0.08);
+    context.fillStyle = `rgba(255, 214, 166, ${alpha})`;
+    context.fillRect(x, 0, 2, height);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function createBrassBandTexture(width = 512, height = 64) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const gradient = context.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, '#fff2b8');
+  gradient.addColorStop(0.22, '#efc45a');
+  gradient.addColorStop(0.5, '#d49f3a');
+  gradient.addColorStop(0.78, '#efc45a');
+  gradient.addColorStop(1, '#b77e1e');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, width, height);
+
+  for (let x = 0; x < width; x += 14) {
+    const alpha = 0.04 + (Math.random() * 0.08);
+    context.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+    context.fillRect(x, 0, 2, height);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
 function disposeMaterial(material) {
   if (!material) return;
   if (Array.isArray(material)) {
     material.forEach(disposeMaterial);
     return;
   }
-  if (material.map) {
-    material.map.dispose();
-  }
+
+  ['map', 'alphaMap', 'aoMap', 'bumpMap', 'displacementMap', 'emissiveMap', 'metalnessMap', 'normalMap', 'roughnessMap'].forEach((key) => {
+    if (material[key]) {
+      material[key].dispose();
+    }
+  });
+
   material.dispose();
 }
 
@@ -129,12 +222,65 @@ export class SceneController {
   }
 
   createArena() {
+    const maxAnisotropy = Math.min(8, this.renderer?.capabilities?.getMaxAnisotropy?.() || 1);
+    const grassMap = new THREE.TextureLoader().load('/assets/textures/grass.jpg');
+    grassMap.colorSpace = THREE.SRGBColorSpace;
+    grassMap.wrapS = THREE.RepeatWrapping;
+    grassMap.wrapT = THREE.RepeatWrapping;
+    grassMap.repeat.set(14, 14);
+    grassMap.anisotropy = maxAnisotropy;
+
+    const innerGrassMap = grassMap.clone();
+    innerGrassMap.repeat.set(9, 9);
+    innerGrassMap.offset.set(0.18, 0.23);
+    innerGrassMap.needsUpdate = true;
+    innerGrassMap.anisotropy = maxAnisotropy;
+
+    const floorDetailMap = createDetailBumpTexture();
+    floorDetailMap.wrapS = THREE.RepeatWrapping;
+    floorDetailMap.wrapT = THREE.RepeatWrapping;
+    floorDetailMap.repeat.set(32, 32);
+    floorDetailMap.anisotropy = maxAnisotropy;
+
+    const innerDetailMap = createDetailBumpTexture();
+    innerDetailMap.wrapS = THREE.RepeatWrapping;
+    innerDetailMap.wrapT = THREE.RepeatWrapping;
+    innerDetailMap.repeat.set(22, 22);
+    innerDetailMap.anisotropy = maxAnisotropy;
+
+    const brassBandMap = createBrassBandTexture();
+    brassBandMap.wrapS = THREE.RepeatWrapping;
+    brassBandMap.wrapT = THREE.RepeatWrapping;
+    brassBandMap.repeat.set(9, 1);
+    brassBandMap.anisotropy = maxAnisotropy;
+
+    const brassDetailMap = createDetailBumpTexture();
+    brassDetailMap.wrapS = THREE.RepeatWrapping;
+    brassDetailMap.wrapT = THREE.RepeatWrapping;
+    brassDetailMap.repeat.set(30, 4);
+    brassDetailMap.anisotropy = maxAnisotropy;
+
+    const pillarMap = createPillarColorTexture();
+    pillarMap.wrapS = THREE.RepeatWrapping;
+    pillarMap.wrapT = THREE.RepeatWrapping;
+    pillarMap.repeat.set(2.2, 1);
+    pillarMap.anisotropy = maxAnisotropy;
+
+    const pillarDetailMap = createDetailBumpTexture();
+    pillarDetailMap.wrapS = THREE.RepeatWrapping;
+    pillarDetailMap.wrapT = THREE.RepeatWrapping;
+    pillarDetailMap.repeat.set(8, 4);
+    pillarDetailMap.anisotropy = maxAnisotropy;
+
     this.floor = new THREE.Mesh(
       new THREE.CircleGeometry(50, 72),
       new THREE.MeshStandardMaterial({
-        color: 0x1c5c46,
-        roughness: 0.88,
-        metalness: 0.1,
+        color: 0xcfe8cf,
+        map: grassMap,
+        bumpMap: floorDetailMap,
+        bumpScale: 0.3,
+        roughness: 0.92,
+        metalness: 0.03,
       }),
     );
     this.floor.rotation.x = -Math.PI / 2;
@@ -144,9 +290,12 @@ export class SceneController {
     this.innerDisk = new THREE.Mesh(
       new THREE.CircleGeometry(41, 72),
       new THREE.MeshStandardMaterial({
-        color: 0x2d7a54,
-        roughness: 0.84,
-        metalness: 0.08,
+        color: 0xb8ddb8,
+        map: innerGrassMap,
+        bumpMap: innerDetailMap,
+        bumpScale: 0.2,
+        roughness: 0.86,
+        metalness: 0.04,
       }),
     );
     this.innerDisk.rotation.x = -Math.PI / 2;
@@ -170,11 +319,14 @@ export class SceneController {
     this.boundaryRing = new THREE.Mesh(
       new THREE.TorusGeometry(50, 0.45, 14, 120),
       new THREE.MeshStandardMaterial({
-        color: 0xf5cf66,
-        roughness: 0.32,
-        metalness: 0.68,
+        color: 0xf5d277,
+        map: brassBandMap,
+        bumpMap: brassDetailMap,
+        bumpScale: 0.1,
+        roughness: 0.26,
+        metalness: 0.76,
         emissive: 0x8d5d00,
-        emissiveIntensity: 0.22,
+        emissiveIntensity: 0.26,
       }),
     );
     this.boundaryRing.rotation.x = Math.PI / 2;
@@ -193,9 +345,12 @@ export class SceneController {
       const pillar = new THREE.Mesh(
         new THREE.CylinderGeometry(0.45, 0.65, 4.8, 14),
         new THREE.MeshStandardMaterial({
-          color: 0x5d4026,
-          roughness: 0.78,
-          metalness: 0.18,
+          color: 0xb08f72,
+          map: pillarMap,
+          bumpMap: pillarDetailMap,
+          bumpScale: 0.22,
+          roughness: 0.72,
+          metalness: 0.14,
         }),
       );
       pillar.castShadow = true;

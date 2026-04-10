@@ -131,7 +131,7 @@ class SocketManager {
     this.io.emit('ballCollected', {
       ballId: result.ball.id,
       playerId: result.player.id,
-      value: result.ball.value,
+      value: result.scaledValue,
       color: result.ball.color,
       type: result.ball.type,
       position: result.ball.position,

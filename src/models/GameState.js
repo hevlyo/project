@@ -279,7 +279,9 @@ class GameState {
 
     delete this.balls[ballId];
 
-    player.score += ball.value;
+    // Usar valor escalado baseado no score relativo do jogador
+    const scaledValue = this.getScaledBallValue(ball.value, player.score);
+    player.score += scaledValue;
     if (ball.type === 'SPEED') {
       player.speedBoostUntil = now + this.config.SPEED_BOOST_DURATION_MS;
     }
@@ -287,8 +289,12 @@ class GameState {
 
     this.recalculateTopScore();
 
+    // Retornar o valor escalado para informar ao cliente
+    // (será sobrescrito no return statement abaixo)
+
     return {
       ball: this.serializeBall(ball),
+      scaledValue: scaledValue,
       player: this.serializePlayer(player, now),
       scores: this.getScoreMap(),
       topScore: this.topScore,
@@ -574,6 +580,20 @@ class GameState {
 
     this.topScore = topScore;
     this.topScorePlayer = topScorePlayer;
+  }
+
+  // Calcula o valor escalado de uma bola para um jogador específico
+  // Quanto menor o score relativo, maior o valor da bola (permite comeback)
+  getScaledBallValue(baseValue, playerScore) {
+    const maxScore = this.topScore || 0;
+    if (maxScore === 0) {
+      return baseValue; // Sem multiplicador se ninguém tem score
+    }
+    // Multiplicador: 1 + (diferença relativa)
+    // Se playerScore = maxScore: multiplicador = 1 (sem bônus)
+    // Se playerScore = 0: multiplicador = 1 + 1 = 2
+    const multiplier = 1 + ((maxScore - playerScore) / (maxScore + 1));
+    return Math.floor(baseValue * multiplier);
   }
 
   getRandomArenaPosition(clearance, edgeMargin = 6) {
