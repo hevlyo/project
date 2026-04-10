@@ -60,7 +60,7 @@ export function createUIController(elements) {
     elements.nicknameInput.select();
   }
 
-  function setMenuBusy(isBusy, buttonLabel = 'Entrar na pocilga') {
+  function setMenuBusy(isBusy, buttonLabel = 'Aceitar meu destino') {
     elements.playButton.disabled = isBusy;
     elements.nicknameInput.disabled = isBusy;
     if (elements.musicVolumeInput) {
@@ -267,7 +267,7 @@ export function createUIController(elements) {
     if (!leaderboard.length) {
       const empty = document.createElement('li');
       empty.className = 'leaderboard-entry';
-      empty.textContent = 'Nenhum miserável no placar ainda.';
+      empty.textContent = 'Ninguém digno de vergonha ainda. Entra tu.';
       elements.leaderboard.appendChild(empty);
       return;
     }

@@ -70,7 +70,7 @@ class GameApp {
   init() {
     this.scene.init();
     this.ui.bindStart(() => this.handleStart());
-    this.ui.setMenuStatus('Servidor quieto. Tu decide se isso continua assim.', 'idle');
+    this.ui.setMenuStatus('Servidor ocioso. Provavelmente tão inútil quanto você neste momento.', 'idle');
     this.ui.setConnectionState(this.connectionText, this.connectionTone);
     this.ui.setHUDVisible(false);
     this.ui.setNickname(this.restoreNickname());
@@ -92,9 +92,9 @@ class GameApp {
 
   restoreNickname() {
     try {
-      return sessionStorage.getItem(STORAGE_KEY) || 'Kemell Pinto';
+      return sessionStorage.getItem(STORAGE_KEY) || 'Alguém sem futuro';
     } catch {
-      return 'Kemell Pinto';
+      return 'Alguém sem futuro';
     }
   }
 
@@ -398,8 +398,8 @@ class GameApp {
     this.nickname = normalizeNickname(this.ui.getNickname());
     this.persistNickname(this.nickname);
     this.ui.setNickname(this.nickname);
-    this.ui.setMenuBusy(true, 'Esquentando o caldeirão...');
-    this.ui.setMenuStatus('Chamando o servidor para a baixaria.', 'warm');
+    this.ui.setMenuBusy(true, 'Implorando pro servidor...');
+    this.ui.setMenuStatus('Chamando o servidor. Ele não quer te ver, mas deve atender.', 'warm');
     this.setConnectionState('Conectando', 'warm');
     this.mode = 'connecting';
     this.awaitingBallSnapshot = true;
@@ -419,7 +419,7 @@ class GameApp {
 
     if (!this.socket) {
       this.ui.setMenuBusy(false);
-      this.ui.setMenuStatus('Socket.IO sumiu. Sem isso, só sobra o pasto.', 'danger');
+      this.ui.setMenuStatus('Socket.IO não carregou. Sem WebSocket, sem humilhação. Problema seu.', 'danger');
       return;
     }
 
@@ -434,7 +434,7 @@ class GameApp {
 
   createSocket() {
     if (typeof window.io !== 'function') {
-      this.ui.showToast('Socket.IO não carregou. Sem fio, sem glória.', 'danger', 3200);
+      this.ui.showToast('Socket.IO sumiu. Sem fio, sem vexame. Recarrega a página e tenta ter sorte.', 'danger', 3200);
       return;
     }
 
@@ -446,7 +446,7 @@ class GameApp {
     });
 
     this.socket.on('connect', () => {
-      this.setConnectionState('Conexão viva', 'live');
+      this.setConnectionState('Fio conectado', 'live');
       this.joinGame();
     });
 
@@ -455,7 +455,7 @@ class GameApp {
       this.pendingCollectionNotifs.clear();
       this.setConnectionState('Reconectando', 'warning');
       this.ui.setMenuStatus(randomItem(DISCONNECT_MESSAGES), 'warning');
-      this.ui.showToast(`Conexão caiu: ${reason}`, 'warning', 2400);
+      this.ui.showToast(`Conexão morreu: ${reason}. Igual seus sonhos.`, 'warning', 2400);
     });
 
     this.socket.on('error', (payload) => {
@@ -475,7 +475,7 @@ class GameApp {
       this.mode = 'playing';
       this.setConnectionState('Arena ao vivo', 'live');
       this.ui.hideMenu();
-      this.ui.setMenuBusy(false, 'Entrar na pocilga');
+      this.ui.setMenuBusy(false, 'Aceitar meu destino');
       this.ui.setHUDVisible(true);
       if (!this.hasShownSessionInstructions) {
         this.ui.showSessionInstructions(randomItem(HUD_TIPS), 10000);
@@ -493,7 +493,7 @@ class GameApp {
 
     this.socket.on('newPlayer', (payload) => {
       this.upsertPlayerFromServer(payload, { hardSync: true });
-      this.ui.showToast(`${payload.nickname} apareceu para tumultuar.`, 'info', 1800);
+      this.ui.showToast(`${payload.nickname} apareceu. Más notícias para todo mundo.`, 'info', 1800);
     });
 
     this.socket.on('playerState', (payload) => {
@@ -514,6 +514,20 @@ class GameApp {
     this.socket.on('newBalls', (payload) => {
       this.syncBalls(payload, { replaceAll: this.awaitingBallSnapshot });
       this.awaitingBallSnapshot = false;
+    });
+
+    this.socket.on('removeBalls', (payload) => {
+      if (Array.isArray(payload)) {
+        payload.forEach((ballId) => {
+          if (this.balls.has(ballId)) {
+            if (!this.balls.get(ballId).hidden) {
+              this.visibleBallCount = Math.max(0, this.visibleBallCount - 1);
+            }
+            this.balls.delete(ballId);
+            this.scene.removeBall(ballId);
+          }
+        });
+      }
     });
 
     this.socket.on('ballCollected', (payload) => {
@@ -574,8 +588,8 @@ class GameApp {
       this.socket.io.on('reconnect_failed', () => {
         this.mode = 'menu';
         this.ui.showMenu();
-        this.ui.setMenuBusy(false, 'Tentar de novo');
-        this.ui.setMenuStatus('O servidor fugiu da briga. Tenta chamar de novo.', 'danger');
+        this.ui.setMenuBusy(false, 'Insistir no erro');
+        this.ui.setMenuStatus('O servidor cansou de você. Fica assim ou tenta de novo.', 'danger');
         this.setConnectionState('Sem conexão', 'danger');
       });
     }
@@ -967,12 +981,12 @@ class GameApp {
     if (payload.winner.id === this.localPlayerId) {
       this.ui.hideToast();
       this.ui.showPickup(`DEVOROU +${payload.transferredScore || 0}`);
-      this.ui.showToast(`Tu engoliu ${payload.loser.nickname}.`, 'live', 1800);
+      this.ui.showToast(`Tu devorou ${payload.loser.nickname}. Sinta o vazio do triunfo.`, 'live', 1800);
     } else if (payload.loser.id === this.localPlayerId) {
       this.resetInputState();
       this.ui.hideToast();
       this.ui.showPickup('DEVORADO!');
-      this.ui.showToast(`${payload.winner.nickname} te engoliu. Respawnando...`, 'danger', 2200);
+      this.ui.showToast(`${payload.winner.nickname} te devorou. A fila do respawn não tem fura.`, 'danger', 2200);
     }
   }
 
@@ -1118,7 +1132,7 @@ class GameApp {
       if (allowNetwork && this.socket?.connected) {
         this.socket.emit('playerDash');
       }
-      this.ui.showToast('DASH!', 'live', 500);
+      this.ui.showToast('DASH!', 'live', 400);
     } else if (this.pendingDash && !dashReady) {
       this.pendingDash = false;
     }
@@ -1270,10 +1284,10 @@ class GameApp {
 
     const localPlayer = this.players.get(this.localPlayerId);
     const statusLine = this.mode === 'playing'
-      ? `${this.visibleBallCount} bolas vivas na arena.`
+      ? `${this.visibleBallCount} bolas vivas. Nenhuma veio voluntariamente.`
       : this.mode === 'reconnecting'
-        ? 'Segura a bronca. Estou tentando religar o circo.'
-        : 'Arena em banho-maria.';
+        ? 'Conexão em estado terminal. Tentando ressuscitar.'
+        : 'Arena em banho-maria. Ninguém presta.';
     const statusChip = this.getStatusChipState(localPlayer);
 
     this.ui.updateHUD({

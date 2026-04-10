@@ -70,22 +70,26 @@ export const NICKNAME_MAX_LENGTH = 16;
 export const NICKNAME_PATTERN = /^[a-zA-Z0-9\s\-_]+$/;
 
 export const JOIN_MESSAGES = [
-  'O salão abriu. Tente não passar vergonha logo no primeiro giro.',
-  'A arena está brilhando. O bom senso, nem tanto.',
-  'Entrou na pocilga. Agora é tu contra as bolinhas e a própria dignidade.',
+  'Parabéns por não ter nada melhor pra fazer. A arena agradece sua falta de propósito.',
+  'Você entrou. O servidor não pediu, mas também não pode recusar.',
+  'Bem-vindo à pocilga digital. Sua mãe ia ter orgulho — se soubesse o que você faz da vida.',
+  'O matchmaking te achou. Boa sorte. Você vai precisar.',
+  'Arena liberada. Seu terapeuta ia adorar saber que é aqui que você gasta energia.',
 ];
 
 export const DISCONNECT_MESSAGES = [
-  'O servidor deu aquela tossida. Segura que estou tentando voltar.',
-  'Caiu a conexão, não o personagem. Reconectando.',
-  'O fio da vergonha soltou. Estou costurando de novo.',
+  'A internet caiu — ou talvez o servidor tenha te expulsado por incompetência. Reconectando.',
+  'Conexão perdida. Igual sua dignidade, mas essa a gente tenta recuperar.',
+  'O cabo tropeçou. Ou o universo tá te poupando de mais uma humilhação. Tentando de novo.',
+  'Desconectou. O servidor sentiu o alívio por 0.3 segundos.',
 ];
 
 export const HUD_TIPS = [
-  'WASD ou setas para se mexer. Shift para correr feito devedor.',
-  'Aperta Space para dash. Tem cooldown, então usa na hora certa.',
-  'R tenta devorar. Dash (Space) também ativa janela de devorar.',
-  'Bola dourada vale mais. A verdinha vale menos, mas ainda paga o almoço.',
+  'WASD pra arrastar essa desgraça. Shift pra fingir que sabe correr.',
+  'Space dá dash. Tem cooldown porque o jogo ainda tem piedade de você.',
+  'R tenta devorar. Precisa ser maior. Surpreenda-se tentando sem ser.',
+  'Bola dourada vale 3x. A verde dá speed. A branca vale pouco, igual seu esforço.',
+  'Dica: os maiores foram pequenos há 30 segundos. Pense nisso enquanto foge.',
 ];
 
 export function clamp(value, min, max) {

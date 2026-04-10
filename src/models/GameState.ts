@@ -62,7 +62,7 @@ class GameState {
   getWorldInfo(): { worldSize: number; ballCount: number } {
     return {
       worldSize: this.config.WORLD_SIZE,
-      ballCount: this.config.BALL_COUNT,
+      ballCount: this.getTargetBallCount(),
     };
   }
 
@@ -153,9 +153,16 @@ class GameState {
     return this.serializePlayer(player);
   }
 
+  getTargetBallCount(): number {
+    const playerCount = this.getConnectedPlayers().length;
+    const target = this.config.MIN_BALL_COUNT + (playerCount * this.config.BALLS_PER_PLAYER);
+    return Math.min(target, this.config.MAX_BALL_COUNT);
+  }
+
   generateInitialBalls(): void {
     this.balls = {};
-    for (let i = 0; i < this.config.BALL_COUNT; i += 1) {
+    const target = this.getTargetBallCount();
+    for (let i = 0; i < target; i += 1) {
       const ball = this.createBall();
       this.balls[ball.id] = ball;
     }
@@ -185,7 +192,33 @@ class GameState {
     };
   }
 
-  respawnBall(): SerializedBall {
+  maintainBallCount(): { spawned: SerializedBall[]; despawned: string[] } {
+    const target = this.getTargetBallCount();
+    const currentBalls = Object.keys(this.balls);
+    const result = { spawned: [] as SerializedBall[], despawned: [] as string[] };
+
+    if (currentBalls.length < target) {
+      for (let i = currentBalls.length; i < target; i += 1) {
+        const ball = this.createBall();
+        this.balls[ball.id] = ball;
+        result.spawned.push(this.serializeBall(ball));
+      }
+    } else if (currentBalls.length > target) {
+      const toDespawn = currentBalls.length - target;
+      for (let i = 0; i < toDespawn; i += 1) {
+        const ballId = currentBalls[i];
+        delete this.balls[ballId];
+        result.despawned.push(ballId);
+      }
+    }
+
+    return result;
+  }
+
+  respawnBall(): SerializedBall | null {
+    if (Object.keys(this.balls).length >= this.getTargetBallCount()) {
+      return null;
+    }
     const ball = this.createBall();
     this.balls[ball.id] = ball;
     return this.serializeBall(ball);

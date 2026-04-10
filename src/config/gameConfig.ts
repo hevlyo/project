@@ -3,7 +3,9 @@ import type { GameConfig } from '../models/contracts';
 const PORT = Number(process.env.PORT || 25565);
 
 const WORLD_SIZE = 100;
-const BALL_COUNT = 20;
+const MIN_BALL_COUNT = 15;
+const MAX_BALL_COUNT = 80;
+const BALLS_PER_PLAYER = 10;
 const DEFAULT_BALL_VALUE = 10;
 const SIZE_INCREASE_PER_BALL = 0.05;
 const MAX_SIZE_MULTIPLIER = 2.5;
@@ -62,7 +64,9 @@ const SOCKET_CONFIG = {
 const gameConfig: GameConfig = {
   PORT,
   WORLD_SIZE,
-  BALL_COUNT,
+  MIN_BALL_COUNT,
+  MAX_BALL_COUNT,
+  BALLS_PER_PLAYER,
   DEFAULT_BALL_VALUE,
   SIZE_INCREASE_PER_BALL,
   MAX_SIZE_MULTIPLIER,

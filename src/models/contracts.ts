@@ -12,7 +12,9 @@ export interface BallTypeConfig {
 export interface GameConfig {
   PORT: number;
   WORLD_SIZE: number;
-  BALL_COUNT: number;
+  MIN_BALL_COUNT: number;
+  MAX_BALL_COUNT: number;
+  BALLS_PER_PLAYER: number;
   DEFAULT_BALL_VALUE: number;
   SIZE_INCREASE_PER_BALL: number;
   MAX_SIZE_MULTIPLIER: number;

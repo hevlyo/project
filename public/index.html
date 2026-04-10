@@ -7,7 +7,7 @@
   <link rel="icon" href="/favicon.ico?v=20260409" sizes="any">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20260409">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Bungee&family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Bungee&family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@500;700&family=Space+Grotesk:wght@400;600;700&display=swap');
 
     :root {
       --bg-ink: #081014;
@@ -102,6 +102,40 @@
         0 0 28px rgba(0, 0, 0, 0.28);
     }
 
+    @keyframes menuCardEnter {
+      from {
+        opacity: 0;
+        transform: translateY(28px) scale(0.96);
+        filter: blur(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0);
+      }
+    }
+
+    @keyframes fadeStagger {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes glowPulse {
+      0%, 100% { opacity: 0.45; }
+      50% { opacity: 0.85; }
+    }
+
+    @keyframes borderShimmer {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    @keyframes floatDot {
+      0%, 100% { transform: translateY(0) scale(1); opacity: 0.35; }
+      50% { transform: translateY(-18px) scale(1.3); opacity: 0.65; }
+    }
+
     .overlay {
       position: absolute;
       inset: 0;
@@ -109,7 +143,7 @@
       place-items: center;
       padding: 24px;
       background: linear-gradient(180deg, rgba(7, 12, 15, 0.35), rgba(7, 12, 15, 0.68));
-      transition: opacity 220ms ease, visibility 220ms ease;
+      transition: opacity 320ms cubic-bezier(0.4, 0, 0.2, 1), visibility 320ms ease;
       z-index: 20;
     }
 
@@ -120,48 +154,151 @@
     }
 
     .menu-card {
-      width: min(560px, 100%);
-      padding: 28px;
-      border-radius: 28px;
+      position: relative;
+      width: min(580px, 100%);
+      padding: 36px 32px 32px;
+      border-radius: 32px;
       background:
-        linear-gradient(160deg, rgba(255, 209, 102, 0.08), transparent 42%),
-        linear-gradient(315deg, rgba(123, 223, 242, 0.08), transparent 34%),
-        var(--panel-strong);
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(14px);
+        radial-gradient(ellipse at 20% 0%, rgba(255, 209, 102, 0.12), transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(123, 223, 242, 0.1), transparent 50%),
+        rgba(8, 18, 24, 0.92);
+      border: 1px solid rgba(255, 225, 143, 0.18);
+      box-shadow:
+        0 0 0 1px rgba(255, 225, 143, 0.06),
+        0 32px 80px rgba(0, 0, 0, 0.5),
+        0 0 120px rgba(255, 209, 102, 0.06);
+      backdrop-filter: blur(24px) saturate(1.3);
+      animation: menuCardEnter 600ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      overflow: hidden;
     }
+
+    .menu-card::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 33px;
+      padding: 1px;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 209, 102, 0.35),
+        transparent 40%,
+        transparent 60%,
+        rgba(123, 223, 242, 0.25)
+      );
+      background-size: 200% 200%;
+      animation: borderShimmer 6s ease infinite;
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .menu-card::after {
+      content: '';
+      position: absolute;
+      top: -40%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 160%;
+      height: 50%;
+      background: radial-gradient(
+        ellipse at center,
+        rgba(255, 209, 102, 0.1),
+        transparent 70%
+      );
+      animation: glowPulse 4s ease-in-out infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .menu-card > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .menu-dots {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+      border-radius: 32px;
+    }
+
+    .menu-dot {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--gold);
+      animation: floatDot 5s ease-in-out infinite;
+    }
+
+    .menu-dot:nth-child(1) { left: 8%; top: 18%; animation-delay: 0s; animation-duration: 5.2s; }
+    .menu-dot:nth-child(2) { left: 92%; top: 24%; animation-delay: 1.3s; animation-duration: 4.8s; background: var(--mint); }
+    .menu-dot:nth-child(3) { left: 14%; top: 78%; animation-delay: 2.6s; animation-duration: 6.1s; background: var(--mint); }
+    .menu-dot:nth-child(4) { left: 85%; top: 72%; animation-delay: 0.8s; animation-duration: 5.5s; }
+    .menu-dot:nth-child(5) { left: 50%; top: 92%; animation-delay: 3.1s; animation-duration: 4.4s; background: var(--mint); }
+
+    .menu-stagger-1 { animation: fadeStagger 500ms 100ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+    .menu-stagger-2 { animation: fadeStagger 500ms 200ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+    .menu-stagger-3 { animation: fadeStagger 500ms 300ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+    .menu-stagger-4 { animation: fadeStagger 500ms 400ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+    .menu-stagger-5 { animation: fadeStagger 500ms 500ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+    .menu-stagger-6 { animation: fadeStagger 500ms 600ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+    .menu-stagger-7 { animation: fadeStagger 500ms 700ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 
     .eyebrow {
       display: inline-flex;
-      padding: 8px 14px;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
       border-radius: 999px;
       font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.76rem;
-      letter-spacing: 0.08em;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--gold);
-      background: rgba(255, 209, 102, 0.12);
-      border: 1px solid rgba(255, 209, 102, 0.16);
+      background: rgba(255, 209, 102, 0.1);
+      border: 1px solid rgba(255, 209, 102, 0.14);
+    }
+
+    .eyebrow-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--gold);
+      animation: glowPulse 2s ease-in-out infinite;
     }
 
     h1 {
-      margin: 18px 0 10px;
+      margin: 16px 0 8px;
       font-family: 'Bungee', cursive;
-      font-size: clamp(2.4rem, 7vw, 4.4rem);
+      font-size: clamp(2.2rem, 6.5vw, 4rem);
       line-height: 0.94;
       letter-spacing: 0.02em;
       color: var(--cream);
       text-transform: uppercase;
       text-wrap: balance;
-      text-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      text-shadow:
+        0 2px 0 rgba(0, 0, 0, 0.6),
+        0 10px 30px rgba(0, 0, 0, 0.35),
+        0 0 60px rgba(255, 209, 102, 0.08);
     }
 
     .tagline {
-      margin: 0 0 20px;
-      color: rgba(255, 245, 216, 0.8);
-      font-size: 1rem;
-      line-height: 1.55;
+      margin: 0 0 18px;
+      color: rgba(255, 245, 216, 0.72);
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.94rem;
+      line-height: 1.6;
+    }
+
+    .tagline em {
+      color: var(--gold);
+      font-style: normal;
+      font-weight: 600;
     }
 
     .input-label {
@@ -386,32 +523,69 @@
 
     .menu-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-      margin-top: 22px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 20px;
     }
 
     .menu-chip {
-      padding: 14px;
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      transition: background 220ms ease, border-color 220ms ease;
+    }
+
+    .menu-chip:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 225, 143, 0.18);
+    }
+
+    .menu-chip-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
     }
 
     .menu-chip strong {
-      display: block;
-      margin-bottom: 4px;
       font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.78rem;
+      font-size: 0.74rem;
       text-transform: uppercase;
+      letter-spacing: 0.06em;
       color: var(--gold);
+    }
+
+    .menu-kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: rgba(255, 245, 216, 0.9);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      letter-spacing: 0;
+      line-height: 1.4;
     }
 
     .menu-chip span {
       display: block;
-      font-size: 0.95rem;
-      color: rgba(255, 245, 216, 0.82);
-      line-height: 1.45;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.84rem;
+      color: rgba(255, 245, 216, 0.68);
+      line-height: 1.4;
+    }
+
+    .menu-divider {
+      height: 1px;
+      margin: 18px 0 14px;
+      background: linear-gradient(90deg, transparent, rgba(255, 225, 143, 0.18), transparent);
     }
 
     #hud {
@@ -688,7 +862,11 @@
       }
 
       .menu-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .menu-card {
+        padding: 24px 20px 22px;
       }
 
       .panel {
@@ -703,18 +881,27 @@
 
     <div id="menu-screen" class="overlay">
       <div class="menu-card">
-        <div class="eyebrow">Pega, cresce, humilha</div>
-        <h1>Pega Bola 3000</h1>
-        <p class="tagline">
-          Um protótipo 3D multiplayer sobre caçar bolinhas, inflar o próprio volume e dominar um placar
-          de moral duvidosa.
+        <div class="menu-dots" aria-hidden="true">
+          <div class="menu-dot"></div>
+          <div class="menu-dot"></div>
+          <div class="menu-dot"></div>
+          <div class="menu-dot"></div>
+          <div class="menu-dot"></div>
+        </div>
+        <div class="eyebrow menu-stagger-1"><span class="eyebrow-dot"></span>Multiplayer ao vivo</div>
+        <h1 class="menu-stagger-2">Pega Bola<br>3000</h1>
+        <p class="tagline menu-stagger-3">
+          O <em>único</em> jogo onde você persegue esferas luminosas, engorda até virar um problema gravitacional
+          e devora os mais fracos — tudo isso com a <em>dignidade de um pombo brigando por pão</em>.
         </p>
 
-        <label class="input-label" for="nickname-input">Nome de guerra</label>
-        <input id="nickname-input" type="text" maxlength="16" autocomplete="off" placeholder="Kemell Pinto">
-        <div class="volume-row" aria-label="Controle de volume da música">
+        <div class="menu-stagger-4">
+          <label class="input-label" for="nickname-input">Identidade descartável</label>
+          <input id="nickname-input" type="text" maxlength="16" autocomplete="off" placeholder="Alguém sem futuro">
+        </div>
+        <div class="volume-row menu-stagger-5" aria-label="Controle de volume da música">
           <div class="volume-header">
-            <span>Volume da trilha</span>
+            <span>Trilha sonora (para mascarar seus soluços)</span>
             <div class="volume-actions">
               <span id="music-volume-value">8%</span>
               <button id="music-mute-button" class="mute-toggle" type="button" aria-pressed="false" aria-label="Mutar música">Mutar</button>
@@ -722,27 +909,58 @@
           </div>
           <input id="music-volume-input" type="range" min="0" max="100" step="1" value="8" aria-label="Volume da música de fundo">
           <div class="music-mode-row">
-            <label class="music-mode-label" for="music-mode-select">Modo da trilha</label>
+            <label class="music-mode-label" for="music-mode-select">Escolha manual (pra quem quer controlar pelo menos algo na vida)</label>
             <select id="music-mode-select" aria-label="Modo da trilha sonora">
               <option value="auto">Automático aleatório</option>
             </select>
           </div>
         </div>
-        <button id="play-button" type="button">Entrar na pocilga</button>
-        <div id="menu-status" class="status-pill" data-tone="idle">Servidor quieto. Tu decide se isso continua assim.</div>
+        <button id="play-button" class="menu-stagger-6" type="button">Aceitar meu destino</button>
+        <div id="menu-status" class="status-pill menu-stagger-6" data-tone="idle">Servidor esperando alguém corajoso — ou burro — o suficiente para entrar.</div>
 
-        <div class="menu-grid">
+        <div class="menu-divider menu-stagger-7"></div>
+        <div class="menu-grid menu-stagger-7">
           <div class="menu-chip">
-            <strong>Move</strong>
-            <span>WASD ou setinhas para rodar o salão.</span>
+            <div class="menu-chip-header">
+              <strong>Perambular</strong>
+              <span class="menu-kbd">W</span><span class="menu-kbd">A</span><span class="menu-kbd">S</span><span class="menu-kbd">D</span>
+            </div>
+            <span>Arraste sua esfera vergonhosa pela arena.</span>
           </div>
           <div class="menu-chip">
-            <strong>Corre</strong>
-            <span>Shift para virar um problema ambulante.</span>
+            <div class="menu-chip-header">
+              <strong>Fugir</strong>
+              <span class="menu-kbd">Shift</span>
+            </div>
+            <span>Corre igual devedor sendo cobrado.</span>
           </div>
           <div class="menu-chip">
-            <strong>Tela cheia</strong>
-            <span>`F` liga, `Esc` desliga.</span>
+            <div class="menu-chip-header">
+              <strong>Dash</strong>
+              <span class="menu-kbd">Space</span>
+            </div>
+            <span>Um arranco patético com cooldown. Também ativa janela de devorar.</span>
+          </div>
+          <div class="menu-chip">
+            <div class="menu-chip-header">
+              <strong>Devorar</strong>
+              <span class="menu-kbd">R</span>
+            </div>
+            <span>Engole quem for menor que você. Não tem reembolso moral.</span>
+          </div>
+          <div class="menu-chip">
+            <div class="menu-chip-header">
+              <strong>Tela cheia</strong>
+              <span class="menu-kbd">F</span>
+            </div>
+            <span>Pra ninguém ver a aba do LinkedIn aberta atrás.</span>
+          </div>
+          <div class="menu-chip">
+            <div class="menu-chip-header">
+              <strong>Sair da tela cheia</strong>
+              <span class="menu-kbd">Esc</span>
+            </div>
+            <span>Quando a realidade bater.</span>
           </div>
         </div>
       </div>
@@ -757,13 +975,13 @@
               <span id="score-value" class="stat-value">0</span>
             </div>
             <div>
-              <span class="stat-label">Gente na lama</span>
+              <span class="stat-label">Vítimas na arena</span>
               <span id="player-count-value" class="stat-value">0</span>
             </div>
           </div>
         </div>
         <div class="panel">
-          <p id="status-line">Arena em banho-maria.</p>
+          <p id="status-line">Arena em banho-maria. Ninguém presta.</p>
         </div>
         <div id="status-chip" class="badge" hidden></div>
         <div id="dash-panel" class="panel" aria-label="Cooldown do dash">
@@ -782,7 +1000,7 @@
 
       <div class="hud-stack" style="justify-items: stretch;">
         <div class="panel">
-          <p class="leaderboard-title">Top 3 da pocilga</p>
+          <p class="leaderboard-title">Hall da vergonha</p>
           <ol id="leaderboard"></ol>
         </div>
       </div>

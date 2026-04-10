@@ -114,6 +114,11 @@ class SocketManager {
       return;
     }
 
+    const maintenance = this.gameState.maintainBallCount();
+    if (maintenance.spawned.length > 0) {
+      this.io.emit('newBalls', maintenance.spawned);
+    }
+
     socket.emit('worldInfo', this.gameState.getWorldInfo());
     socket.emit('playerInfo', result.player);
     socket.emit('currentPlayers', this.gameState.getPlayersSnapshot());
@@ -181,7 +186,9 @@ class SocketManager {
 
     setTimeout(() => {
       const newBall = this.gameState.respawnBall();
-      this.io.emit('newBalls', [newBall]);
+      if (newBall) {
+        this.io.emit('newBalls', [newBall]);
+      }
     }, config.RESPAWN_DELAY);
   }
 
@@ -229,6 +236,11 @@ class SocketManager {
     socket.broadcast.emit('playerDisconnected', removedPlayer.id);
     this.io.emit('playerCount', this.gameState.getPlayerCount());
     this.emitScores();
+
+    const maintenance = this.gameState.maintainBallCount();
+    if (maintenance.despawned.length > 0) {
+      this.io.emit('removeBalls', maintenance.despawned);
+    }
   }
 }
 

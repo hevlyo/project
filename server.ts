@@ -23,7 +23,7 @@ function startServer(): void {
   server.listen(config.PORT, '0.0.0.0', () => {
     console.log(`Server running at http://localhost:${config.PORT}`);
     console.log(`Game world size: ${config.WORLD_SIZE} x ${config.WORLD_SIZE}`);
-    console.log(`Initial balls generated: ${config.BALL_COUNT}`);
+    console.log(`Ball range: ${config.MIN_BALL_COUNT}–${config.MAX_BALL_COUNT} (${config.BALLS_PER_PLAYER} per player)`);
   });
 }
 
