@@ -70,7 +70,6 @@ class GameApp {
   init() {
     this.scene.init();
     this.ui.bindStart(() => this.handleStart());
-    this.ui.setMenuStatus('Servidor ocioso. Provavelmente tão inútil quanto você neste momento.', 'idle');
     this.ui.setConnectionState(this.connectionText, this.connectionTone);
     this.ui.setHUDVisible(false);
     this.ui.setNickname(this.restoreNickname());
@@ -311,11 +310,6 @@ class GameApp {
           event.preventDefault();
           this.tryStartDash();
           break;
-        case 'r':
-        case 'R':
-          event.preventDefault();
-          this.tryConsume();
-          break;
         default:
           if (event.code === 'Space') {
             event.preventDefault();
@@ -374,24 +368,15 @@ class GameApp {
     if (this.mode !== 'playing') return;
     if (!this.players.has(this.localPlayerId)) return;
 
-    if (this.simulationTimeMs < this.dashCooldownUntilMs) {
-      if ((this.simulationTimeMs - this.lastDashCooldownToastAt) > 500) {
-        const remaining = Math.max(0, this.dashCooldownUntilMs - this.simulationTimeMs);
-        this.ui.showToast(`Dash em recarga: ${(remaining / 1000).toFixed(1)}s`, 'warning', 700);
-        this.lastDashCooldownToastAt = this.simulationTimeMs;
-      }
+    const localPlayer = this.players.get(this.localPlayerId);
+    const dashUnlimitedActive = this.isDashUnlimitedActive(localPlayer);
+
+    if (!dashUnlimitedActive && this.simulationTimeMs < this.dashCooldownUntilMs) {
+      this.ui.triggerDashError();
       return;
     }
 
     this.pendingDash = true;
-  }
-
-  tryConsume() {
-    if (this.mode !== 'playing') return;
-    if (!this.localPlayerId) return;
-    if (!this.socket?.connected) return;
-
-    this.socket.emit('playerConsumeAttempt');
   }
 
   handleStart() {
@@ -467,6 +452,9 @@ class GameApp {
     this.socket.on('worldInfo', (payload) => {
       this.worldSize = payload.worldSize || SETTINGS.worldSize;
       this.scene.setWorldSize(this.worldSize);
+      if (typeof payload.isNightMode !== 'undefined') {
+        this.scene.setNightMode(payload.isNightMode);
+      }
     });
 
     this.socket.on('playerInfo', (payload) => {
@@ -531,11 +519,12 @@ class GameApp {
     });
 
     this.socket.on('ballCollected', (payload) => {
+      if (payload.type === 'NIGHT_MODE') {
+        this.scene.setNightMode(true);
+      } else if (payload.type === 'DAY_MODE') {
+        this.scene.setNightMode(false);
+      }
       this.handleBallCollected(payload);
-    });
-
-    this.socket.on('playerConsumed', (payload) => {
-      this.handlePlayerConsumed(payload);
     });
 
     this.socket.on('updateScores', (scores) => {
@@ -555,7 +544,7 @@ class GameApp {
             const popupScale = pending.sizeMultiplier || player.sizeMultiplier || 1;
             this.scene.spawnFloatingValue(
               pending.position,
-              `${gainedScore}`,
+              `+${gainedScore}`,
               pending.color,
               this.simulationTimeMs,
               popupScale,
@@ -803,6 +792,7 @@ class GameApp {
       invulnerableUntil: payload.invulnerableUntil || 0,
       speedBoostUntil: payload.speedBoostUntil || 0,
       dashCooldownUntil: payload.dashCooldownUntil || 0,
+      dashUnlimitedUntil: payload.dashUnlimitedUntil || 0,
       position,
       targetPosition: position.clone(),
       velocity: new THREE.Vector3(),
@@ -827,6 +817,7 @@ class GameApp {
     player.invulnerableUntil = payload.invulnerableUntil || 0;
     player.speedBoostUntil = payload.speedBoostUntil || 0;
     player.dashCooldownUntil = payload.dashCooldownUntil || 0;
+    player.dashUnlimitedUntil = payload.dashUnlimitedUntil || 0;
 
     if (hardSync) {
       player.position.set(payload.position.x, 0, payload.position.z);
@@ -927,66 +918,6 @@ class GameApp {
       this.updateHud({ force: true });
       this.syncScene();
       this.scene.render();
-    }
-  }
-
-  handlePlayerConsumed(payload) {
-    if (!payload?.winner || !payload?.loser) return;
-
-    const consumePosition = payload.consumedPosition || payload.winner.position;
-
-    this.upsertPlayerFromServer(payload.winner, { hardSync: true });
-    this.upsertPlayerFromServer(payload.loser, { hardSync: true });
-
-    const loserPlayer = this.players.get(payload.loser.id);
-    if (loserPlayer) {
-      loserPlayer.velocity.set(0, 0, 0);
-    }
-
-    this.scene.spawnConsumeBurst(
-      consumePosition,
-      payload.winner.color,
-      this.simulationTimeMs,
-    );
-    this.scene.spawnConsumeBurst(
-      consumePosition,
-      payload.loser.color,
-      this.simulationTimeMs,
-    );
-    this.scene.spawnRespawnBurst(payload.loser.position, payload.loser.color, this.simulationTimeMs);
-    this.scene.spawnFloatingValue(
-      consumePosition,
-      `+${payload.transferredScore || 0}`,
-      payload.winner.color,
-      this.simulationTimeMs,
-      payload.winner.sizeMultiplier || this.players.get(payload.winner.id)?.sizeMultiplier || 1,
-    );
-    this.scene.spawnFloatingValue(
-      payload.loser.position,
-      '-DEVORADO-',
-      payload.loser.color,
-      this.simulationTimeMs,
-      payload.loser.sizeMultiplier || 1,
-    );
-
-    this.ui.showKillfeed(
-      `${payload.winner.nickname} engoliu ${payload.loser.nickname}`,
-      payload.winner.id === this.localPlayerId ? 'live' : 'warning',
-    );
-
-    this.updateHud({ force: true });
-    this.syncScene();
-    this.scene.render();
-
-    if (payload.winner.id === this.localPlayerId) {
-      this.ui.hideToast();
-      this.ui.showPickup(`DEVOROU +${payload.transferredScore || 0}`);
-      this.ui.showToast(`Tu devorou ${payload.loser.nickname}. Sinta o vazio do triunfo.`, 'live', 1800);
-    } else if (payload.loser.id === this.localPlayerId) {
-      this.resetInputState();
-      this.ui.hideToast();
-      this.ui.showPickup('DEVORADO!');
-      this.ui.showToast(`${payload.winner.nickname} te devorou. A fila do respawn não tem fura.`, 'danger', 2200);
     }
   }
 
@@ -1105,7 +1036,8 @@ class GameApp {
       speed *= SETTINGS.speedBoostMultiplier;
     }
 
-    const dashReady = this.simulationTimeMs >= this.dashCooldownUntilMs;
+    const dashUnlimitedActive = this.isDashUnlimitedActive(player);
+    const dashReady = dashUnlimitedActive || this.simulationTimeMs >= this.dashCooldownUntilMs;
     if (this.pendingDash && dashReady) {
       const forwardX = Math.sin(this.cameraHeading);
       const forwardZ = Math.cos(this.cameraHeading);
@@ -1287,7 +1219,7 @@ class GameApp {
       ? `${this.visibleBallCount} bolas vivas. Nenhuma veio voluntariamente.`
       : this.mode === 'reconnecting'
         ? 'Conexão em estado terminal. Tentando ressuscitar.'
-        : 'Arena em banho-maria. Ninguém presta.';
+        : 'Aguardando conexão...';
     const statusChip = this.getStatusChipState(localPlayer);
 
     this.ui.updateHUD({
@@ -1298,11 +1230,20 @@ class GameApp {
       statusLine,
       statusChip,
       dashCooldownRatio: this.getDashCooldownRatio(),
-      dashReady: this.simulationTimeMs >= this.dashCooldownUntilMs,
+      dashUnlimited: this.isDashUnlimitedActive(localPlayer),
+      dashReady: this.isDashUnlimitedActive(localPlayer) || this.simulationTimeMs >= this.dashCooldownUntilMs,
+      dashRemainingMs: Math.max(0, this.dashCooldownUntilMs - this.simulationTimeMs),
     });
   }
 
   getDashCooldownRatio() {
+    const localPlayer = this.players.get(this.localPlayerId);
+    const now = Date.now();
+    if (this.isDashUnlimitedActive(localPlayer, now)) {
+      const remaining = localPlayer.dashUnlimitedUntil - now;
+      return clamp(remaining / SETTINGS.infinityDashesDurationMs, 0, 1);
+    }
+
     if (this.simulationTimeMs >= this.dashCooldownUntilMs) {
       return 1;
     }
@@ -1315,6 +1256,13 @@ class GameApp {
     if (!localPlayer) return null;
 
     const now = Date.now();
+    if (this.isDashUnlimitedActive(localPlayer, now)) {
+      return {
+        label: `Dash ilimitado ${Math.max(1, Math.ceil((localPlayer.dashUnlimitedUntil - now) / 1000))}s`,
+        tone: 'danger',
+      };
+    }
+    
     if (isTimedStateActive(localPlayer.invulnerableUntil, now)) {
       return {
         label: `Protegido ${Math.max(1, Math.ceil((localPlayer.invulnerableUntil - now) / 1000))}s`,
@@ -1330,6 +1278,10 @@ class GameApp {
     }
 
     return null;
+  }
+
+  isDashUnlimitedActive(player, now = this.simulationTimeMs) {
+    return isTimedStateActive(player?.dashUnlimitedUntil, now);
   }
 
   getArenaLimitForScale(scale = 1) {
@@ -1355,32 +1307,22 @@ class GameApp {
   }
 
   slidePlayerAlongArena(previousPosition, player) {
+    const skin = SETTINGS.arenaEdgeSkin || 0;
     const limit = this.getArenaLimitForScale(player.sizeMultiplier || 1);
+    const effectiveLimit = Math.max(0, limit - skin);
     const nextX = player.position.x;
     const nextZ = player.position.z;
     const nextDistanceSq = (nextX * nextX) + (nextZ * nextZ);
 
-    if (nextDistanceSq <= (limit * limit)) {
+    if (nextDistanceSq <= (effectiveLimit * effectiveLimit)) {
       return false;
     }
 
-    const deltaX = nextX - previousPosition.x;
-    const deltaZ = nextZ - previousPosition.z;
-    const currentDistanceSq = (previousPosition.x * previousPosition.x) + (previousPosition.z * previousPosition.z);
+    const distance = Math.sqrt(nextDistanceSq);
+    const scale = effectiveLimit / distance;
+    player.position.x = nextX * scale;
+    player.position.z = nextZ * scale;
 
-    if (currentDistanceSq > 0.000001) {
-      const currentDistance = Math.sqrt(currentDistanceSq);
-      const normalX = previousPosition.x / currentDistance;
-      const normalZ = previousPosition.z / currentDistance;
-      const outwardSpeed = (deltaX * normalX) + (deltaZ * normalZ);
-
-      if (outwardSpeed > 0) {
-        player.position.x -= normalX * outwardSpeed;
-        player.position.z -= normalZ * outwardSpeed;
-      }
-    }
-
-    this.clampPlayerToArena(player, SETTINGS.arenaEdgeSkin || 0);
     return true;
   }
 
@@ -1395,6 +1337,40 @@ class GameApp {
         z: Math.sin(angle) * ringRadius,
       };
     });
+  }
+
+  getRingObstacleCircles(count, ringScale, radius) {
+    if (count <= 0 || radius <= 0) {
+      return [];
+    }
+
+    const ringRadius = this.worldSize * ringScale;
+
+    return Array.from({ length: count }, (_, index) => {
+      const angle = (Math.PI * 2 * index) / count;
+      return {
+        x: Math.cos(angle) * ringRadius,
+        z: Math.sin(angle) * ringRadius,
+        radius,
+      };
+    });
+  }
+
+  getArenaObstacleCircles() {
+    return [
+      ...this.getRingObstacleCircles(SETTINGS.arenaPostCount, SETTINGS.arenaPostRingScale, SETTINGS.arenaPostRadius),
+      ...this.getRingObstacleCircles(SETTINGS.arenaMonolithCount, SETTINGS.arenaMonolithRingScale, SETTINGS.arenaMonolithRadius),
+      ...this.getRingObstacleCircles(SETTINGS.arenaLanternCount, SETTINGS.arenaLanternRingScale, SETTINGS.arenaLanternRadius),
+      ...this.getRingObstacleCircles(SETTINGS.arenaPlantCount, SETTINGS.arenaPlantRingScale, SETTINGS.arenaPlantRadius),
+    ];
+  }
+
+  getCollisionObstacleCircles() {
+    return [
+      ...this.getRingObstacleCircles(SETTINGS.arenaMonolithCount, SETTINGS.arenaMonolithRingScale, SETTINGS.arenaMonolithRadius),
+      ...this.getRingObstacleCircles(SETTINGS.arenaLanternCount, SETTINGS.arenaLanternRingScale, SETTINGS.arenaLanternRadius),
+      ...this.getRingObstacleCircles(SETTINGS.arenaPlantCount, SETTINGS.arenaPlantRingScale, SETTINGS.arenaPlantRadius),
+    ];
   }
 
   resolveObstacleSlide(previousPosition, player, obstaclePosition, obstacleRadius, skin = 0) {
@@ -1437,27 +1413,20 @@ class GameApp {
     normalX /= normalDistance;
     normalZ /= normalDistance;
 
-    const outwardSpeed = (deltaX * normalX) + (deltaZ * normalZ);
-    if (outwardSpeed > 0) {
-      player.position.x -= normalX * outwardSpeed;
-      player.position.z -= normalZ * outwardSpeed;
-    }
-
     player.position.x = obstaclePosition.x + (normalX * effectiveDistance);
     player.position.z = obstaclePosition.z + (normalZ * effectiveDistance);
     return true;
   }
 
   resolvePostCollisions(previousPosition, player) {
-    const posts = this.getArenaPosts();
-    const obstacleRadius = SETTINGS.arenaPostRadius + SETTINGS.collisionPadding;
+    const obstacles = this.getCollisionObstacleCircles();
     const skin = SETTINGS.arenaEdgeSkin || 0;
     let corrected = false;
 
     for (let pass = 0; pass < 2; pass += 1) {
       let passCorrected = false;
-      for (const obstaclePosition of posts) {
-        if (this.resolveObstacleSlide(previousPosition, player, obstaclePosition, obstacleRadius, skin)) {
+      for (const obstaclePosition of obstacles) {
+        if (this.resolveObstacleSlide(previousPosition, player, obstaclePosition, obstaclePosition.radius + SETTINGS.collisionPadding, skin)) {
           corrected = true;
           passCorrected = true;
         }

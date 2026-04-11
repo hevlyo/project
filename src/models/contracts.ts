@@ -20,8 +20,6 @@ export interface GameConfig {
   MAX_SIZE_MULTIPLIER: number;
   PLAYER_BASE_RADIUS: number;
   PLAYER_COLLISION_PADDING: number;
-  PLAYER_CONSUME_SIZE_RATIO: number;
-  PLAYER_SCORE_TRANSFER_RATIO: number;
   PLAYER_NAME_MAX_LENGTH: number;
   PLAYER_NAME_MIN_LENGTH: number;
   PLAYER_SPAWN_CLEARANCE: number;
@@ -33,6 +31,15 @@ export interface GameConfig {
   ARENA_POST_COUNT: number;
   ARENA_POST_RING_SCALE: number;
   ARENA_POST_RADIUS: number;
+  ARENA_MONOLITH_COUNT: number;
+  ARENA_MONOLITH_RING_SCALE: number;
+  ARENA_MONOLITH_RADIUS: number;
+  ARENA_LANTERN_COUNT: number;
+  ARENA_LANTERN_RING_SCALE: number;
+  ARENA_LANTERN_RADIUS: number;
+  ARENA_PLANT_COUNT: number;
+  ARENA_PLANT_RING_SCALE: number;
+  ARENA_PLANT_RADIUS: number;
   MOVEMENT_THROTTLE_MS: number;
   COLLECTION_THROTTLE_MS: number;
   BALL_TYPES: Record<string, BallTypeConfig>;
@@ -44,7 +51,8 @@ export interface GameConfig {
   SPEED_BOOST_MULTIPLIER: number;
   DASH_COOLDOWN_MS: number;
   DASH_INVULNERABLE_MS: number;
-  CONSUME_INTENT_WINDOW_MS: number;
+  INFINITY_DASHES_DURATION_MS: number;
+  INFINITY_DASHES_CHANCE: number;
   MAX_COLLECTION_DISTANCE: number;
   SOCKET_CONFIG?: {
     pingInterval: number;
@@ -75,21 +83,9 @@ export interface PlayerState {
   invulnerableUntil: number;
   speedBoostUntil: number;
   dashCooldownUntil: number;
-  consumeIntentUntil: number;
+  dashUnlimitedUntil: number;
   disconnectedAt?: number;
   lastUpdate: number;
-}
-
-export interface ConsumedResult {
-  winner: SerializedPlayer;
-  loser: SerializedPlayer;
-  transferredScore: number;
-  consumedPosition: Vector3;
-}
-
-export interface ConsumptionDecision {
-  winnerId: string;
-  loserId: string;
 }
 
 export interface SerializedPlayer {
@@ -101,7 +97,7 @@ export interface SerializedPlayer {
   invulnerableUntil: number;
   speedBoostUntil: number;
   dashCooldownUntil: number;
-  consumeIntentUntil: number;
+  dashUnlimitedUntil: number;
   position: Vector3;
 }
 

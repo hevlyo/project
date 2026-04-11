@@ -1,9 +1,6 @@
 import { ArenaPhysics } from './ArenaPhysics';
-import { ConsumptionResolver } from './ConsumptionResolver';
 import type {
   BallState,
-  ConsumptionDecision,
-  ConsumedResult,
   GameConfig,
   PlayerState,
   SerializedBall,
@@ -21,7 +18,7 @@ class GameState {
   socketToPlayerId: Map<string, string>;
   playerReconnectTimers: Map<string, ReturnType<typeof setTimeout>>;
   arenaPhysics: ArenaPhysics;
-  consumptionResolver: ConsumptionResolver;
+  isNightMode: boolean = false;
 
   constructor(config: GameConfig) {
     this.config = config;
@@ -33,12 +30,6 @@ class GameState {
     this.socketToPlayerId = new Map();
     this.playerReconnectTimers = new Map();
     this.arenaPhysics = new ArenaPhysics(config);
-    this.consumptionResolver = new ConsumptionResolver({
-      sizeRatio: this.config.PLAYER_CONSUME_SIZE_RATIO,
-      getRadius: (player) => this.getPlayerRadius(player),
-      hasIntent: (player, now) => this.hasConsumeIntent(player, now),
-      isInvulnerable: (player, now) => this.isInvulnerable(player, now),
-    });
 
     this.generateInitialBalls();
   }
@@ -59,10 +50,11 @@ class GameState {
     return '';
   }
 
-  getWorldInfo(): { worldSize: number; ballCount: number } {
+  getWorldInfo(): { worldSize: number; ballCount: number; isNightMode: boolean; } {
     return {
       worldSize: this.config.WORLD_SIZE,
       ballCount: this.getTargetBallCount(),
+      isNightMode: this.isNightMode,
     };
   }
 
@@ -169,8 +161,22 @@ class GameState {
   }
 
   createBall(): BallState {
-    const typeNames = Object.keys(this.config.BALL_TYPES);
-    const typeName = typeNames[Math.floor(Math.random() * typeNames.length)];
+    const r = Math.random();
+    let typeName = 'NORMAL';
+
+    if (this.isNightMode && r < 0.02) {
+      typeName = 'DAY_MODE';
+    } else if (!this.isNightMode && r < 0.01) {
+      typeName = 'NIGHT_MODE';
+    } else {
+      const nonModeTypes = Object.keys(this.config.BALL_TYPES).filter((k) => k !== 'DAY_MODE' && k !== 'NIGHT_MODE' && k !== 'INFINITY_DASHES');
+      if (Math.random() < this.config.INFINITY_DASHES_CHANCE) {
+        typeName = 'INFINITY_DASHES';
+      } else {
+        typeName = nonModeTypes[Math.floor(Math.random() * nonModeTypes.length)];
+      }
+    }
+
     const type = this.config.BALL_TYPES[typeName];
     const position = this.getRandomArenaPosition(
       this.config.BALL_CLEARANCE,
@@ -269,7 +275,7 @@ class GameState {
       invulnerableUntil: 0,
       speedBoostUntil: 0,
       dashCooldownUntil: 0,
-      consumeIntentUntil: 0,
+      dashUnlimitedUntil: 0,
       lastUpdate: Date.now(),
     };
   }
@@ -282,7 +288,8 @@ class GameState {
 
     this.refreshPlayerTimedState(player, now);
     const cooldownUntil = player.dashCooldownUntil || 0;
-    if (cooldownUntil > now) {
+    const dashUnlimitedUntil = player.dashUnlimitedUntil || 0;
+    if (cooldownUntil > now && dashUnlimitedUntil <= now) {
       return {
         error: 'Dash on cooldown',
         dashCooldownUntil: cooldownUntil,
@@ -294,10 +301,6 @@ class GameState {
       player.invulnerableUntil || 0,
       now + this.config.DASH_INVULNERABLE_MS,
     );
-    player.consumeIntentUntil = Math.max(
-      player.consumeIntentUntil || 0,
-      now + this.config.CONSUME_INTENT_WINDOW_MS,
-    );
     player.lastUpdate = now;
 
     return {
@@ -306,43 +309,9 @@ class GameState {
     };
   }
 
-  triggerConsumeIntent(socketId: string, now = Date.now()): {
-    player?: SerializedPlayer;
-    consumed?: ConsumedResult;
-    scores?: Record<string, number>;
-    error?: string;
-  } {
-    const player = this.getPlayer(socketId);
-    if (!player) {
-      return { error: 'Player not found' };
-    }
-
-    this.refreshAllTimedStates(now);
-    player.consumeIntentUntil = Math.max(
-      player.consumeIntentUntil || 0,
-      now + this.config.CONSUME_INTENT_WINDOW_MS,
-    );
-    player.lastUpdate = now;
-
-    const consumed = this.resolvePlayerConsumption(player.id, now);
-    if (!consumed) {
-      return {
-        player: this.serializePlayer(player, now),
-      };
-    }
-
-    return {
-      player: this.serializePlayer(this.players[player.id], now),
-      consumed,
-      scores: this.getScoreMap(),
-    };
-  }
-
   updatePlayerPosition(socketId: string, nextPosition: Vector3 | null | undefined): {
     player?: SerializedPlayer;
     corrected?: boolean;
-    consumed?: ConsumedResult;
-    scores?: Record<string, number>;
     error?: string;
   } {
     const player = this.getPlayer(socketId);
@@ -379,15 +348,6 @@ class GameState {
     const correctedByPosts = this.resolvePostCollisions(currentArenaPosition, nextArenaPosition, this.getPlayerRadius(player));
     player.position = nextArenaPosition;
     player.lastUpdate = now;
-
-    const consumed = this.resolvePlayerConsumption(player.id, now);
-    if (consumed) {
-      return {
-        player: this.serializePlayer(this.players[player.id], now),
-        consumed,
-        scores: this.getScoreMap(),
-      };
-    }
 
     const corrected = this.resolvePlayerPush(player.id);
     return { player: this.serializePlayer(player, now), corrected: corrected || correctedByArena || correctedByPosts };
@@ -436,7 +396,14 @@ class GameState {
     const awardedValue = player.score - scoreBefore;
     if (ball.type === 'SPEED') {
       player.speedBoostUntil = now + this.config.SPEED_BOOST_DURATION_MS;
+    } else if (ball.type === 'INFINITY_DASHES') {
+      player.dashUnlimitedUntil = now + this.config.INFINITY_DASHES_DURATION_MS;
+    } else if (ball.type === 'NIGHT_MODE') {
+      this.isNightMode = true;
+    } else if (ball.type === 'DAY_MODE') {
+      this.isNightMode = false;
     }
+    
     player.lastUpdate = now;
 
     this.recalculateTopScore();
@@ -489,7 +456,7 @@ class GameState {
       invulnerableUntil: player.invulnerableUntil || 0,
       speedBoostUntil: player.speedBoostUntil || 0,
       dashCooldownUntil: player.dashCooldownUntil || 0,
-      consumeIntentUntil: player.consumeIntentUntil || 0,
+      dashUnlimitedUntil: player.dashUnlimitedUntil || 0,
       position: {
         x: player.position.x,
         y: player.position.y,
@@ -541,63 +508,14 @@ class GameState {
       player.speedBoostUntil = 0;
     }
 
-    if (player.consumeIntentUntil && player.consumeIntentUntil <= now) {
-      player.consumeIntentUntil = 0;
+    if (player.dashUnlimitedUntil && player.dashUnlimitedUntil <= now) {
+      player.dashUnlimitedUntil = 0;
     }
-  }
-
-  hasConsumeIntent(player: PlayerState | null | undefined, now = Date.now()): boolean {
-    this.refreshPlayerTimedState(player, now);
-    return (player?.consumeIntentUntil || 0) > now;
   }
 
   isInvulnerable(player: PlayerState | null | undefined, now = Date.now()): boolean {
     this.refreshPlayerTimedState(player, now);
     return (player?.invulnerableUntil || 0) > now;
-  }
-
-  checkPassiveConsumption(now = Date.now()): ConsumedResult | null {
-    const connected = this.getConnectedPlayers();
-    const decision = this.consumptionResolver.findPassiveConsumption(connected, now);
-    if (!decision) return null;
-    return this.consumePlayer(decision.winnerId, decision.loserId, now);
-  }
-
-  resolvePlayerConsumption(movedPlayerId: string, now = Date.now()): ConsumedResult | null {
-    const decision: ConsumptionDecision | null = this.consumptionResolver.resolveForMovedPlayer(
-      Object.values(this.players),
-      movedPlayerId,
-      now,
-    );
-    if (!decision) return null;
-
-    return this.consumePlayer(decision.winnerId, decision.loserId, now);
-  }
-
-  consumePlayer(winnerId: string, loserId: string, now = Date.now()): ConsumedResult | null {
-    const winner = this.players[winnerId];
-    const loser = this.players[loserId];
-    if (!winner || !loser) return null;
-
-    const consumedPosition = {
-      x: loser.position.x,
-      y: loser.position.y,
-      z: loser.position.z,
-    };
-    const transferredScore = Math.round(loser.score * this.config.PLAYER_SCORE_TRANSFER_RATIO);
-
-    winner.score += transferredScore;
-    winner.lastUpdate = now;
-
-    this.respawnPlayer(loserId, now);
-    this.recalculateTopScore();
-
-    return {
-      winner: this.serializePlayer(winner, now),
-      loser: this.serializePlayer(this.players[loserId], now),
-      transferredScore,
-      consumedPosition,
-    };
   }
 
   respawnPlayer(playerId: string, now = Date.now()): PlayerState | null {
@@ -614,7 +532,7 @@ class GameState {
     player.speedBoostUntil = 0;
     player.invulnerableUntil = now + this.config.PLAYER_RESPAWN_INVULNERABLE_MS;
     player.dashCooldownUntil = now;
-    player.consumeIntentUntil = 0;
+    player.dashUnlimitedUntil = 0;
     player.lastUpdate = now;
 
     return player;
@@ -758,7 +676,7 @@ class GameState {
     let bestDistance = -1;
 
     slots.forEach((slot) => {
-      const nearestDistance = occupied.length
+      const nearestDistanceToPlayer = occupied.length
         ? Math.min(
             ...occupied.map((position) => {
               const dx = position.x - slot.x;
@@ -767,6 +685,16 @@ class GameState {
             }),
           )
         : Number.POSITIVE_INFINITY;
+        
+      const nearestDistanceToObstacle = Math.min(
+        ...this.arenaPhysics.getArenaObstacleCircles().map((obs) => {
+          const dx = obs.x - slot.x;
+          const dz = obs.z - slot.z;
+          return Math.sqrt((dx * dx) + (dz * dz)) - obs.radius;
+        })
+      );
+      
+      const nearestDistance = Math.min(nearestDistanceToPlayer, nearestDistanceToObstacle);
 
       if (nearestDistance > bestDistance) {
         bestDistance = nearestDistance;

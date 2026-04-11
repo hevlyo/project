@@ -1,6 +1,6 @@
 import config from '../config/gameConfig';
 import GameState from '../models/GameState';
-import type { ConsumedResult, SerializedPlayer } from '../models/contracts';
+import type { SerializedPlayer } from '../models/contracts';
 
 interface SocketLike {
   id: string;
@@ -22,7 +22,6 @@ class SocketManager {
   lastMovementAt: Map<string, number>;
   lastCollectionAt: Map<string, number>;
   initialized: boolean;
-  consumptionInterval: ReturnType<typeof setInterval> | null;
 
   constructor(io: IoLike, gameState = new GameState(config)) {
     if (!io || typeof io.on !== 'function') {
@@ -34,7 +33,6 @@ class SocketManager {
     this.lastMovementAt = new Map();
     this.lastCollectionAt = new Map();
     this.initialized = false;
-    this.consumptionInterval = null;
     this.initialize();
   }
 
@@ -49,13 +47,8 @@ class SocketManager {
       socket.on('playerMovement', (movementData) => this.handlePlayerMovement(socket, movementData));
       socket.on('collectBall', (data) => this.handleBallCollection(socket, data));
       socket.on('playerDash', () => this.handlePlayerDash(socket));
-      socket.on('playerConsumeAttempt', () => this.handlePlayerConsumeAttempt(socket));
       socket.on('disconnect', () => this.handlePlayerDisconnect(socket));
     });
-
-    this.consumptionInterval = setInterval(() => {
-      this.checkAllPlayerConsumption();
-    }, 500);
   }
 
   emitScores() {
@@ -73,34 +66,8 @@ class SocketManager {
     });
   }
 
-  emitConsumption(consumed: ConsumedResult) {
-    this.io.emit('playerConsumed', {
-      winner: consumed.winner,
-      loser: consumed.loser,
-      transferredScore: consumed.transferredScore,
-      consumedPosition: consumed.consumedPosition,
-    });
-  }
-
-  emitConsumptionAndScores(consumed: ConsumedResult) {
-    this.emitConsumption(consumed);
-    this.emitScores();
-  }
-
-  checkAllPlayerConsumption() {
-    const now = Date.now();
-    const consumed = this.gameState.checkPassiveConsumption(now);
-    if (consumed) {
-      this.emitConsumption(consumed);
-      this.emitScores();
-    }
-  }
-
   destroy() {
-    if (this.consumptionInterval) {
-      clearInterval(this.consumptionInterval);
-      this.consumptionInterval = null;
-    }
+    // no-op for now
   }
 
   handleJoinGame(socket: SocketLike, playerData: { nickname?: unknown; sessionId?: unknown } | undefined) {
@@ -138,12 +105,6 @@ class SocketManager {
     const result = this.gameState.updatePlayerPosition(socket.id, movementData?.position);
     if (result.error) {
       this.emitError(socket, result.error);
-      return;
-    }
-
-    if (result.consumed) {
-      this.emitConsumptionAndScores(result.consumed);
-      this.emitPlayerState(socket, result.player, 'consumed');
       return;
     }
 
@@ -207,22 +168,6 @@ class SocketManager {
       ...result.player,
       syncMode: 'dash',
     });
-  }
-
-  handlePlayerConsumeAttempt(socket: SocketLike) {
-    const result = this.gameState.triggerConsumeIntent(socket.id);
-    if (result.error) {
-      this.emitError(socket, result.error);
-      return;
-    }
-
-    if (result.consumed) {
-      this.emitConsumptionAndScores(result.consumed);
-      this.emitPlayerState(socket, result.player, 'consumed');
-      return;
-    }
-
-    this.emitPlayerState(socket, result.player, 'consume-intent');
   }
 
   handlePlayerDisconnect(socket: SocketLike) {

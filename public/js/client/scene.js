@@ -402,29 +402,62 @@ export class SceneController {
   }
 
   createLights() {
-    const ambient = new THREE.AmbientLight(0xfff4d7, 0.34);
-    this.scene.add(ambient);
+    this.ambientLight = new THREE.AmbientLight(0xfff4d7, 0.34);
+    this.scene.add(this.ambientLight);
 
-    const hemi = new THREE.HemisphereLight(0xf7e8c5, 0x0f2a32, 1.15);
-    this.scene.add(hemi);
+    this.hemiLight = new THREE.HemisphereLight(0xf7e8c5, 0x0f2a32, 1.15);
+    this.scene.add(this.hemiLight);
 
-    const directional = new THREE.DirectionalLight(0xfff0be, 1.55);
-    directional.position.set(18, 28, 12);
-    directional.castShadow = SETTINGS.renderShadows;
+    this.directionalLight = new THREE.DirectionalLight(0xfff0be, 1.55);
+    this.directionalLight.position.set(18, 28, 12);
+    this.directionalLight.castShadow = SETTINGS.renderShadows;
     if (SETTINGS.renderShadows) {
-      directional.shadow.mapSize.width = SETTINGS.renderShadowMapSize;
-      directional.shadow.mapSize.height = SETTINGS.renderShadowMapSize;
-      directional.shadow.camera.left = -80;
-      directional.shadow.camera.right = 80;
-      directional.shadow.camera.top = 80;
-      directional.shadow.camera.bottom = -80;
-      directional.shadow.camera.far = 120;
+      this.directionalLight.shadow.mapSize.width = SETTINGS.renderShadowMapSize;
+      this.directionalLight.shadow.mapSize.height = SETTINGS.renderShadowMapSize;
+      this.directionalLight.shadow.camera.left = -80;
+      this.directionalLight.shadow.camera.right = 80;
+      this.directionalLight.shadow.camera.top = 80;
+      this.directionalLight.shadow.camera.bottom = -80;
+      this.directionalLight.shadow.camera.far = 120;
     }
-    this.scene.add(directional);
+    this.scene.add(this.directionalLight);
 
     const rim = new THREE.PointLight(0x7bdff2, 12, 100, 2);
     rim.position.set(-24, 12, -18);
     this.scene.add(rim);
+  }
+
+  setNightMode(isNight) {
+    this.isNightMode = isNight;
+    if (isNight) {
+      this.scene.background.setHex(0x1a1a2e);
+      this.scene.fog.color.setHex(0x1a1a2e);
+      if (this.skyDome) this.skyDome.material.color.setHex(0x222233);
+      if (this.ambientLight) this.ambientLight.intensity = 0.1;
+      if (this.hemiLight) {
+        this.hemiLight.intensity = 0.3;
+        this.hemiLight.color.setHex(0x405580);
+        this.hemiLight.groundColor.setHex(0x081016);
+      }
+      if (this.directionalLight) {
+        this.directionalLight.intensity = 0.25;
+        this.directionalLight.color.setHex(0x8aa8d4);
+      }
+    } else {
+      this.scene.background.setHex(0x8fb8bf);
+      this.scene.fog.color.setHex(0x8fb8bf);
+      if (this.skyDome) this.skyDome.material.color.setHex(0xffffff);
+      if (this.ambientLight) this.ambientLight.intensity = 0.34;
+      if (this.hemiLight) {
+        this.hemiLight.intensity = 1.15;
+        this.hemiLight.color.setHex(0xf7e8c5);
+        this.hemiLight.groundColor.setHex(0x0f2a32);
+      }
+      if (this.directionalLight) {
+        this.directionalLight.intensity = 1.55;
+        this.directionalLight.color.setHex(0xfff0be);
+      }
+    }
   }
 
   createArena() {
@@ -650,7 +683,7 @@ export class SceneController {
 
       monolith.userData = {
         angle,
-        radius: 41.5 + (Math.random() * 4),
+        radius: 50 * SETTINGS.arenaMonolithRingScale,
         baseY: 0.15,
         bobPhase: Math.random() * Math.PI * 2,
       };
@@ -691,8 +724,8 @@ export class SceneController {
     const assetDefinitions = [
       {
         url: '/assets/models/lantern.glb',
-        count: 8,
-        radius: 40.5,
+        count: SETTINGS.arenaLanternCount,
+        ringScale: SETTINGS.arenaLanternRingScale,
         scale: 0.68,
         y: 0.03,
         yOffset: 0.02,
@@ -701,8 +734,8 @@ export class SceneController {
       },
       {
         url: '/assets/models/diffuse-transmission-plant.glb',
-        count: 6,
-        radius: 28.5,
+        count: SETTINGS.arenaPlantCount,
+        ringScale: SETTINGS.arenaPlantRingScale,
         scale: 0.52,
         y: 0.02,
         yOffset: 0.05,
@@ -748,7 +781,7 @@ export class SceneController {
         const instance = root.clone(true);
         instance.userData = {
           angle,
-          radius: definition.radius + ((index % 2 === 0) ? 1.1 : -0.8),
+          radiusScale: definition.ringScale,
           baseY: definition.y,
           bobPhase: definition.phaseOffset + (Math.random() * Math.PI * 2),
           rotationOffset: definition.yRotationOffset,
@@ -807,11 +840,12 @@ export class SceneController {
 
     if (this.arenaAssetRoots?.length) {
       this.arenaAssetRoots.forEach((asset) => {
-        const { angle, radius, baseY, rotationOffset = 0, yOffset = 0, bobPhase = 0 } = asset.userData || {};
-        if (!Number.isFinite(angle) || !Number.isFinite(radius)) {
+        const { angle, radiusScale, baseY, rotationOffset = 0, yOffset = 0, bobPhase = 0 } = asset.userData || {};
+        if (!Number.isFinite(angle) || !Number.isFinite(radiusScale)) {
           return;
         }
 
+        const radius = this.worldSize * radiusScale;
         const bob = Math.sin((simulationTimeMs * 0.001) + bobPhase) * 0.08;
         asset.position.set(
           Math.cos(angle) * radius,
@@ -1058,7 +1092,7 @@ export class SceneController {
     });
     const label = new THREE.Sprite(labelMaterial);
     label.scale.set(3.4, 0.86, 1);
-    label.position.y = 2.9;
+    label.position.y = 3.5;
     group.add(label);
 
     this.scene.add(group);
@@ -1146,10 +1180,10 @@ export class SceneController {
     } else {
       entry.statusRing.visible = false;
       entry.statusRing.material.opacity = 0;
-      entry.statusRing.scale.setScalar(1 + ((scale - 1) * 0.28));
+    entry.statusRing.scale.setScalar(1 + ((scale - 1) * 0.28));
     }
     entry.shadow.scale.setScalar(scale * 1.1);
-    entry.label.position.y = (2.8 * scale) + bobOffset;
+    entry.label.position.y = (3.4 * scale) + bobOffset;
     entry.label.quaternion.copy(this.camera.quaternion);
   }
 
@@ -1303,19 +1337,6 @@ export class SceneController {
       driftX: (Math.random() - 0.5) * 0.34,
       driftZ: (Math.random() - 0.5) * 0.3,
       baseScale: popupScale,
-    });
-  }
-
-  spawnConsumeBurst(position, color, simulationTimeMs) {
-    this.spawnBurst({
-      position,
-      color,
-      simulationTimeMs,
-      innerRadius: 0.75,
-      outerRadius: 1.05,
-      duration: 760,
-      opacity: 0.86,
-      grow: 4.3,
     });
   }
 

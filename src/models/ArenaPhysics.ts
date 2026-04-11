@@ -9,6 +9,12 @@ export interface ArenaPost {
   z: number;
 }
 
+export interface ArenaObstacleCircle {
+  x: number;
+  z: number;
+  radius: number;
+}
+
 export interface ArenaPhysicsConfig {
   WORLD_SIZE: number;
   ARENA_WALL_PADDING: number;
@@ -16,6 +22,15 @@ export interface ArenaPhysicsConfig {
   ARENA_POST_COUNT: number;
   ARENA_POST_RING_SCALE: number;
   ARENA_POST_RADIUS: number;
+  ARENA_MONOLITH_COUNT: number;
+  ARENA_MONOLITH_RING_SCALE: number;
+  ARENA_MONOLITH_RADIUS: number;
+  ARENA_LANTERN_COUNT: number;
+  ARENA_LANTERN_RING_SCALE: number;
+  ARENA_LANTERN_RADIUS: number;
+  ARENA_PLANT_COUNT: number;
+  ARENA_PLANT_RING_SCALE: number;
+  ARENA_PLANT_RADIUS: number;
   PLAYER_COLLISION_PADDING: number;
 }
 
@@ -59,23 +74,11 @@ export class ArenaPhysics {
       return false;
     }
 
-    const currentDistanceSq = (previousPosition.x * previousPosition.x) + (previousPosition.z * previousPosition.z);
-    const deltaX = nextPosition.x - previousPosition.x;
-    const deltaZ = nextPosition.z - previousPosition.z;
-
-    if (currentDistanceSq > 0.000001) {
-      const currentDistance = Math.sqrt(currentDistanceSq);
-      const normalX = previousPosition.x / currentDistance;
-      const normalZ = previousPosition.z / currentDistance;
-      const outwardSpeed = (deltaX * normalX) + (deltaZ * normalZ);
-
-      if (outwardSpeed > 0) {
-        nextPosition.x -= normalX * outwardSpeed;
-        nextPosition.z -= normalZ * outwardSpeed;
-      }
-    }
-
-    this.clampPositionToArena(nextPosition, radius, skin);
+    const distance = Math.sqrt(nextDistanceSq);
+    const scale = effectiveLimit / distance;
+    nextPosition.x *= scale;
+    nextPosition.z *= scale;
+    
     return true;
   }
 
@@ -98,6 +101,68 @@ export class ArenaPhysics {
     return this.cachedPosts;
   }
 
+  private getRingObstacleCircles(count: number, ringScale: number, radius: number): ArenaObstacleCircle[] {
+    if (count <= 0 || radius <= 0) {
+      return [];
+    }
+
+    const ringRadius = this.config.WORLD_SIZE * ringScale;
+
+    return Array.from({ length: count }, (_, index) => {
+      const angle = (Math.PI * 2 * index) / count;
+      return {
+        x: Math.cos(angle) * ringRadius,
+        z: Math.sin(angle) * ringRadius,
+        radius,
+      };
+    });
+  }
+
+  getArenaObstacleCircles(): ArenaObstacleCircle[] {
+    return [
+      ...this.getRingObstacleCircles(
+        this.config.ARENA_POST_COUNT,
+        this.config.ARENA_POST_RING_SCALE,
+        this.config.ARENA_POST_RADIUS,
+      ),
+      ...this.getRingObstacleCircles(
+        this.config.ARENA_MONOLITH_COUNT,
+        this.config.ARENA_MONOLITH_RING_SCALE,
+        this.config.ARENA_MONOLITH_RADIUS,
+      ),
+      ...this.getRingObstacleCircles(
+        this.config.ARENA_LANTERN_COUNT,
+        this.config.ARENA_LANTERN_RING_SCALE,
+        this.config.ARENA_LANTERN_RADIUS,
+      ),
+      ...this.getRingObstacleCircles(
+        this.config.ARENA_PLANT_COUNT,
+        this.config.ARENA_PLANT_RING_SCALE,
+        this.config.ARENA_PLANT_RADIUS,
+      ),
+    ];
+  }
+
+  private getCollisionObstacleCircles(): ArenaObstacleCircle[] {
+    return [
+      ...this.getRingObstacleCircles(
+        this.config.ARENA_MONOLITH_COUNT,
+        this.config.ARENA_MONOLITH_RING_SCALE,
+        this.config.ARENA_MONOLITH_RADIUS,
+      ),
+      ...this.getRingObstacleCircles(
+        this.config.ARENA_LANTERN_COUNT,
+        this.config.ARENA_LANTERN_RING_SCALE,
+        this.config.ARENA_LANTERN_RADIUS,
+      ),
+      ...this.getRingObstacleCircles(
+        this.config.ARENA_PLANT_COUNT,
+        this.config.ARENA_PLANT_RING_SCALE,
+        this.config.ARENA_PLANT_RADIUS,
+      ),
+    ];
+  }
+
   resolveObstacleSlide(
     previousPosition: ArenaPosition,
     nextPosition: ArenaPosition,
@@ -116,8 +181,6 @@ export class ArenaPhysics {
       return false;
     }
 
-    const deltaX = nextPosition.x - previousPosition.x;
-    const deltaZ = nextPosition.z - previousPosition.z;
     let normalX = nextDx;
     let normalZ = nextDz;
     let normalDistanceSq = nextDistanceSq;
@@ -144,27 +207,27 @@ export class ArenaPhysics {
     normalX /= normalDistance;
     normalZ /= normalDistance;
 
-    const outwardSpeed = (deltaX * normalX) + (deltaZ * normalZ);
-    if (outwardSpeed > 0) {
-      nextPosition.x -= normalX * outwardSpeed;
-      nextPosition.z -= normalZ * outwardSpeed;
-    }
-
     nextPosition.x = obstaclePosition.x + (normalX * effectiveDistance);
     nextPosition.z = obstaclePosition.z + (normalZ * effectiveDistance);
     return true;
   }
 
   resolvePostCollisions(previousPosition: ArenaPosition, nextPosition: ArenaPosition, radius = 0): boolean {
-    const posts = this.getArenaPosts();
-    const obstacleRadius = this.config.ARENA_POST_RADIUS + this.config.PLAYER_COLLISION_PADDING;
+    const obstacles = this.getCollisionObstacleCircles();
     const skin = this.config.ARENA_EDGE_SKIN || 0;
     let corrected = false;
 
     for (let pass = 0; pass < 2; pass += 1) {
       let passCorrected = false;
-      for (const obstaclePosition of posts) {
-        if (this.resolveObstacleSlide(previousPosition, nextPosition, radius, obstaclePosition, obstacleRadius, skin)) {
+      for (const obstaclePosition of obstacles) {
+        if (this.resolveObstacleSlide(
+          previousPosition,
+          nextPosition,
+          radius,
+          obstaclePosition,
+          obstaclePosition.radius + this.config.PLAYER_COLLISION_PADDING,
+          skin,
+        )) {
           passCorrected = true;
           corrected = true;
         }

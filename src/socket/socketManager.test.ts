@@ -28,7 +28,6 @@ describe('SocketManager', () => {
     const io = createMockIo();
     const gameState = {
       joinPlayer: vi.fn().mockReturnValue({ error: 'Invalid nickname' }),
-      checkPassiveConsumption: vi.fn().mockReturnValue(null),
     };
 
     const manager = new SocketManager(io, gameState as never);
@@ -40,22 +39,13 @@ describe('SocketManager', () => {
     manager.destroy();
   });
 
-  it('emits consumption and scores when movement triggers consume', () => {
+  it('broadcasts player movement when movement is accepted', () => {
     const io = createMockIo();
-    const consumed = {
-      winner: { id: 'a' },
-      loser: { id: 'b' },
-      transferredScore: 10,
-      consumedPosition: { x: 0, y: 0, z: 0 },
-    };
 
     const gameState = {
       updatePlayerPosition: vi.fn().mockReturnValue({
         player: { id: 'a', position: { x: 0, y: 0, z: 0 } },
-        consumed,
       }),
-      getScoreMap: vi.fn().mockReturnValue({ a: 10, b: 0 }),
-      checkPassiveConsumption: vi.fn().mockReturnValue(null),
     };
 
     const manager = new SocketManager(io, gameState as never);
@@ -65,14 +55,10 @@ describe('SocketManager', () => {
       position: { x: 1, y: 0, z: 1 },
     });
 
-    expect(io.emit).toHaveBeenCalledWith('playerConsumed', {
-      winner: consumed.winner,
-      loser: consumed.loser,
-      transferredScore: consumed.transferredScore,
-      consumedPosition: consumed.consumedPosition,
+    expect(socket.broadcast.emit).toHaveBeenCalledWith('playerMoved', {
+      id: 'a',
+      position: { x: 0, y: 0, z: 0 },
     });
-    expect(io.emit).toHaveBeenCalledWith('updateScores', { a: 10, b: 0 });
-    expect(socket.emit).toHaveBeenCalledWith('playerState', expect.objectContaining({ syncMode: 'consumed' }));
     manager.destroy();
   });
 
@@ -96,7 +82,6 @@ describe('SocketManager', () => {
         scores: { 'player-1': 15 },
       }),
       respawnBall: vi.fn().mockReturnValue({ id: 'ball-2' }),
-      checkPassiveConsumption: vi.fn().mockReturnValue(null),
     };
 
     const manager = new SocketManager(io, gameState as never);

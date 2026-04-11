@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import gameConfig from '../config/gameConfig';
 import GameState from './GameState';
 
@@ -12,71 +12,99 @@ function setupTwoPlayers() {
   const playerA = state.players[aId];
   const playerB = state.players[bId];
 
-  // Make player A reliably bigger than player B for consume checks.
+  // Keep distinct scores for scaling checks.
   playerA.score = 60;
   playerB.score = 10;
 
-  // Keep both close enough for contact-based consume validation.
+  // Keep both close for push/collision validation when needed.
   playerA.position = { x: 0, y: 0, z: 0 };
   playerB.position = { x: 0.3, y: 0, z: 0 };
 
   return { state, playerA, playerB, aId, bId };
 }
 
-describe('GameState consume intent rules', () => {
-  it('does not consume on overlap without explicit intent', () => {
-    const { state, aId } = setupTwoPlayers();
-
-    const consumed = state.resolvePlayerConsumption(aId, Date.now());
-
-    expect(consumed).toBeNull();
-  });
-
-  it('consumes when consume intent is triggered explicitly', () => {
-    const { state, playerA, playerB } = setupTwoPlayers();
-    const now = Date.now();
-
-    const result = state.triggerConsumeIntent(playerA.socketId, now);
-
-    expect(result.consumed).toBeTruthy();
-    expect(result.consumed.winner.id).toBe(playerA.id);
-    expect(result.consumed.loser.id).toBe(playerB.id);
-    expect(state.players[playerB.id].score).toBe(0);
-  });
-
-  it('grants consume intent during dash window', () => {
+describe('GameState core rules', () => {
+  it('applies dash invulnerability window', () => {
     const { state, playerA } = setupTwoPlayers();
     const now = Date.now();
 
     const dash = state.activateDash(playerA.socketId, now);
     expect(dash.error).toBeUndefined();
-    expect(state.players[playerA.id].consumeIntentUntil).toBeGreaterThan(now);
-    expect(state.hasConsumeIntent(state.players[playerA.id], now + 1)).toBe(true);
+    expect(state.players[playerA.id].invulnerableUntil).toBeGreaterThan(now);
+    expect(state.isInvulnerable(state.players[playerA.id], now + 1)).toBe(true);
   });
 
-  it('expires consume intent after window timeout', () => {
+  it('grants five seconds of unlimited dash after collecting INFINITY_DASHES', () => {
+    const state = new GameState(gameConfig);
+    const join = state.joinPlayer('socket-dash', 'Dash', 'player-dash');
+    const player = state.players[join.player.id];
+    const now = Date.now();
+
+    state.balls = {
+      'ball-double-dash': {
+        id: 'ball-double-dash',
+        type: 'INFINITY_DASHES',
+        value: gameConfig.BALL_TYPES.INFINITY_DASHES.value,
+        color: gameConfig.BALL_TYPES.INFINITY_DASHES.color,
+        position: { x: player.position.x, y: 0, z: player.position.z },
+      },
+    };
+
+    const collected = state.collectBall(player.socketId, 'ball-double-dash');
+    if (!collected.player) {
+      throw new Error('Expected collected player data');
+    }
+    expect(collected.player.dashUnlimitedUntil).toBeGreaterThanOrEqual(now + gameConfig.INFINITY_DASHES_DURATION_MS - 1);
+
+    const firstDash = state.activateDash(player.socketId, now);
+    const secondDash = state.activateDash(player.socketId, now + 100);
+
+    expect(firstDash.error).toBeUndefined();
+    expect(secondDash.error).toBeUndefined();
+  });
+
+  it('spawns INFINITY_DASHES only below the 10 percent threshold', () => {
+    const state = new GameState(gameConfig);
+    const positionSpy = vi.spyOn(state, 'getRandomArenaPosition').mockReturnValue({ x: 0, z: 0 });
+    const randomSpy = vi
+      .spyOn(Math, 'random')
+      .mockImplementationOnce(() => 0.5)
+      .mockImplementationOnce(() => 0.09);
+
+    try {
+      const ball = state.createBall();
+      expect(ball.type).toBe('INFINITY_DASHES');
+    } finally {
+      positionSpy.mockRestore();
+      randomSpy.mockRestore();
+    }
+  });
+
+  it('keeps non infinity dashes rolls above the 10 percent threshold', () => {
+    const state = new GameState(gameConfig);
+    const positionSpy = vi.spyOn(state, 'getRandomArenaPosition').mockReturnValue({ x: 0, z: 0 });
+    const randomSpy = vi
+      .spyOn(Math, 'random')
+      .mockImplementationOnce(() => 0.5)
+      .mockImplementationOnce(() => 0.11);
+
+    try {
+      const ball = state.createBall();
+      expect(ball.type).not.toBe('INFINITY_DASHES');
+    } finally {
+      positionSpy.mockRestore();
+      randomSpy.mockRestore();
+    }
+  });
+
+  it('does not apply movement correction for overlapping players without movement', () => {
     const { state, playerA } = setupTwoPlayers();
-    const now = Date.now();
+    const before = { ...playerA.position };
 
-    state.triggerConsumeIntent(playerA.socketId, now);
+    const result = state.updatePlayerPosition(playerA.socketId, before);
 
-    expect(state.hasConsumeIntent(playerA, now + 1)).toBe(true);
-    expect(
-      state.hasConsumeIntent(
-        playerA,
-        now + gameConfig.CONSUME_INTENT_WINDOW_MS + 1,
-      ),
-    ).toBe(false);
-  });
-
-  it('does not consume invulnerable target even with intent', () => {
-    const { state, playerA, playerB } = setupTwoPlayers();
-    const now = Date.now();
-
-    playerB.invulnerableUntil = now + 2000;
-    const result = state.triggerConsumeIntent(playerA.socketId, now);
-
-    expect(result.consumed).toBeUndefined();
+    expect(result.error).toBeUndefined();
+    expect(result.player).toBeDefined();
   });
 
   it('corrects movement when player attempts to leave arena boundary', () => {
@@ -151,5 +179,32 @@ describe('GameState consume intent rules', () => {
 
     expect(result.awardedValue).toBe(scoreAfter - scoreBefore);
     expect(result.awardedValue).toBeGreaterThan(0);
+  });
+
+  it('keeps player spawn away from arena obstacles', () => {
+    const state = new GameState(gameConfig);
+    state.players = {};
+    state.balls = {};
+
+    const randomSpy = vi
+      .spyOn(Math, 'random')
+      .mockImplementationOnce(() => 0)
+      .mockImplementationOnce(() => 1)
+      .mockImplementationOnce(() => 0)
+      .mockImplementationOnce(() => 0);
+
+    try {
+      const spawn = state.getSpawnPosition();
+      const obstacles = state.arenaPhysics.getArenaObstacleCircles();
+
+      obstacles.forEach((obstacle) => {
+        const dx = spawn.x - obstacle.x;
+        const dz = spawn.z - obstacle.z;
+        const distance = Math.hypot(dx, dz);
+        expect(distance).toBeGreaterThanOrEqual(obstacle.radius + gameConfig.PLAYER_SPAWN_CLEARANCE - 0.0001);
+      });
+    } finally {
+      randomSpy.mockRestore();
+    }
   });
 });

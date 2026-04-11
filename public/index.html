@@ -1,1024 +1,199 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pega Bola 3000</title>
-  <link rel="icon" href="/favicon.ico?v=20260409" sizes="any">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20260409">
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Bungee&family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@500;700&family=Space+Grotesk:wght@400;600;700&display=swap');
-
-    :root {
-      --bg-ink: #081014;
-      --bg-smoke: rgba(8, 16, 20, 0.7);
-      --panel: rgba(8, 18, 22, 0.78);
-      --panel-strong: rgba(10, 22, 28, 0.9);
-      --line: rgba(255, 225, 143, 0.26);
-      --gold: #ffd166;
-      --mint: #7bdff2;
-      --cream: #fff5d8;
-      --danger: #ff7f7f;
-      --warning: #ffbf69;
-      --shadow: 0 28px 80px rgba(0, 0, 0, 0.38);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    html, body {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      overflow: hidden;
-      background:
-        radial-gradient(circle at top, rgba(255, 209, 102, 0.18), transparent 28%),
-        radial-gradient(circle at bottom right, rgba(123, 223, 242, 0.14), transparent 30%),
-        #0a1419;
-      color: var(--cream);
-      font-family: 'Fraunces', serif;
-    }
-
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background:
-        linear-gradient(135deg, rgba(255, 209, 102, 0.08), transparent 34%),
-        linear-gradient(315deg, rgba(123, 223, 242, 0.08), transparent 34%);
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    #app-shell,
-    #game-root {
-      position: relative;
-      width: 100%;
-      height: 100%;
-    }
-
-    #game-root canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-    }
-
-    .floating-value-layer {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      overflow: hidden;
-      z-index: 14;
-    }
-
-    .floating-value-popup {
-      --popup-accent: #ffd166;
-      position: absolute;
-      left: 0;
-      top: 0;
-      min-width: 9.4rem;
-      padding: 0.22rem 1.5rem 0.3rem;
-      border-radius: 999px;
-      border: 2px solid var(--popup-accent);
-      background:
-        linear-gradient(180deg, rgba(255, 248, 226, 0.14), rgba(255, 248, 226, 0.02)),
-        rgba(8, 14, 18, 0.92);
-      color: #fff9e8;
-      font-family: 'Bungee', cursive;
-      font-size: clamp(1rem, 1.3vw, 1.25rem);
-      letter-spacing: 0.02em;
-      line-height: 1;
-      text-align: center;
-      white-space: nowrap;
-      transform-origin: center;
-      will-change: transform, opacity;
-      text-shadow:
-        0 1px 0 rgba(0, 0, 0, 0.95),
-        0 0 12px rgba(0, 0, 0, 0.65);
-      box-shadow:
-        0 0 0 2px rgba(8, 16, 20, 0.74) inset,
-        0 8px 24px rgba(0, 0, 0, 0.42),
-        0 0 28px rgba(0, 0, 0, 0.28);
-    }
-
-    @keyframes menuCardEnter {
-      from {
-        opacity: 0;
-        transform: translateY(28px) scale(0.96);
-        filter: blur(6px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-        filter: blur(0);
-      }
-    }
-
-    @keyframes fadeStagger {
-      from { opacity: 0; transform: translateY(12px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    @keyframes glowPulse {
-      0%, 100% { opacity: 0.45; }
-      50% { opacity: 0.85; }
-    }
-
-    @keyframes borderShimmer {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
-
-    @keyframes floatDot {
-      0%, 100% { transform: translateY(0) scale(1); opacity: 0.35; }
-      50% { transform: translateY(-18px) scale(1.3); opacity: 0.65; }
-    }
-
-    .overlay {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-      background: linear-gradient(180deg, rgba(7, 12, 15, 0.35), rgba(7, 12, 15, 0.68));
-      transition: opacity 320ms cubic-bezier(0.4, 0, 0.2, 1), visibility 320ms ease;
-      z-index: 20;
-    }
-
-    .overlay.is-hidden {
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-    }
-
-    .menu-card {
-      position: relative;
-      width: min(580px, 100%);
-      padding: 36px 32px 32px;
-      border-radius: 32px;
-      background:
-        radial-gradient(ellipse at 20% 0%, rgba(255, 209, 102, 0.12), transparent 50%),
-        radial-gradient(ellipse at 80% 100%, rgba(123, 223, 242, 0.1), transparent 50%),
-        rgba(8, 18, 24, 0.92);
-      border: 1px solid rgba(255, 225, 143, 0.18);
-      box-shadow:
-        0 0 0 1px rgba(255, 225, 143, 0.06),
-        0 32px 80px rgba(0, 0, 0, 0.5),
-        0 0 120px rgba(255, 209, 102, 0.06);
-      backdrop-filter: blur(24px) saturate(1.3);
-      animation: menuCardEnter 600ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-      overflow: hidden;
-    }
-
-    .menu-card::before {
-      content: '';
-      position: absolute;
-      inset: -1px;
-      border-radius: 33px;
-      padding: 1px;
-      background: linear-gradient(
-        135deg,
-        rgba(255, 209, 102, 0.35),
-        transparent 40%,
-        transparent 60%,
-        rgba(123, 223, 242, 0.25)
-      );
-      background-size: 200% 200%;
-      animation: borderShimmer 6s ease infinite;
-      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    .menu-card::after {
-      content: '';
-      position: absolute;
-      top: -40%;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 160%;
-      height: 50%;
-      background: radial-gradient(
-        ellipse at center,
-        rgba(255, 209, 102, 0.1),
-        transparent 70%
-      );
-      animation: glowPulse 4s ease-in-out infinite;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    .menu-card > * {
-      position: relative;
-      z-index: 1;
-    }
-
-    .menu-dots {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      z-index: 0;
-      overflow: hidden;
-      border-radius: 32px;
-    }
-
-    .menu-dot {
-      position: absolute;
-      width: 4px;
-      height: 4px;
-      border-radius: 50%;
-      background: var(--gold);
-      animation: floatDot 5s ease-in-out infinite;
-    }
-
-    .menu-dot:nth-child(1) { left: 8%; top: 18%; animation-delay: 0s; animation-duration: 5.2s; }
-    .menu-dot:nth-child(2) { left: 92%; top: 24%; animation-delay: 1.3s; animation-duration: 4.8s; background: var(--mint); }
-    .menu-dot:nth-child(3) { left: 14%; top: 78%; animation-delay: 2.6s; animation-duration: 6.1s; background: var(--mint); }
-    .menu-dot:nth-child(4) { left: 85%; top: 72%; animation-delay: 0.8s; animation-duration: 5.5s; }
-    .menu-dot:nth-child(5) { left: 50%; top: 92%; animation-delay: 3.1s; animation-duration: 4.4s; background: var(--mint); }
-
-    .menu-stagger-1 { animation: fadeStagger 500ms 100ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-    .menu-stagger-2 { animation: fadeStagger 500ms 200ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-    .menu-stagger-3 { animation: fadeStagger 500ms 300ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-    .menu-stagger-4 { animation: fadeStagger 500ms 400ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-    .menu-stagger-5 { animation: fadeStagger 500ms 500ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-    .menu-stagger-6 { animation: fadeStagger 500ms 600ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-    .menu-stagger-7 { animation: fadeStagger 500ms 700ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 14px;
-      border-radius: 999px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.72rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--gold);
-      background: rgba(255, 209, 102, 0.1);
-      border: 1px solid rgba(255, 209, 102, 0.14);
-    }
-
-    .eyebrow-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--gold);
-      animation: glowPulse 2s ease-in-out infinite;
-    }
-
-    h1 {
-      margin: 16px 0 8px;
-      font-family: 'Bungee', cursive;
-      font-size: clamp(2.2rem, 6.5vw, 4rem);
-      line-height: 0.94;
-      letter-spacing: 0.02em;
-      color: var(--cream);
-      text-transform: uppercase;
-      text-wrap: balance;
-      text-shadow:
-        0 2px 0 rgba(0, 0, 0, 0.6),
-        0 10px 30px rgba(0, 0, 0, 0.35),
-        0 0 60px rgba(255, 209, 102, 0.08);
-    }
-
-    .tagline {
-      margin: 0 0 18px;
-      color: rgba(255, 245, 216, 0.72);
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 0.94rem;
-      line-height: 1.6;
-    }
-
-    .tagline em {
-      color: var(--gold);
-      font-style: normal;
-      font-weight: 600;
-    }
-
-    .input-label {
-      display: block;
-      margin-bottom: 8px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.82rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: rgba(255, 245, 216, 0.72);
-    }
-
-    input,
-    button {
-      width: 100%;
-      border: 0;
-      border-radius: 18px;
-    }
-
-    input[type='text'] {
-      padding: 16px 18px;
-      font: inherit;
-      font-size: 1.08rem;
-      color: var(--cream);
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      outline: none;
-      transition: border-color 160ms ease, transform 160ms ease;
-    }
-
-    input[type='text']:focus {
-      border-color: rgba(123, 223, 242, 0.5);
-      transform: translateY(-1px);
-    }
-
-    select {
-      width: 100%;
-      border-radius: 14px;
-      padding: 11px 12px;
-      font: inherit;
-      font-size: 0.93rem;
-      color: var(--cream);
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      outline: none;
-      transition: border-color 160ms ease, transform 160ms ease;
-    }
-
-    select:focus {
-      border-color: rgba(123, 223, 242, 0.5);
-      transform: translateY(-1px);
-    }
-
-    select option {
-      background: var(--bg-ink);
-      color: var(--cream);
-    }
-
-    .music-mode-row {
-      margin-top: 10px;
-    }
-
-    .music-mode-label {
-      display: block;
-      margin-bottom: 8px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.72rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: rgba(255, 245, 216, 0.68);
-    }
-
-    .volume-row {
-      margin-top: 12px;
-      padding: 12px 14px;
-      border-radius: 16px;
-      background: rgba(255, 255, 255, 0.035);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .volume-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.78rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: rgba(255, 245, 216, 0.74);
-    }
-
-    .volume-actions {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    #music-volume-value {
-      color: var(--gold);
-      font-weight: 700;
-      min-width: 3ch;
-      text-align: right;
-    }
-
-    .mute-toggle {
-      width: auto;
-      margin-top: 0;
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.68rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: rgba(255, 245, 216, 0.9);
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      box-shadow: none;
-    }
-
-    .mute-toggle:hover:not(:disabled) {
-      transform: translateY(-1px);
-      box-shadow: none;
-      filter: none;
-    }
-
-    .mute-toggle[aria-pressed='true'] {
-      color: #2a1f00;
-      background: linear-gradient(135deg, #ffd166, #f7a440);
-      border-color: rgba(255, 209, 102, 0.55);
-    }
-
-    input[type='range'] {
-      appearance: none;
-      -webkit-appearance: none;
-      width: 100%;
-      height: 6px;
-      border-radius: 999px;
-      background: linear-gradient(90deg, rgba(255, 209, 102, 0.88), rgba(123, 223, 242, 0.88));
-      outline: none;
-      cursor: pointer;
-    }
-
-    input[type='range']::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      border: 2px solid rgba(8, 18, 22, 0.75);
-      background: var(--cream);
-      box-shadow: 0 0 0 3px rgba(255, 209, 102, 0.2);
-    }
-
-    input[type='range']::-moz-range-thumb {
-      width: 18px;
-      height: 18px;
-      border: 2px solid rgba(8, 18, 22, 0.75);
-      border-radius: 50%;
-      background: var(--cream);
-      box-shadow: 0 0 0 3px rgba(255, 209, 102, 0.2);
-    }
-
-    button {
-      margin-top: 14px;
-      padding: 17px 18px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.95rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: #1f1600;
-      background: linear-gradient(135deg, #ffd166, #f7a440);
-      box-shadow: 0 14px 32px rgba(247, 164, 64, 0.28);
-      cursor: pointer;
-      transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
-    }
-
-    button:hover:not(:disabled) {
-      transform: translateY(-2px) scale(1.01);
-      box-shadow: 0 18px 38px rgba(247, 164, 64, 0.34);
-      filter: saturate(1.05);
-    }
-
-    button:disabled {
-      opacity: 0.72;
-      cursor: progress;
-    }
-
-    .status-pill {
-      display: inline-flex;
-      margin-top: 14px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: rgba(255, 255, 255, 0.05);
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.78rem;
-      color: rgba(255, 245, 216, 0.82);
-    }
-
-    .status-pill[data-tone='warm'],
-    .badge[data-tone='warning'] {
-      color: var(--warning);
-      border-color: rgba(255, 191, 105, 0.32);
-    }
-
-    .status-pill[data-tone='danger'],
-    .badge[data-tone='danger'],
-    #message-toast[data-tone='danger'] {
-      color: var(--danger);
-      border-color: rgba(255, 127, 127, 0.32);
-    }
-
-    .status-pill[data-tone='live'],
-    .badge[data-tone='live'],
-    #message-toast[data-tone='live'] {
-      color: var(--mint);
-      border-color: rgba(123, 223, 242, 0.32);
-    }
-
-    .menu-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 20px;
-    }
-
-    .menu-chip {
-      padding: 12px 14px;
-      border-radius: 16px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      transition: background 220ms ease, border-color 220ms ease;
-    }
-
-    .menu-chip:hover {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(255, 225, 143, 0.18);
-    }
-
-    .menu-chip-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 5px;
-    }
-
-    .menu-chip strong {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.74rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--gold);
-    }
-
-    .menu-kbd {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 24px;
-      padding: 2px 6px;
-      border-radius: 6px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.68rem;
-      font-weight: 700;
-      color: rgba(255, 245, 216, 0.9);
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-      letter-spacing: 0;
-      line-height: 1.4;
-    }
-
-    .menu-chip span {
-      display: block;
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 0.84rem;
-      color: rgba(255, 245, 216, 0.68);
-      line-height: 1.4;
-    }
-
-    .menu-divider {
-      height: 1px;
-      margin: 18px 0 14px;
-      background: linear-gradient(90deg, transparent, rgba(255, 225, 143, 0.18), transparent);
-    }
-
-    #hud {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
-      align-content: start;
-      gap: 16px;
-      padding: 18px;
-      pointer-events: none;
-      z-index: 10;
-    }
-
-    .hud-stack {
-      display: grid;
-      gap: 12px;
-      justify-items: start;
-    }
-
-    .panel,
-    .badge {
-      border-radius: 20px;
-      background: var(--panel);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(12px);
-      box-shadow: 0 20px 44px rgba(0, 0, 0, 0.22);
-    }
-
-    .badge {
-      padding: 10px 14px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.76rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: rgba(255, 245, 216, 0.78);
-    }
-
-    .panel {
-      padding: 14px 16px;
-      min-width: 210px;
-    }
-
-    .stat-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .stat-label {
-      display: block;
-      margin-bottom: 6px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.74rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: rgba(255, 245, 216, 0.62);
-    }
-
-    .stat-value {
-      font-family: 'Bungee', cursive;
-      font-size: 1.7rem;
-      color: var(--cream);
-      line-height: 1;
-    }
-
-    #status-line,
-    #hud-tip {
-      margin: 0;
-      color: rgba(255, 245, 216, 0.82);
-      line-height: 1.5;
-    }
-
-    #status-chip {
-      max-width: 240px;
-    }
-
-    #dash-panel {
-      position: absolute;
-      left: 50%;
-      bottom: 18px;
-      transform: translateX(-50%);
-      min-width: 280px;
-      width: min(420px, calc(100vw - 36px));
-      display: grid;
-      gap: 8px;
-      padding: 12px 14px;
-      z-index: 12;
-      pointer-events: none;
-    }
-
-    .dash-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.76rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: rgba(255, 245, 216, 0.74);
-    }
-
-    #dash-label {
-      color: var(--gold);
-      font-weight: 700;
-    }
-
-    #dash-cooldown-track {
-      position: relative;
-      width: 100%;
-      height: 10px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.1);
-      overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-    }
-
-    #dash-cooldown-fill {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      transform-origin: left center;
-      transform: scaleX(1);
-      background: linear-gradient(90deg, #ffd166, #7bdff2);
-      transition: transform 90ms linear;
-    }
-
-    #instructions-panel {
-      transition: opacity 900ms ease, transform 900ms ease;
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    #instructions-panel.is-fading {
-      opacity: 0;
-      transform: translateY(-8px);
-    }
-
-    .leaderboard-title {
-      margin: 0 0 10px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.82rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--gold);
-    }
-
-    #leaderboard {
-      display: grid;
-      gap: 8px;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    #killfeed {
-      display: grid;
-      gap: 8px;
-      min-width: 260px;
-      padding: 12px;
-    }
-
-    .killfeed-entry {
-      padding: 10px 12px;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.78rem;
-      line-height: 1.45;
-      color: rgba(255, 245, 216, 0.85);
-    }
-
-    .killfeed-entry[data-tone='live'] {
-      color: var(--mint);
-      border-color: rgba(123, 223, 242, 0.24);
-    }
-
-    .killfeed-entry[data-tone='warning'] {
-      color: var(--warning);
-      border-color: rgba(255, 191, 105, 0.24);
-    }
-
-    .killfeed-entry[data-tone='danger'] {
-      color: var(--danger);
-      border-color: rgba(255, 127, 127, 0.24);
-    }
-
-    .leaderboard-entry {
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      gap: 10px;
-      align-items: center;
-      padding: 10px 12px;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.04);
-      color: rgba(255, 245, 216, 0.85);
-      font-size: 0.96rem;
-    }
-
-    .leaderboard-entry[data-local='true'] {
-      background: rgba(255, 209, 102, 0.12);
-      color: var(--gold);
-    }
-
-    .leaderboard-rank,
-    .leaderboard-score {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.84rem;
-    }
-
-    #message-toast,
-    #pickup-flash {
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 12px 16px;
-      border-radius: 16px;
-      background: rgba(8, 18, 22, 0.86);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 0.86rem;
-      backdrop-filter: blur(12px);
-      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
-      z-index: 12;
-    }
-
-    #message-toast {
-      top: 20px;
-      opacity: 0;
-      transition: opacity 160ms ease, transform 160ms ease;
-    }
-
-    #message-toast.is-visible {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
-
-    #pickup-flash {
-      bottom: 26px;
-      font-size: 1.05rem;
-      color: var(--gold);
-      border-color: rgba(255, 209, 102, 0.26);
-      opacity: 0;
-    }
-
-    #pickup-flash.is-animating {
-      animation: pickup-burst 1.15s ease forwards;
-    }
-
-    @keyframes pickup-burst {
-      0% {
-        opacity: 0;
-        transform: translateX(-50%) translateY(12px) scale(0.88);
-      }
-      15% {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0) scale(1);
-      }
-      100% {
-        opacity: 0;
-        transform: translateX(-50%) translateY(-18px) scale(1.08);
-      }
-    }
-
-    @media (max-width: 900px) {
-      #hud {
-        grid-template-columns: 1fr;
-      }
-
-      #dash-panel {
-        bottom: 12px;
-        width: min(420px, calc(100vw - 24px));
-      }
-
-      .menu-grid {
-        grid-template-columns: 1fr 1fr;
-      }
-
-      .menu-card {
-        padding: 24px 20px 22px;
-      }
-
-      .panel {
-        min-width: 0;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div id="app-shell">
-    <div id="game-root" aria-label="Arena do Pega Bola 3000"></div>
-
-    <div id="menu-screen" class="overlay">
-      <div class="menu-card">
-        <div class="menu-dots" aria-hidden="true">
-          <div class="menu-dot"></div>
-          <div class="menu-dot"></div>
-          <div class="menu-dot"></div>
-          <div class="menu-dot"></div>
-          <div class="menu-dot"></div>
-        </div>
-        <div class="eyebrow menu-stagger-1"><span class="eyebrow-dot"></span>Multiplayer ao vivo</div>
-        <h1 class="menu-stagger-2">Pega Bola<br>3000</h1>
-        <p class="tagline menu-stagger-3">
-          O <em>único</em> jogo onde você persegue esferas luminosas, engorda até virar um problema gravitacional
-          e devora os mais fracos — tudo isso com a <em>dignidade de um pombo brigando por pão</em>.
-        </p>
-
-        <div class="menu-stagger-4">
-          <label class="input-label" for="nickname-input">Identidade descartável</label>
-          <input id="nickname-input" type="text" maxlength="16" autocomplete="off" placeholder="Alguém sem futuro">
-        </div>
-        <div class="volume-row menu-stagger-5" aria-label="Controle de volume da música">
-          <div class="volume-header">
-            <span>Trilha sonora (para mascarar seus soluços)</span>
-            <div class="volume-actions">
-              <span id="music-volume-value">8%</span>
-              <button id="music-mute-button" class="mute-toggle" type="button" aria-pressed="false" aria-label="Mutar música">Mutar</button>
-            </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pega Bola 3000</title>
+    <link rel="icon" href="/favicon.ico?v=20260409" sizes="any" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20260409" />
+    <link rel="stylesheet" href="/css/main.css" />
+  </head>
+
+  <body>
+    <div id="app-shell">
+      <div id="game-root" aria-label="Arena do Pega Bola 3000"></div>
+
+      <div id="menu-screen" class="overlay">
+        <div class="menu-card">
+          <div class="menu-dots" aria-hidden="true">
+            <div class="menu-dot"></div>
+            <div class="menu-dot"></div>
+            <div class="menu-dot"></div>
+            <div class="menu-dot"></div>
+            <div class="menu-dot"></div>
           </div>
-          <input id="music-volume-input" type="range" min="0" max="100" step="1" value="8" aria-label="Volume da música de fundo">
-          <div class="music-mode-row">
-            <label class="music-mode-label" for="music-mode-select">Escolha manual (pra quem quer controlar pelo menos algo na vida)</label>
-            <select id="music-mode-select" aria-label="Modo da trilha sonora">
-              <option value="auto">Automático aleatório</option>
-            </select>
-          </div>
-        </div>
-        <button id="play-button" class="menu-stagger-6" type="button">Aceitar meu destino</button>
-        <div id="menu-status" class="status-pill menu-stagger-6" data-tone="idle">Servidor esperando alguém corajoso — ou burro — o suficiente para entrar.</div>
 
-        <div class="menu-divider menu-stagger-7"></div>
-        <div class="menu-grid menu-stagger-7">
-          <div class="menu-chip">
-            <div class="menu-chip-header">
-              <strong>Perambular</strong>
-              <span class="menu-kbd">W</span><span class="menu-kbd">A</span><span class="menu-kbd">S</span><span class="menu-kbd">D</span>
+          <div class="menu-left">
+            <h1 class="menu-stagger-2">Pega Bola 3000</h1>
+            <p class="tagline menu-stagger-3">
+              O <em>único</em> jogo onde você engorda até virar um problema
+              gravitacional e corre atrás de pontos. <em>VIRE O TOPO</em>.
+            </p>
+
+            <div class="menu-stagger-4">
+              <label class="input-label" for="nickname-input"
+                >Identidade descartável</label
+              >
+              <input
+                id="nickname-input"
+                type="text"
+                maxlength="16"
+                autocomplete="off"
+                placeholder="Alguém sem futuro"
+              />
             </div>
-            <span>Arraste sua esfera vergonhosa pela arena.</span>
+            <div
+              class="volume-row menu-stagger-5"
+              aria-label="Controle de volume da música"
+            >
+              <div class="volume-header">
+                <span>Trilha sonora</span>
+                <div class="volume-actions">
+                  <span id="music-volume-value">8%</span>
+                  <button
+                    id="music-mute-button"
+                    class="mute-toggle"
+                    type="button"
+                    aria-pressed="false"
+                    aria-label="Mutar música"
+                  >
+                    Mutar
+                  </button>
+                </div>
+              </div>
+              <input
+                id="music-volume-input"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value="8"
+                aria-label="Volume da música de fundo"
+              />
+              <div class="music-mode-row">
+                <label class="music-mode-label" for="music-mode-select"
+                  >Escolha pra quem quer controlar algo na vida</label
+                >
+                <select
+                  id="music-mode-select"
+                  aria-label="Modo da trilha sonora"
+                >
+                  <option value="auto">Automático aleatório</option>
+                </select>
+              </div>
+            </div>
+            <button id="play-button" class="menu-stagger-6" type="button">
+              Aceitar meu destino
+            </button>
           </div>
-          <div class="menu-chip">
-            <div class="menu-chip-header">
-              <strong>Fugir</strong>
-              <span class="menu-kbd">Shift</span>
+
+          <div class="menu-right menu-stagger-7">
+            <div class="menu-right-title">Controles</div>
+            <div class="menu-grid">
+              <div class="menu-chip">
+                <div class="menu-chip-header">
+                  <strong>Perambular</strong>
+                  <span class="menu-kbd">W</span><span class="menu-kbd">A</span
+                  ><span class="menu-kbd">S</span
+                  ><span class="menu-kbd">D</span>
+                </div>
+                <span>Arraste sua esfera vergonhosa pela arena.</span>
+              </div>
+              <div class="menu-chip">
+                <div class="menu-chip-header">
+                  <strong>Fugir</strong>
+                  <span class="menu-kbd">Shift</span>
+                </div>
+                <span>Corre igual devedor sendo cobrado.</span>
+              </div>
+              <div class="menu-chip">
+                <div class="menu-chip-header">
+                  <strong>Dash</strong>
+                  <span class="menu-kbd">Space</span>
+                </div>
+                <span
+                  >Arranco patético com cooldown.</span
+                >
+              </div>
+              <div class="menu-chip">
+                <div class="menu-chip-header">
+                  <strong>Coletar</strong>
+                  <span class="menu-kbd">Auto</span>
+                </div>
+                <span>Encoste nas bolas para pontuar. Sem atalho milagroso.</span>
+              </div>
+              <div class="menu-chip">
+                <div class="menu-chip-header">
+                  <strong>Tela cheia</strong>
+                  <span class="menu-kbd">F</span>
+                </div>
+                <span>Pra ninguém ver o LinkedIn aberto atrás.</span>
+              </div>
+              <div class="menu-chip">
+                <div class="menu-chip-header">
+                  <strong>Sair</strong>
+                  <span class="menu-kbd">Esc</span>
+                </div>
+                <span>Quando a realidade bater.</span>
+              </div>
             </div>
-            <span>Corre igual devedor sendo cobrado.</span>
-          </div>
-          <div class="menu-chip">
-            <div class="menu-chip-header">
-              <strong>Dash</strong>
-              <span class="menu-kbd">Space</span>
-            </div>
-            <span>Um arranco patético com cooldown. Também ativa janela de devorar.</span>
-          </div>
-          <div class="menu-chip">
-            <div class="menu-chip-header">
-              <strong>Devorar</strong>
-              <span class="menu-kbd">R</span>
-            </div>
-            <span>Engole quem for menor que você. Não tem reembolso moral.</span>
-          </div>
-          <div class="menu-chip">
-            <div class="menu-chip-header">
-              <strong>Tela cheia</strong>
-              <span class="menu-kbd">F</span>
-            </div>
-            <span>Pra ninguém ver a aba do LinkedIn aberta atrás.</span>
-          </div>
-          <div class="menu-chip">
-            <div class="menu-chip-header">
-              <strong>Sair da tela cheia</strong>
-              <span class="menu-kbd">Esc</span>
-            </div>
-            <span>Quando a realidade bater.</span>
           </div>
         </div>
       </div>
+
+      <div id="hud" hidden>
+        <div class="hud-stack">
+          <div class="panel">
+            <div class="stat-grid">
+              <div>
+                <span class="stat-label">Score</span>
+                <span id="score-value" class="stat-value">0</span>
+              </div>
+              <div>
+                <span class="stat-label">Vítimas na arena</span>
+                <span id="player-count-value" class="stat-value">0</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="status-chip" class="badge" hidden></div>
+          <div id="dash-panel" class="panel" aria-label="Cooldown do dash">
+            <div class="dash-header">
+              <span>Dash</span>
+              <span id="dash-label">Pronto</span>
+            </div>
+            <div id="dash-cooldown-track">
+              <div id="dash-cooldown-fill"></div>
+            </div>
+          </div>
+          <div id="instructions-panel" class="panel">
+            <p id="hud-tip">
+              WASD ou setas para se mexer. Shift para correr feito devedor.
+            </p>
+          </div>
+        </div>
+
+        <div class="hud-stack" style="justify-items: stretch">
+          <div class="panel">
+            <p class="leaderboard-title">Hall da vergonha</p>
+            <ol id="leaderboard"></ol>
+          </div>
+        </div>
+      </div>
+
+      <div id="message-toast" hidden></div>
+      <div id="pickup-flash" hidden></div>
     </div>
 
-    <div id="hud" hidden>
-      <div class="hud-stack">
-        <div class="panel">
-          <div class="stat-grid">
-            <div>
-              <span class="stat-label">Score</span>
-              <span id="score-value" class="stat-value">0</span>
-            </div>
-            <div>
-              <span class="stat-label">Vítimas na arena</span>
-              <span id="player-count-value" class="stat-value">0</span>
-            </div>
-          </div>
-        </div>
-        <div class="panel">
-          <p id="status-line">Arena em banho-maria. Ninguém presta.</p>
-        </div>
-        <div id="status-chip" class="badge" hidden></div>
-        <div id="dash-panel" class="panel" aria-label="Cooldown do dash">
-          <div class="dash-header">
-            <span>Dash</span>
-            <span id="dash-label">Pronto</span>
-          </div>
-          <div id="dash-cooldown-track">
-            <div id="dash-cooldown-fill"></div>
-          </div>
-        </div>
-        <div id="instructions-panel" class="panel">
-          <p id="hud-tip">WASD ou setas para se mexer. Shift para correr feito devedor.</p>
-        </div>
-      </div>
-
-      <div class="hud-stack" style="justify-items: stretch;">
-        <div class="panel">
-          <p class="leaderboard-title">Hall da vergonha</p>
-          <ol id="leaderboard"></ol>
-        </div>
-      </div>
-    </div>
-
-    <div id="message-toast" hidden></div>
-    <div id="pickup-flash" hidden></div>
-  </div>
-
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
       }
-    }
-  </script>
-  <script src="/socket.io/socket.io.js"></script>
-  <script type="module" src="/js/main.js?v=20260410-uinotifysync1"></script>
-</body>
+    </script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="/js/main.js?v=20260410-uinotifysync1"></script>
+  </body>
 </html>

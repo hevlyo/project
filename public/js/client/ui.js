@@ -165,6 +165,7 @@ export function createUIController(elements) {
   }
 
   function setMenuStatus(text, tone = 'idle') {
+    if (!elements.menuStatus) return;
     elements.menuStatus.textContent = text;
     setToneClass(elements.menuStatus, tone);
   }
@@ -194,7 +195,7 @@ export function createUIController(elements) {
     // Connection state display removed; info shown in status line
   }
 
-  function updateHUD({ score, playerCount, leaderboard, localPlayerId, statusLine, statusChip, dashCooldownRatio, dashReady }) {
+  function updateHUD({ score, playerCount, leaderboard, localPlayerId, statusLine, statusChip, dashCooldownRatio, dashReady, dashUnlimited, dashRemainingMs }) {
     const scoreText = String(score);
     if (state.lastScoreText !== scoreText) {
       elements.scoreValue.textContent = scoreText;
@@ -207,7 +208,7 @@ export function createUIController(elements) {
       state.lastPlayerCountText = playerCountText;
     }
 
-    if (state.lastStatusLineText !== statusLine) {
+    if (elements.statusLine && state.lastStatusLineText !== statusLine) {
       elements.statusLine.textContent = statusLine;
       state.lastStatusLineText = statusLine;
     }
@@ -241,7 +242,7 @@ export function createUIController(elements) {
       const safeRatio = Number.isFinite(dashCooldownRatio)
         ? Math.max(0, Math.min(1, dashCooldownRatio))
         : 1;
-      const dashLabel = dashReady ? 'Pronto' : 'Recarregando';
+      const dashLabel = dashUnlimited ? 'Ilimitado!' : (dashReady ? 'Pronto' : `${(dashRemainingMs / 1000).toFixed(1)}s`);
 
       if (state.lastDashLabel !== dashLabel) {
         elements.dashLabel.textContent = dashLabel;
@@ -431,6 +432,15 @@ export function createUIController(elements) {
     state.killfeedTimers.clear();
   }
 
+  function triggerDashError() {
+    if (elements.dashPanel) {
+      elements.dashPanel.classList.remove('pulse-error');
+      // Forçar reflow para reiniciar a animação CSS
+      void elements.dashPanel.offsetWidth;
+      elements.dashPanel.classList.add('pulse-error');
+    }
+  }
+
   return {
     bindStart,
     getNickname,
@@ -457,6 +467,7 @@ export function createUIController(elements) {
     showPickup,
     showKillfeed,
     showSessionInstructions,
+    triggerDashError,
     destroy,
   };
 }
