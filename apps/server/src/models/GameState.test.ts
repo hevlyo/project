@@ -341,7 +341,7 @@ describe('GameState core rules', () => {
     expect(state.collectBall('socket-move', 'missing-ball').error).toBe('Ball not found');
   });
 
-  it('marks movement as corrected when post-collision correction is applied', () => {
+  it('marks movement corrected when only post-collision adjusts the position', () => {
     const state = new GameState(gameConfig);
     state.joinPlayer('socket-post', 'Post', 'player-post');
 
@@ -411,6 +411,19 @@ describe('GameState core rules', () => {
 
     state.collectBall('socket-collect', 'day');
     expect(state.isNightMode).toBe(false);
+
+    state.isNightMode = true;
+    state.balls = {
+      normal: {
+        id: 'normal',
+        type: 'NORMAL',
+        value: 10,
+        color: 0xffffff,
+        position: { x: 0, y: 0, z: 0 },
+      },
+    };
+    state.collectBall('socket-collect', 'normal');
+    expect(state.isNightMode).toBe(true);
   });
 
   it('resets timed states and invulnerability checks', () => {

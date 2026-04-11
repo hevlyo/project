@@ -19,5 +19,10 @@
     "test:e2e": "bun run --cwd apps/server test:e2e",
     "test:e2e:install": "bun run --cwd apps/server test:e2e:install",
     "deploy": "bash scripts/deploy-production.sh"
+  },
+  "devDependencies": {
+    "eslint": ">=10",
+    "eslint-config-xo": "^0.51.0",
+    "typescript": ">=5.9.0"
   }
 }

@@ -25,7 +25,7 @@ afterEach(() => {
 
 describe('SocketManager', () => {
   it('throws when io instance is invalid', () => {
-    expect(() => new SocketManager({} as never)).toThrowError('SocketManager requires a Socket.IO server instance');
+    expect(() => new SocketManager({} as never)).toThrow('SocketManager requires a Socket.IO server instance');
   });
 
   it('registers socket handlers on connection', () => {

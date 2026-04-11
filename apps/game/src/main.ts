@@ -2,6 +2,7 @@ import { io } from 'socket.io-client';
 import { SETTINGS, STORAGE_KEY, SESSION_STORAGE_KEY, JOIN_MESSAGES, DISCONNECT_MESSAGES, HUD_TIPS, isTimedStateActive, lerpAngle, normalizeNickname, randomItem, round, scoreToScale } from './client/config.js';
 import { resolveDashCooldownRatio, resolveStatusChip, resolveStatusLine } from './client/gameHud.js';
 import { applyInputCommand, createInputState, resetInputState as resetInputKeys, resolveKeyDownCommand, resolveKeyUpCommand } from './client/inputController.js';
+import { buildAmbientTrackUrls, buildMusicModeOptions } from './client/musicCatalog.js';
 import { SceneController, THREE } from './client/scene.js';
 import { createUIController } from './client/ui.js';
 
@@ -41,7 +42,7 @@ class GameApp {
     this.nextHudUpdateAt = 0;
     this.ambienceStarted = false;
     this.ambientAudio = null;
-    this.ambientTrackUrls = this.buildAmbientTrackUrls();
+    this.ambientTrackUrls = buildAmbientTrackUrls();
     this.ambientPlaylist = [];
     this.ambientTrackIndex = 0;
     this.ambientTrackPlayCount = 0;
@@ -72,7 +73,7 @@ class GameApp {
     this.ui.setNickname(this.restoreNickname());
     this.ui.setMusicVolume(this.musicVolume);
     this.ui.setMusicMuted(this.musicVolume === 0);
-    this.ui.setMusicModeOptions(this.buildMusicModeOptions(), this.musicMode);
+    this.ui.setMusicModeOptions(buildMusicModeOptions(), this.musicMode);
     this.ui.bindMusicVolumeChange((volume) => this.setMusicVolume(volume));
     this.ui.bindMusicMuteToggle(() => this.toggleMusicMuted());
     this.ui.bindMusicModeChange((mode) => this.setMusicMode(mode));
@@ -142,7 +143,7 @@ class GameApp {
 
   restoreMusicMode() {
     const fallback = 'auto';
-    const validModes = new Set(this.buildMusicModeOptions().map((option) => option.value));
+    const validModes = new Set(buildMusicModeOptions().map((option) => option.value));
 
     try {
       const stored = localStorage.getItem(MUSIC_MODE_STORAGE_KEY);
@@ -164,7 +165,7 @@ class GameApp {
   }
 
   setMusicMode(mode) {
-    const validModes = new Set(this.buildMusicModeOptions().map((option) => option.value));
+    const validModes = new Set(buildMusicModeOptions().map((option) => option.value));
     const safeMode = validModes.has(mode) ? mode : 'auto';
     this.musicMode = safeMode;
     this.persistMusicMode(safeMode);
@@ -551,81 +552,6 @@ class GameApp {
     this.ambientAudio.play().catch(() => {
       // Browsers can block autoplay until user gesture; later interactions retry.
     });
-  }
-
-  getAmbientTrackFileNames() {
-    return [
-      '01. Battle Suit Aces.mp3',
-      '02. Peaceful Times.mp3',
-      '03. Cosmic Rendezvous.mp3',
-      '04. Pholians.mp3',
-      '05. Under Attack.mp3',
-      '06. To the Battle Line!.mp3',
-      '07. Defeat.mp3',
-      '08. Space Station.mp3',
-      '09. USS Zephyr.mp3',
-      '10. Mission Complete!.mp3',
-      '11. SIM Chamber.mp3',
-      '12. Wilderness.mp3',
-      '13. Distant Settlement.mp3',
-      '14. Suitsmiths.mp3',
-      "15. A Captain's Speech.mp3",
-      '16. Metropolis.mp3',
-      "17. Hunter's Guild.mp3",
-      '18. Spring in Our Step.mp3',
-      '19. Unknown Truth.mp3',
-      "20. You're Not Alone.mp3",
-      '21. Crisis!.mp3',
-      '22. Conspiracy.mp3',
-      '23. Carrion Riders.mp3',
-      '24. Quiet on the Ship.mp3',
-      '25. Bounty Board.mp3',
-      '26. Suit Gala.mp3',
-      '27. Frenzied Swarm.mp3',
-      '28. Steadfast.mp3',
-      '29. Raring to Go!.mp3',
-      '30. Starball Match.mp3',
-      '31. Growing Pride.mp3',
-      '32. Shady Dealings.mp3',
-      '33. Typhoons.mp3',
-      '34. Patchworks.mp3',
-      '35. Suit Up!.mp3',
-      '36. Our Precious Days Together.mp3',
-      '37. Enigmas.mp3',
-      '38. Blooming Love.mp3',
-      '39. Skiads.mp3',
-      '40. Grey Wraith.mp3',
-      '41. The Summoning.mp3',
-      '42. The Sun Eater.mp3',
-      '43. Burning Memory.mp3',
-    ];
-  }
-
-  buildAmbientTrackUrls() {
-    return this.getAmbientTrackFileNames()
-      .map((fileName) => `/assets/background_sound/${encodeURIComponent(fileName)}`);
-  }
-
-  formatAmbientTrackLabel(fileName) {
-    return fileName
-      .replace(/^\d+\.\s*/, '')
-      .replace(/\.mp3$/i, '');
-  }
-
-  buildMusicModeOptions() {
-    const options = [{
-      value: 'auto',
-      label: 'Automático aleatório',
-    }];
-
-    this.getAmbientTrackFileNames().forEach((fileName, index) => {
-      options.push({
-        value: `track:${index}`,
-        label: this.formatAmbientTrackLabel(fileName),
-      });
-    });
-
-    return options;
   }
 
   applyMusicModeToAmbient({ restart = true } = {}) {
