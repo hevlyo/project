@@ -1,7 +1,9 @@
-import { SETTINGS, STORAGE_KEY, SESSION_STORAGE_KEY, JOIN_MESSAGES, DISCONNECT_MESSAGES, HUD_TIPS, isTimedStateActive, lerpAngle, normalizeNickname, randomItem, round, scoreToScale } from './client/config.js?v=20260410-uinotifysync1';
-import { resolveDashCooldownRatio, resolveStatusChip, resolveStatusLine } from './client/gameHud.js?v=20260411-frontrefactor1';
-import { SceneController, THREE } from './client/scene.js?v=20260410-uinotifysync1';
-import { createUIController } from './client/ui.js?v=20260410-uinotifysync1';
+import { io } from 'socket.io-client';
+import { SETTINGS, STORAGE_KEY, SESSION_STORAGE_KEY, JOIN_MESSAGES, DISCONNECT_MESSAGES, HUD_TIPS, isTimedStateActive, lerpAngle, normalizeNickname, randomItem, round, scoreToScale } from './client/config.js';
+import { resolveDashCooldownRatio, resolveStatusChip, resolveStatusLine } from './client/gameHud.js';
+import { applyInputCommand, createInputState, resetInputState as resetInputKeys, resolveKeyDownCommand, resolveKeyUpCommand } from './client/inputController.js';
+import { SceneController, THREE } from './client/scene.js';
+import { createUIController } from './client/ui.js';
 
 const MUSIC_VOLUME_STORAGE_KEY = 'pega-bola-music-volume';
 const MUSIC_MODE_STORAGE_KEY = 'pega-bola-music-mode';
@@ -25,13 +27,7 @@ class GameApp {
     this.localPlayerId = null;
     this.players = new Map();
     this.balls = new Map();
-    this.keys = {
-      forward: false,
-      backward: false,
-      left: false,
-      right: false,
-      sprint: false,
-    };
+    this.keys = createInputState();
     this.simulationTimeMs = 0;
     this.accumulatorMs = 0;
     this.animationHandle = 0;
@@ -267,87 +263,32 @@ class GameApp {
         || target?.isContentEditable === true;
       const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
 
-      if (event.key.toLowerCase() === 'f' && !typing) {
+      const keyDownResult = resolveKeyDownCommand({
+        key: event.key,
+        code: event.code,
+        typing,
+        hasModifier,
+      });
+
+      if (keyDownResult.preventDefault) {
         event.preventDefault();
-        this.toggleFullscreen();
-        return;
       }
 
-      if (typing || hasModifier) {
-        return;
-      }
-
-      switch (event.key) {
-        case 'ArrowUp':
-        case 'w':
-        case 'W':
-          this.keys.forward = true;
-          event.preventDefault();
-          break;
-        case 'ArrowDown':
-        case 's':
-        case 'S':
-          this.keys.backward = true;
-          event.preventDefault();
-          break;
-        case 'ArrowLeft':
-        case 'a':
-        case 'A':
-          this.keys.left = true;
-          event.preventDefault();
-          break;
-        case 'ArrowRight':
-        case 'd':
-        case 'D':
-          this.keys.right = true;
-          event.preventDefault();
-          break;
-        case 'Shift':
-          this.keys.sprint = true;
-          event.preventDefault();
-          break;
-        case ' ':
-        case 'Spacebar':
-          event.preventDefault();
+      switch (keyDownResult.command) {
+        case 'toggleFullscreen':
+          this.toggleFullscreen();
+          return;
+        case 'dash':
           this.tryStartDash();
-          break;
+          return;
         default:
-          if (event.code === 'Space') {
-            event.preventDefault();
-            this.tryStartDash();
-          }
-          break;
+          applyInputCommand(this.keys, keyDownResult.command);
+          return;
       }
     });
 
     this.bindEvent(window, 'keyup', (event) => {
-      switch (event.key) {
-        case 'ArrowUp':
-        case 'w':
-        case 'W':
-          this.keys.forward = false;
-          break;
-        case 'ArrowDown':
-        case 's':
-        case 'S':
-          this.keys.backward = false;
-          break;
-        case 'ArrowLeft':
-        case 'a':
-        case 'A':
-          this.keys.left = false;
-          break;
-        case 'ArrowRight':
-        case 'd':
-        case 'D':
-          this.keys.right = false;
-          break;
-        case 'Shift':
-          this.keys.sprint = false;
-          break;
-        default:
-          break;
-      }
+      applyInputCommand(this.keys, resolveKeyUpCommand(event.key));
     });
   }
 
@@ -359,9 +300,7 @@ class GameApp {
   }
 
   resetInputState() {
-    Object.keys(this.keys).forEach((key) => {
-      this.keys[key] = false;
-    });
+    resetInputKeys(this.keys);
     this.pendingDash = false;
   }
 
@@ -419,12 +358,7 @@ class GameApp {
   }
 
   createSocket() {
-    if (typeof window.io !== 'function') {
-      this.ui.showToast('Socket.IO sumiu. Sem fio, sem vexame. Recarrega a página e tenta ter sorte.', 'danger', 3200);
-      return;
-    }
-
-    this.socket = window.io({
+    this.socket = io({
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: 5,

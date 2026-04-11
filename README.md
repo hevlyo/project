@@ -1,23 +1,27 @@
 # Pega Bola 3000
 
-Jogo multiplayer em tempo real em que os jogadores entram, coletam bolas, crescem e disputam a liderança.
+## Estrutura
+
+```text
+repo/
+  package.json
+  bun.lock
+  tsconfig.base.json
+
+  apps/
+    server/   # backend Bun + Socket.IO
+    game/     # frontend Three.js + Vite
+
+  packages/
+    shared/   # tipos, DTOs e contratos compartilhados
+```
 
 ## Stack
 
-- Frontend em HTML, CSS e JavaScript carregado diretamente pelo navegador
-- Servidor em TypeScript com Node.js e Express
-- Socket.IO para sincronização em tempo real
-- Three.js no cliente para renderização 3D
-
-## Assets
-
-- Modelos 3D externos da Khronos glTF Sample Assets, incluindo `Lantern` e `Diffuse Transmission Plant`
-- Assets baixados e servidos localmente em `public/assets/models/`
-
-## Requisitos
-
-- Node.js 18 ou superior
-- Bun
+- Backend: Bun + Node.js + Express + Socket.IO
+- Frontend: TypeScript + Three.js + Vite
+- Shared package: contratos e tipos TypeScript reaproveitáveis
+- Testes: Vitest (backend e utilitários), Playwright (E2E)
 
 ## Instalação
 
@@ -25,59 +29,35 @@ Jogo multiplayer em tempo real em que os jogadores entram, coletam bolas, cresce
 bun install
 ```
 
-## Execução
+## Scripts (raiz)
 
-```bash
-bun run start
-```
+- `bun run build`: build de `packages/shared`, `apps/game` e `apps/server`
+- `bun run start`: comando unico local (mesmo fluxo de prod): build completo + `node apps/server/dist/server.js`
+- `bun run test`: roda testes do backend
+- `bun run test:e2e`: roda E2E do backend/frontend integrado
+- `bun run deploy`: deploy de produção
 
-Depois, abra:
+## Pacotes
 
-```text
-http://localhost:25565
-```
+### apps/server
 
-## Controles
+- Código do servidor e regras do jogo em `apps/server/src`
+- Entrada do backend em `apps/server/server.ts`
+- Serve estáticos de `apps/game/dist` (build Vite)
 
-- `WASD` para mover
-- `Space` para dash
-- `f` para fullscreen
-- `Esc` para sair do fullscreen
+### apps/game
 
-## Loop Atual
+- Entrada do cliente em `apps/game/src/main.ts`
+- Assets estáticos em `apps/game/public`
+- HTML de entrada em `apps/game/index.html`
 
-- Entrar com nickname
-- Movimentar pelo mapa
-- Coletar bolas para ganhar pontos e crescer
-- Disputar ranking
-- Respawn com proteção curta
-- Reconnect curto sem duplicar o jogador local
+### packages/shared
 
-## Arquitetura e Manutenibilidade
+- Tipos compartilhados em `packages/shared/src/contracts.ts`
 
-- O servidor usa uma fronteira explícita (`GameStatePort`) no `SocketManager` para reduzir acoplamento com a implementação concreta do estado do jogo.
-- O frontend iniciou migração para TypeScript com módulos puros em `src/frontend/client/`, compilados para `public/js/client/`.
-- A lógica de HUD foi extraída para `src/frontend/client/gameHud.ts`, facilitando evolução e testes isolados.
+## Execução local
 
-## Testes e E2E Readiness
+1. Rode `bun run start`
+2. Abra `http://localhost:25565`
 
-- Priorize regras de negócio em funções puras (como no módulo de HUD) para simplificar cobertura unitária.
-- Use os hooks de depuração existentes do app para smoke tests E2E sem acoplar o teste à renderização frame a frame.
-- Em cada nova feature, adicione pelo menos um teste de regressão no servidor (`src/**.test.ts`) antes de alterar o fluxo do cliente.
-
-## Estrutura
-
-```text
-├── public/      # Cliente, HTML e assets
-├── src/         # Config, estado do jogo e socket layer
-├── server.ts    # Entrada do servidor
-├── dist/        # Saída gerada no build
-└── package.json
-```
-
-## Scripts
-
-- `bun run build`: compila o TypeScript
-- `bun run start`: compila e inicia o servidor
-- `bun run test`: roda os testes
-- `bun run deploy:prod`: faz o deploy de produção
+Esse fluxo local é o mesmo padrão usado em produção: build completo e execução do servidor compilado.

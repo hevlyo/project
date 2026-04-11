@@ -6,7 +6,7 @@ import type {
   SerializedBall,
   SerializedPlayer,
   Vector3,
-} from './contracts';
+} from '@pegabola/shared';
 
 class GameState {
   config: GameConfig;
@@ -39,8 +39,8 @@ class GameState {
 
     const cleaned = input
       .trim()
-      .replace(/[^a-zA-Z0-9\s\-_]/g, '')
-      .replace(/\s+/g, ' ')
+      .replaceAll(/[^a-zA-Z0-9\s\-_]/g, '')
+      .replaceAll(/\s+/g, ' ')
       .slice(0, this.config.PLAYER_NAME_MAX_LENGTH);
 
     if (cleaned.length >= this.config.PLAYER_NAME_MIN_LENGTH) {

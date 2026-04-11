@@ -1,5 +1,6 @@
 import express from 'express';
 import type { Express } from 'express-serve-static-core';
+import fs from 'fs';
 import path from 'path';
 import http, { type Server as HttpServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
@@ -10,8 +11,12 @@ function createHttpServer(): { app: Express; server: HttpServer; io: SocketIOSer
   const app = express() as unknown as Express;
   const server = http.createServer(app);
   const io = new SocketIOServer(server, config.SOCKET_CONFIG);
+  const gameDistPath = path.resolve(__dirname, '..', '..', 'game', 'dist');
+  const staticRoot = fs.existsSync(gameDistPath)
+    ? gameDistPath
+    : path.resolve(process.cwd(), 'apps', 'game', 'dist');
 
-  app.use(express.static(path.join(__dirname, '..', 'public')));
+  app.use(express.static(staticRoot));
   new SocketManager(io);
 
   return { app, server, io };

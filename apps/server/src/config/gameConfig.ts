@@ -1,4 +1,4 @@
-import type { GameConfig } from '../models/contracts';
+import type { GameConfig } from '@pegabola/shared';
 
 const PORT = Number(process.env.PORT || 25565);
 

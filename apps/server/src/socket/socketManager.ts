@@ -1,6 +1,6 @@
 import config from '../config/gameConfig';
 import GameState from '../models/GameState';
-import type { SerializedBall, SerializedPlayer, Vector3 } from '../models/contracts';
+import type { SerializedBall, SerializedPlayer, Vector3 } from '@pegabola/shared';
 
 interface SocketLike {
   id: string;
