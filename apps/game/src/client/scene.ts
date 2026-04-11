@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-
 import { SETTINGS } from './config.js';
 import {
   createArenaPatchTexture,
@@ -56,8 +55,8 @@ export class SceneController {
 
   init() {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x8fb8bf);
-    this.scene.fog = new THREE.Fog(0x8fb8bf, this.worldSize * 0.9, this.worldSize * 3.1);
+    this.scene.background = new THREE.Color(0x8F_B8_BF);
+    this.scene.fog = new THREE.Fog(0x8F_B8_BF, this.worldSize * 0.9, this.worldSize * 3.1);
 
     this.camera = new THREE.PerspectiveCamera(SETTINGS.cameraBaseFov, 1, 0.1, 500);
     this.camera.position.set(0, SETTINGS.cameraHeight, SETTINGS.cameraDistance);
@@ -71,7 +70,8 @@ export class SceneController {
     if (SETTINGS.renderShadows) {
       this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     }
-    this.container.appendChild(this.renderer.domElement);
+
+    this.container.append(this.renderer.domElement);
     this.ensureValuePopupLayer();
 
     // Chamar resize ANTES de criar luzes e arena para garantir que o renderer tem tamanho válido
@@ -89,18 +89,18 @@ export class SceneController {
 
     const layer = document.createElement('div');
     layer.className = 'floating-value-layer';
-    this.container.appendChild(layer);
+    this.container.append(layer);
     this.valuePopupLayer = layer;
   }
 
   createLights() {
-    this.ambientLight = new THREE.AmbientLight(0xfff4d7, 0.34);
+    this.ambientLight = new THREE.AmbientLight(0xFF_F4_D7, 0.34);
     this.scene.add(this.ambientLight);
 
-    this.hemiLight = new THREE.HemisphereLight(0xf7e8c5, 0x0f2a32, 1.15);
+    this.hemiLight = new THREE.HemisphereLight(0xF7_E8_C5, 0x0F_2A_32, 1.15);
     this.scene.add(this.hemiLight);
 
-    this.directionalLight = new THREE.DirectionalLight(0xfff0be, 1.55);
+    this.directionalLight = new THREE.DirectionalLight(0xFF_F0_BE, 1.55);
     this.directionalLight.position.set(18, 28, 12);
     this.directionalLight.castShadow = SETTINGS.renderShadows;
     if (SETTINGS.renderShadows) {
@@ -112,9 +112,10 @@ export class SceneController {
       this.directionalLight.shadow.camera.bottom = -80;
       this.directionalLight.shadow.camera.far = 120;
     }
+
     this.scene.add(this.directionalLight);
 
-    const rim = new THREE.PointLight(0x7bdff2, 12, 100, 2);
+    const rim = new THREE.PointLight(0x7B_DF_F2, 12, 100, 2);
     rim.position.set(-24, 12, -18);
     this.scene.add(rim);
   }
@@ -122,32 +123,46 @@ export class SceneController {
   setNightMode(isNight) {
     this.isNightMode = isNight;
     if (isNight) {
-      this.scene.background.setHex(0x1a1a2e);
-      this.scene.fog.color.setHex(0x1a1a2e);
-      if (this.skyDome) this.skyDome.material.color.setHex(0x222233);
-      if (this.ambientLight) this.ambientLight.intensity = 0.1;
+      this.scene.background.setHex(0x1A_1A_2E);
+      this.scene.fog.color.setHex(0x1A_1A_2E);
+      if (this.skyDome) {
+this.skyDome.material.color.setHex(0x22_22_33);
+}
+
+      if (this.ambientLight) {
+this.ambientLight.intensity = 0.1;
+}
+
       if (this.hemiLight) {
         this.hemiLight.intensity = 0.3;
-        this.hemiLight.color.setHex(0x405580);
-        this.hemiLight.groundColor.setHex(0x081016);
+        this.hemiLight.color.setHex(0x40_55_80);
+        this.hemiLight.groundColor.setHex(0x08_10_16);
       }
+
       if (this.directionalLight) {
         this.directionalLight.intensity = 0.25;
-        this.directionalLight.color.setHex(0x8aa8d4);
+        this.directionalLight.color.setHex(0x8A_A8_D4);
       }
     } else {
-      this.scene.background.setHex(0x8fb8bf);
-      this.scene.fog.color.setHex(0x8fb8bf);
-      if (this.skyDome) this.skyDome.material.color.setHex(0xffffff);
-      if (this.ambientLight) this.ambientLight.intensity = 0.34;
+      this.scene.background.setHex(0x8F_B8_BF);
+      this.scene.fog.color.setHex(0x8F_B8_BF);
+      if (this.skyDome) {
+this.skyDome.material.color.setHex(0xFF_FF_FF);
+}
+
+      if (this.ambientLight) {
+this.ambientLight.intensity = 0.34;
+}
+
       if (this.hemiLight) {
         this.hemiLight.intensity = 1.15;
-        this.hemiLight.color.setHex(0xf7e8c5);
-        this.hemiLight.groundColor.setHex(0x0f2a32);
+        this.hemiLight.color.setHex(0xF7_E8_C5);
+        this.hemiLight.groundColor.setHex(0x0F_2A_32);
       }
+
       if (this.directionalLight) {
         this.directionalLight.intensity = 1.55;
-        this.directionalLight.color.setHex(0xfff0be);
+        this.directionalLight.color.setHex(0xFF_F0_BE);
       }
     }
   }
@@ -239,7 +254,7 @@ export class SceneController {
     this.floor = new THREE.Mesh(
       new THREE.CircleGeometry(50, 72),
       new THREE.MeshStandardMaterial({
-        color: 0xcfe8cf,
+        color: 0xCF_E8_CF,
         map: grassMap,
         bumpMap: floorDetailMap,
         bumpScale: 0.3,
@@ -254,7 +269,7 @@ export class SceneController {
     this.innerDisk = new THREE.Mesh(
       new THREE.CircleGeometry(41, 72),
       new THREE.MeshStandardMaterial({
-        color: 0xb8ddb8,
+        color: 0xB8_DD_B8,
         map: innerGrassMap,
         bumpMap: innerDetailMap,
         bumpScale: 0.2,
@@ -270,7 +285,7 @@ export class SceneController {
     this.brassRing = new THREE.Mesh(
       new THREE.RingGeometry(32, 38, 64),
       new THREE.MeshBasicMaterial({
-        color: 0xe7b544,
+        color: 0xE7_B5_44,
         opacity: 0.3,
         transparent: true,
         side: THREE.DoubleSide,
@@ -283,13 +298,13 @@ export class SceneController {
     this.boundaryRing = new THREE.Mesh(
       new THREE.TorusGeometry(50, 0.45, 14, 120),
       new THREE.MeshStandardMaterial({
-        color: 0xf5d277,
+        color: 0xF5_D2_77,
         map: brassBandMap,
         bumpMap: brassDetailMap,
         bumpScale: 0.1,
         roughness: 0.26,
         metalness: 0.76,
-        emissive: 0x8d5d00,
+        emissive: 0x8D_5D_00,
         emissiveIntensity: 0.26,
       }),
     );
@@ -303,7 +318,7 @@ export class SceneController {
       const pillar = new THREE.Mesh(
         new THREE.CylinderGeometry(0.45, 0.65, 4.8, 14),
         new THREE.MeshStandardMaterial({
-          color: 0xb08f72,
+          color: 0xB0_8F_72,
           map: pillarMap,
           bumpMap: pillarDetailMap,
           bumpScale: 0.22,
@@ -325,7 +340,7 @@ export class SceneController {
       const pedestal = new THREE.Mesh(
         new THREE.CylinderGeometry(0.85, 1.1, 1.15, 10),
         new THREE.MeshStandardMaterial({
-          color: 0x4c5759,
+          color: 0x4C_57_59,
           map: stoneTexture,
           roughness: 0.84,
           metalness: 0.06,
@@ -338,7 +353,7 @@ export class SceneController {
       const spire = new THREE.Mesh(
         new THREE.CylinderGeometry(0.48, 0.74, 3.9, 10),
         new THREE.MeshStandardMaterial({
-          color: 0x667376,
+          color: 0x66_73_76,
           map: stoneTexture.clone(),
           roughness: 0.8,
           metalness: 0.08,
@@ -352,7 +367,7 @@ export class SceneController {
       const cap = new THREE.Mesh(
         new THREE.SphereGeometry(0.36, 14, 14),
         new THREE.MeshBasicMaterial({
-          color: index % 2 === 0 ? 0x7bdff2 : 0xffd166,
+          color: index % 2 === 0 ? 0x7B_DF_F2 : 0xFF_D1_66,
           transparent: true,
           opacity: 0.82,
         }),
@@ -363,7 +378,7 @@ export class SceneController {
       const band = new THREE.Mesh(
         new THREE.TorusGeometry(0.86, 0.06, 8, 24),
         new THREE.MeshBasicMaterial({
-          color: index % 2 === 0 ? 0x7bdff2 : 0xffd166,
+          color: index % 2 === 0 ? 0x7B_DF_F2 : 0xFF_D1_66,
           transparent: true,
           opacity: 0.24,
           side: THREE.DoubleSide,
@@ -436,7 +451,7 @@ export class SceneController {
       },
     ];
 
-    const loadedAssets = await Promise.all(assetDefinitions.map(async (definition) => {
+    const loadedAssets = await Promise.all(assetDefinitions.map(async definition => {
       try {
         const gltf = await loader.loadAsync(definition.url);
         return { definition, root: gltf.scene || gltf.scenes?.[0] || null };
@@ -450,21 +465,24 @@ export class SceneController {
       return;
     }
 
-    loadedAssets.forEach(({ definition, root }) => {
+    for (const { definition, root } of loadedAssets) {
       if (!root) {
-        return;
+        continue;
       }
 
-      root.traverse((node) => {
+      root.traverse(node => {
         if (node.isMesh) {
           node.castShadow = true;
           node.receiveShadow = true;
           const materials = Array.isArray(node.material) ? node.material : [node.material];
-          materials.forEach((material) => {
-            if (!material) return;
+          for (const material of materials) {
+            if (!material) {
+continue;
+}
+
             material.roughness = Math.min(0.95, material.roughness ?? 0.8);
             material.metalness = Math.max(0, Math.min(0.2, material.metalness ?? 0));
-          });
+          }
         }
       });
 
@@ -483,7 +501,7 @@ export class SceneController {
         this.arenaAssetGroup.add(instance);
         this.arenaAssetRoots.push(instance);
       }
-    });
+    }
 
     this.layoutArenaDecor();
   }
@@ -499,11 +517,12 @@ export class SceneController {
     if (this.skyDome) {
       this.skyDome.scale.setScalar(scale);
     }
+
     if (this.arenaDecorGroup) {
       this.arenaDecorGroup.scale.setScalar(scale);
     }
 
-    this.posts.forEach((post, index) => {
+    for (const [index, post] of this.posts.entries()) {
       const angle = (Math.PI * 2 * index) / this.posts.length;
       post.position.set(
         Math.cos(angle) * postRadius,
@@ -511,13 +530,16 @@ export class SceneController {
         Math.sin(angle) * postRadius,
       );
       post.rotation.y = -angle;
-    });
+    }
 
     if (this.arenaDecorations?.length) {
-      this.arenaDecorations.forEach((decor) => {
-        if (!decor.userData) return;
+      for (const decor of this.arenaDecorations) {
+        if (!decor.userData) {
+continue;
+}
+
         if (decor.geometry?.type === 'PlaneGeometry') {
-          return;
+          continue;
         }
 
         const { angle, radius, baseY } = decor.userData;
@@ -527,14 +549,14 @@ export class SceneController {
           Math.sin(angle) * radius,
         );
         decor.rotation.y = -angle + (Math.PI / 2);
-      });
+      }
     }
 
     if (this.arenaAssetRoots?.length) {
-      this.arenaAssetRoots.forEach((asset) => {
+      for (const asset of this.arenaAssetRoots) {
         const { angle, radiusScale, baseY, rotationOffset = 0, yOffset = 0, bobPhase = 0 } = asset.userData || {};
         if (!Number.isFinite(angle) || !Number.isFinite(radiusScale)) {
-          return;
+          continue;
         }
 
         const radius = this.worldSize * radiusScale;
@@ -545,7 +567,7 @@ export class SceneController {
           Math.sin(angle) * radius,
         );
         asset.rotation.y = -angle + rotationOffset;
-      });
+      }
     }
   }
 
@@ -573,7 +595,7 @@ export class SceneController {
     const bodyColor = baseColor.clone().offsetHSL(0, -0.05, -0.05);
     const capColor = baseColor.clone().offsetHSL(0, 0.02, 0.06);
     const accentColor = baseColor.clone().offsetHSL(0.02, -0.12, -0.18);
-    const bellyColor = baseColor.clone().lerp(new THREE.Color(0xf9f1da), 0.52);
+    const bellyColor = baseColor.clone().lerp(new THREE.Color(0xF9_F1_DA), 0.52);
 
     const bodyMaterial = new THREE.MeshStandardMaterial({
       color: bodyColor,
@@ -649,10 +671,10 @@ export class SceneController {
     avatar.add(snout);
 
     const eyeMaterial = new THREE.MeshStandardMaterial({
-      color: 0x121f25,
+      color: 0x12_1F_25,
       roughness: 0.2,
       metalness: 0.36,
-      emissive: 0x3d5963,
+      emissive: 0x3D_59_63,
       emissiveIntensity: 0.35,
     });
 
@@ -664,7 +686,7 @@ export class SceneController {
     eyeRight.position.set(0.16, 1.05, 0.58);
     avatar.add(eyeRight);
 
-    const nostrilMaterial = new THREE.MeshBasicMaterial({ color: 0x2f383d });
+    const nostrilMaterial = new THREE.MeshBasicMaterial({ color: 0x2F_38_3D });
     const nostrilLeft = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 8), nostrilMaterial);
     nostrilLeft.position.set(-0.056, 0.87, 0.72);
     avatar.add(nostrilLeft);
@@ -744,7 +766,7 @@ export class SceneController {
     const localRing = new THREE.Mesh(
       new THREE.TorusGeometry(0.92, 0.06, 10, 48),
       new THREE.MeshBasicMaterial({
-        color: 0xffe08a,
+        color: 0xFF_E0_8A,
         transparent: true,
         opacity: isLocal ? 0.95 : 0,
       }),
@@ -756,7 +778,7 @@ export class SceneController {
     const statusRing = new THREE.Mesh(
       new THREE.TorusGeometry(1.08, 0.05, 10, 48),
       new THREE.MeshBasicMaterial({
-        color: 0x7bdff2,
+        color: 0x7B_DF_F2,
         transparent: true,
         opacity: 0,
       }),
@@ -768,7 +790,7 @@ export class SceneController {
     const shadow = new THREE.Mesh(
       new THREE.CircleGeometry(0.82, 24),
       new THREE.MeshBasicMaterial({
-        color: 0x071014,
+        color: 0x07_10_14,
         transparent: true,
         opacity: 0.25,
       }),
@@ -831,6 +853,7 @@ export class SceneController {
     if (!Number.isFinite(entry.displayScale)) {
       entry.displayScale = targetScale;
     }
+
     const scaleSmoothing = targetScale > entry.displayScale
       ? SETTINGS.playerScaleGrowSmoothing
       : SETTINGS.playerScaleShrinkSmoothing;
@@ -865,15 +888,14 @@ export class SceneController {
       const pulse = 0.58 + (Math.sin(now * 0.012) * 0.2);
       entry.statusRing.visible = true;
       entry.statusRing.material.opacity = pulse;
-      entry.statusRing.material.color.setHex(invulnerable ? 0x7bdff2 : 0xc7f464);
-      entry.statusRing.scale.setScalar(
-        1.12 + ((scale - 1) * 0.34) + (Math.sin(now * 0.008) * 0.04),
-      );
+      entry.statusRing.material.color.setHex(invulnerable ? 0x7B_DF_F2 : 0xC7_F4_64);
+      entry.statusRing.scale.setScalar(1.12 + ((scale - 1) * 0.34) + (Math.sin(now * 0.008) * 0.04),);
     } else {
       entry.statusRing.visible = false;
       entry.statusRing.material.opacity = 0;
     entry.statusRing.scale.setScalar(1 + ((scale - 1) * 0.28));
     }
+
     entry.shadow.scale.setScalar(scale * 1.1);
     entry.label.position.y = (3.4 * scale) + bobOffset;
     entry.label.quaternion.copy(this.camera.quaternion);
@@ -881,14 +903,17 @@ export class SceneController {
 
   removePlayer(playerId) {
     const entry = this.playerMeshes.get(playerId);
-    if (!entry) return;
+    if (!entry) {
+return;
+}
 
     this.scene.remove(entry.group);
     entry.labelTexture.dispose();
-    entry.group.traverse((node) => {
+    entry.group.traverse(node => {
       if (node.geometry) {
         node.geometry.dispose();
       }
+
       if (node.material) {
         disposeMaterial(node.material);
       }
@@ -980,13 +1005,16 @@ export class SceneController {
 
   removeBall(ballId) {
     const entry = this.ballMeshes.get(ballId);
-    if (!entry) return;
+    if (!entry) {
+return;
+}
 
     this.scene.remove(entry.group);
-    entry.group.traverse((node) => {
+    entry.group.traverse(node => {
       if (node.geometry) {
         node.geometry.dispose();
       }
+
       if (node.material) {
         disposeMaterial(node.material);
       }
@@ -1016,7 +1044,7 @@ export class SceneController {
     element.className = 'floating-value-popup';
     element.textContent = String(text);
     element.style.setProperty('--popup-accent', new THREE.Color(color).getStyle());
-    this.valuePopupLayer?.appendChild(element);
+    this.valuePopupLayer?.append(element);
 
     this.valuePopups.push({
       element,
@@ -1070,7 +1098,7 @@ export class SceneController {
     duration,
     opacity,
     grow,
-    y = 0.08,
+    y,
   }) {
     const mesh = new THREE.Mesh(
       new THREE.RingGeometry(innerRadius, outerRadius, 26),
@@ -1096,17 +1124,17 @@ export class SceneController {
 
   step(simulationTimeMs) {
     if (this.skyDome) {
-      this.skyDome.rotation.y = simulationTimeMs * 0.000015;
+      this.skyDome.rotation.y = simulationTimeMs * 0.000_015;
     }
 
-    this.ballMeshes.forEach((entry) => {
+    for (const entry of this.ballMeshes) {
       const hover = Math.sin((simulationTimeMs * 0.004) + entry.phase) * 0.18;
       entry.group.position.y = entry.baseY + hover;
       entry.core.rotation.y += 0.02;
       entry.glow.scale.setScalar(1 + (Math.sin((simulationTimeMs * 0.006) + entry.phase) * 0.08));
-    });
+    }
 
-    this.pickupBursts = this.pickupBursts.filter((burst) => {
+    this.pickupBursts = this.pickupBursts.filter(burst => {
       const age = simulationTimeMs - burst.bornAt;
       const progress = age / burst.duration;
 
@@ -1122,7 +1150,7 @@ export class SceneController {
       return true;
     });
 
-    this.valuePopups = this.valuePopups.filter((popup) => {
+    this.valuePopups = this.valuePopups.filter(popup => {
       const age = simulationTimeMs - popup.bornAt;
       const progress = age / popup.duration;
 
@@ -1131,7 +1159,7 @@ export class SceneController {
         return false;
       }
 
-      const eased = 1 - Math.pow(1 - progress, 2);
+      const eased = 1 - (1 - progress) ** 2;
       this.valuePopupProjectPoint.set(
         popup.startX + (popup.driftX * eased),
         popup.startY + (popup.riseHeight * eased),
@@ -1150,7 +1178,7 @@ export class SceneController {
       const screenX = (this.valuePopupProjectPoint.x * 0.5 + 0.5) * width;
       const screenY = (-this.valuePopupProjectPoint.y * 0.5 + 0.5) * height;
       const visualScale = popup.baseScale * (1 + (progress * 0.1));
-      const opacity = Math.max(0, 1 - Math.pow(progress, 1.35));
+      const opacity = Math.max(0, 1 - progress ** 1.35);
 
       popup.element.style.opacity = opacity.toFixed(3);
       popup.element.style.transform = `translate3d(${screenX.toFixed(1)}px, ${screenY.toFixed(1)}px, 0) translate(-50%, -50%) scale(${visualScale.toFixed(3)})`;
@@ -1158,23 +1186,26 @@ export class SceneController {
     });
 
     if (this.arenaDecorations?.length) {
-      this.arenaDecorations.forEach((decor) => {
-        if (!decor.userData?.pulsePhase) return;
+      for (const decor of this.arenaDecorations) {
+        if (!decor.userData?.pulsePhase) {
+continue;
+}
+
         if (decor.geometry?.type === 'PlaneGeometry') {
           decor.material.opacity = 0.66 + (Math.sin((simulationTimeMs * 0.0011) + decor.userData.pulsePhase) * 0.08);
           decor.position.y = 0.03 + (Math.sin((simulationTimeMs * 0.0014) + decor.userData.pulsePhase) * 0.02);
-          return;
+          continue;
         }
 
         decor.position.y = decor.userData.baseY + (Math.sin((simulationTimeMs * 0.0017) + decor.userData.bobPhase) * 0.08);
-      });
+      }
     }
 
     if (this.arenaAssetRoots?.length) {
-      this.arenaAssetRoots.forEach((asset) => {
+      for (const asset of this.arenaAssetRoots) {
         const { angle, radius, baseY, rotationOffset = 0, yOffset = 0, bobPhase = 0 } = asset.userData || {};
         if (!Number.isFinite(angle) || !Number.isFinite(radius)) {
-          return;
+          continue;
         }
 
         const bob = Math.sin((simulationTimeMs * 0.001) + bobPhase) * 0.08;
@@ -1184,7 +1215,7 @@ export class SceneController {
           Math.sin(angle) * radius,
         );
         asset.rotation.y = -angle + rotationOffset + (Math.sin((simulationTimeMs * 0.0004) + bobPhase) * 0.02);
-      });
+      }
     }
   }
 
@@ -1212,19 +1243,7 @@ export class SceneController {
       SETTINGS.cameraMaxFov,
     );
 
-    if (this.cameraTrackedPlayerId !== player.id) {
-      this.cameraTrackedPlayerId = player.id;
-      this.cameraCurrentFov = targetFov;
-      this.cameraCurrentDistance = targetDistance;
-      this.cameraCurrentHeight = targetHeight;
-      this.cameraCurrentLookHeight = targetLookHeight;
-      this.cameraPickupFovBoost = 0;
-      this.cameraPickupDistanceBoost = 0;
-      this.cameraPickupHeightBoost = 0;
-      this.cameraPickupFovBoostTarget = 0;
-      this.cameraPickupDistanceBoostTarget = 0;
-      this.cameraPickupHeightBoostTarget = 0;
-    } else {
+    if (this.cameraTrackedPlayerId === player.id) {
       this.cameraPickupFovBoost = THREE.MathUtils.lerp(
         this.cameraPickupFovBoost,
         this.cameraPickupFovBoostTarget,
@@ -1263,6 +1282,7 @@ export class SceneController {
       if (this.cameraPickupDistanceBoost > 0.02 || this.cameraPickupDistanceBoostTarget > 0.02) {
         smoothing = Math.max(smoothing, SETTINGS.cameraPickupZoomResponseSmoothing);
       }
+
       this.cameraCurrentDistance = THREE.MathUtils.lerp(
         this.cameraCurrentDistance,
         targetDistance + this.cameraPickupDistanceBoost,
@@ -1285,6 +1305,7 @@ export class SceneController {
       if (this.cameraPickupFovBoost > 0.05 || this.cameraPickupFovBoostTarget > 0.05) {
         fovSmoothing = Math.max(fovSmoothing, SETTINGS.cameraPickupZoomResponseSmoothing);
       }
+
       this.cameraCurrentFov = THREE.MathUtils.lerp(
         this.cameraCurrentFov,
         targetFov + this.cameraPickupFovBoost,
@@ -1293,15 +1314,30 @@ export class SceneController {
       if (Math.abs(this.cameraCurrentDistance - targetDistance) < 0.01) {
         this.cameraCurrentDistance = targetDistance;
       }
+
       if (Math.abs(this.cameraCurrentHeight - targetHeight) < 0.01) {
         this.cameraCurrentHeight = targetHeight;
       }
+
       if (Math.abs(this.cameraCurrentLookHeight - targetLookHeight) < 0.01) {
         this.cameraCurrentLookHeight = targetLookHeight;
       }
+
       if (Math.abs(this.cameraCurrentFov - targetFov) < 0.05) {
         this.cameraCurrentFov = targetFov;
       }
+    } else {
+      this.cameraTrackedPlayerId = player.id;
+      this.cameraCurrentFov = targetFov;
+      this.cameraCurrentDistance = targetDistance;
+      this.cameraCurrentHeight = targetHeight;
+      this.cameraCurrentLookHeight = targetLookHeight;
+      this.cameraPickupFovBoost = 0;
+      this.cameraPickupDistanceBoost = 0;
+      this.cameraPickupHeightBoost = 0;
+      this.cameraPickupFovBoostTarget = 0;
+      this.cameraPickupDistanceBoostTarget = 0;
+      this.cameraPickupHeightBoostTarget = 0;
     }
 
     const cameraLimit = this.worldSize * 0.84;
@@ -1326,6 +1362,7 @@ export class SceneController {
       this.camera.fov = this.cameraCurrentFov;
       this.camera.updateProjectionMatrix();
     }
+
     this.camera.lookAt(this.cameraLookTarget);
   }
 
@@ -1342,7 +1379,7 @@ export class SceneController {
     this.cameraPickupDistanceBoostTarget = 0;
     this.cameraPickupHeightBoostTarget = 0;
 
-    const angle = simulationTimeMs * 0.00022;
+    const angle = simulationTimeMs * 0.000_22;
     const radius = this.worldSize * 0.85;
     const desiredPosition = this.idleCameraPosition.set(
       Math.cos(angle) * radius,
@@ -1357,6 +1394,7 @@ export class SceneController {
       this.camera.fov = SETTINGS.cameraBaseFov;
       this.camera.updateProjectionMatrix();
     }
+
     this.camera.lookAt(this.cameraLookTarget);
   }
 
@@ -1371,7 +1409,7 @@ export class SceneController {
 
     this.camera.getWorldDirection(this.cameraForward);
     const planarLengthSq = (this.cameraForward.x * this.cameraForward.x) + (this.cameraForward.z * this.cameraForward.z);
-    if (planarLengthSq < 0.000001) {
+    if (planarLengthSq < 0.000_001) {
       return fallback;
     }
 
@@ -1416,12 +1454,16 @@ export class SceneController {
   }
 
   disposeStaticNode(node) {
-    if (!node) return;
+    if (!node) {
+return;
+}
+
     this.scene?.remove(node);
-    node.traverse?.((child) => {
+    node.traverse?.(child => {
       if (child.geometry) {
         child.geometry.dispose();
       }
+
       if (child.material) {
         disposeMaterial(child.material);
       }
@@ -1429,24 +1471,34 @@ export class SceneController {
   }
 
   dispose() {
-    this.playerMeshes.forEach((_, playerId) => { this.removePlayer(playerId); });
-    this.ballMeshes.forEach((_, ballId) => { this.removeBall(ballId); });
+    for (const [playerId, _] of this.playerMeshes.entries()) {
+ this.removePlayer(playerId);
+}
 
-    this.pickupBursts.forEach((burst) => {
+    for (const [ballId, _] of this.ballMeshes.entries()) {
+ this.removeBall(ballId);
+}
+
+    for (const burst of this.pickupBursts) {
       this.scene?.remove(burst.mesh);
       burst.mesh.geometry.dispose();
       disposeMaterial(burst.mesh.material);
-    });
+    }
+
     this.pickupBursts = [];
 
-    this.valuePopups.forEach((popup) => {
+    for (const popup of this.valuePopups) {
       popup.element?.remove();
-    });
+    }
+
     this.valuePopups = [];
     this.valuePopupLayer?.remove();
     this.valuePopupLayer = null;
 
-    this.posts.forEach((post) => { this.disposeStaticNode(post); });
+    for (const post of this.posts) {
+ this.disposeStaticNode(post);
+}
+
     this.posts = [];
     this.disposeStaticNode(this.skyDome);
     this.disposeStaticNode(this.arenaDecorGroup);
@@ -1479,4 +1531,4 @@ export class SceneController {
   }
 }
 
-export { THREE };
+export * as THREE from 'three';

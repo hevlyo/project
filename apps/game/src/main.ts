@@ -1,7 +1,11 @@
 import { io } from 'socket.io-client';
-import { SETTINGS, STORAGE_KEY, SESSION_STORAGE_KEY, JOIN_MESSAGES, DISCONNECT_MESSAGES, HUD_TIPS, isTimedStateActive, lerpAngle, normalizeNickname, randomItem, round, scoreToScale } from './client/config.js';
+import {
+ SETTINGS, STORAGE_KEY, SESSION_STORAGE_KEY, JOIN_MESSAGES, DISCONNECT_MESSAGES, HUD_TIPS, isTimedStateActive, lerpAngle, normalizeNickname, randomItem, round, scoreToScale
+} from './client/config.js';
 import { resolveDashCooldownRatio, resolveStatusChip, resolveStatusLine } from './client/gameHud.js';
-import { applyInputCommand, createInputState, resetInputState as resetInputKeys, resolveKeyDownCommand, resolveKeyUpCommand } from './client/inputController.js';
+import {
+ applyInputCommand, createInputState, resetInputState as resetInputKeys, resolveKeyDownCommand, resolveKeyUpCommand
+} from './client/inputController.js';
 import { buildAmbientTrackUrls, buildMusicModeOptions } from './client/musicCatalog.js';
 import { SceneController, THREE } from './client/scene.js';
 import { createUIController } from './client/ui.js';
@@ -67,16 +71,24 @@ class GameApp {
 
   init() {
     this.scene.init();
-    this.ui.bindStart(() => this.handleStart());
+    this.ui.bindStart(() => {
+ this.handleStart();
+});
     this.ui.setConnectionState(this.connectionText, this.connectionTone);
     this.ui.setHUDVisible(false);
     this.ui.setNickname(this.restoreNickname());
     this.ui.setMusicVolume(this.musicVolume);
     this.ui.setMusicMuted(this.musicVolume === 0);
     this.ui.setMusicModeOptions(buildMusicModeOptions(), this.musicMode);
-    this.ui.bindMusicVolumeChange((volume) => this.setMusicVolume(volume));
-    this.ui.bindMusicMuteToggle(() => this.toggleMusicMuted());
-    this.ui.bindMusicModeChange((mode) => this.setMusicMode(mode));
+    this.ui.bindMusicVolumeChange(volume => {
+ this.setMusicVolume(volume);
+});
+    this.ui.bindMusicMuteToggle(() => {
+ this.toggleMusicMuted();
+});
+    this.ui.bindMusicModeChange(mode => {
+ this.setMusicMode(mode);
+});
     this.sessionId = this.restoreSessionId();
     this.ui.focusNickname();
 
@@ -104,14 +116,15 @@ class GameApp {
   }
 
   restoreSessionId() {
-    const fallback = window.crypto?.randomUUID?.()
-      || `pb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const fallback = globalThis.crypto?.randomUUID?.()
+    	|| `pb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
     try {
       const existing = sessionStorage.getItem(SESSION_STORAGE_KEY);
       if (existing) {
         return existing;
       }
+
       sessionStorage.setItem(SESSION_STORAGE_KEY, fallback);
     } catch {
       return fallback;
@@ -123,10 +136,15 @@ class GameApp {
   restoreMusicVolume() {
     try {
       const stored = localStorage.getItem(MUSIC_VOLUME_STORAGE_KEY);
-      if (!stored) return 0.08;
+      if (!stored) {
+return 0.08;
+}
 
       const parsed = Number(stored);
-      if (!Number.isFinite(parsed)) return 0.08;
+      if (!Number.isFinite(parsed)) {
+return 0.08;
+}
+
       return clamp(parsed, 0, 1);
     } catch {
       return 0.08;
@@ -143,13 +161,14 @@ class GameApp {
 
   restoreMusicMode() {
     const fallback = 'auto';
-    const validModes = new Set(buildMusicModeOptions().map((option) => option.value));
+    const validModes = new Set(buildMusicModeOptions().map(option => option.value));
 
     try {
       const stored = localStorage.getItem(MUSIC_MODE_STORAGE_KEY);
       if (!stored || !validModes.has(stored)) {
         return fallback;
       }
+
       return stored;
     } catch {
       return fallback;
@@ -165,7 +184,7 @@ class GameApp {
   }
 
   setMusicMode(mode) {
-    const validModes = new Set(buildMusicModeOptions().map((option) => option.value));
+    const validModes = new Set(buildMusicModeOptions().map(option => option.value));
     const safeMode = validModes.has(mode) ? mode : 'auto';
     this.musicMode = safeMode;
     this.persistMusicMode(safeMode);
@@ -228,40 +247,43 @@ class GameApp {
       this.startAmbience();
     };
 
-    this.bindEvent(window, 'pointerdown', attemptStart, { passive: true });
-    this.bindEvent(window, 'keydown', (event) => {
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
+    this.bindEvent(globalThis, 'pointerdown', attemptStart, { passive: true });
+    this.bindEvent(globalThis, 'keydown', event => {
+      if (event.ctrlKey || event.metaKey || event.altKey) {
+return;
+}
+
       attemptStart();
     });
   }
 
   bindWindowEvents() {
-    this.bindEvent(window, 'resize', () => this.scene.resize());
+    this.bindEvent(globalThis, 'resize', () => this.scene.resize());
     this.bindEvent(document, 'fullscreenchange', () => this.scene.resize());
     this.bindEvent(document, 'visibilitychange', () => {
       if (document.hidden) {
         this.resetInputState();
       }
     });
-    this.bindEvent(window, 'blur', () => {
+    this.bindEvent(globalThis, 'blur', () => {
       this.resetInputState();
     });
-    this.bindEvent(document, 'contextmenu', (event) => {
+    this.bindEvent(document, 'contextmenu', event => {
       event.preventDefault();
       this.resetInputState();
     });
-    this.bindEvent(window, 'pointerdown', (event) => {
+    this.bindEvent(globalThis, 'pointerdown', event => {
       if (event.button === 2) {
         event.preventDefault();
         this.resetInputState();
       }
     });
-    this.bindEvent(window, 'keydown', (event) => {
-      const target = event.target;
+    this.bindEvent(globalThis, 'keydown', event => {
+      const {target} = event;
       const targetTag = target?.tagName;
       const typing = targetTag === 'INPUT'
-        || targetTag === 'TEXTAREA'
-        || target?.isContentEditable === true;
+      	|| targetTag === 'TEXTAREA'
+      	|| target?.isContentEditable === true;
       const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
 
       const keyDownResult = resolveKeyDownCommand({
@@ -276,19 +298,23 @@ class GameApp {
       }
 
       switch (keyDownResult.command) {
-        case 'toggleFullscreen':
+        case 'toggleFullscreen': {
           this.toggleFullscreen();
           return;
-        case 'dash':
+        }
+
+        case 'dash': {
           this.tryStartDash();
           return;
-        default:
+        }
+
+        default: {
           applyInputCommand(this.keys, keyDownResult.command);
-          return;
+        }
       }
     });
 
-    this.bindEvent(window, 'keyup', (event) => {
+    this.bindEvent(globalThis, 'keyup', event => {
       applyInputCommand(this.keys, resolveKeyUpCommand(event.key));
     });
   }
@@ -306,8 +332,13 @@ class GameApp {
   }
 
   tryStartDash() {
-    if (this.mode !== 'playing') return;
-    if (!this.players.has(this.localPlayerId)) return;
+    if (this.mode !== 'playing') {
+return;
+}
+
+    if (!this.players.has(this.localPlayerId)) {
+return;
+}
 
     const localPlayer = this.players.get(this.localPlayerId);
     const dashUnlimitedActive = this.isDashUnlimitedActive(localPlayer);
@@ -371,7 +402,7 @@ class GameApp {
       this.joinGame();
     });
 
-    this.socket.on('disconnect', (reason) => {
+    this.socket.on('disconnect', reason => {
       this.mode = this.mode === 'menu' ? 'menu' : 'reconnecting';
       this.pendingCollectionNotifs.clear();
       this.setConnectionState('Reconectando', 'warning');
@@ -379,21 +410,21 @@ class GameApp {
       this.ui.showToast(`Conexão morreu: ${reason}. Igual seus sonhos.`, 'warning', 2400);
     });
 
-    this.socket.on('error', (payload) => {
+    this.socket.on('error', payload => {
       if (payload?.message) {
         this.ui.showToast(payload.message, 'danger', 2400);
       }
     });
 
-    this.socket.on('worldInfo', (payload) => {
+    this.socket.on('worldInfo', payload => {
       this.worldSize = payload.worldSize || SETTINGS.worldSize;
       this.scene.setWorldSize(this.worldSize);
-      if (typeof payload.isNightMode !== 'undefined') {
+      if (payload.isNightMode !== undefined) {
         this.scene.setNightMode(payload.isNightMode);
       }
     });
 
-    this.socket.on('playerInfo', (payload) => {
+    this.socket.on('playerInfo', payload => {
       this.localPlayerId = payload.id;
       this.upsertPlayerFromServer(payload, { hardSync: true });
       this.mode = 'playing';
@@ -402,71 +433,78 @@ class GameApp {
       this.ui.setMenuBusy(false, 'Aceitar meu destino');
       this.ui.setHUDVisible(true);
       if (!this.hasShownSessionInstructions) {
-        this.ui.showSessionInstructions(randomItem(HUD_TIPS), 10000);
+        this.ui.showSessionInstructions(randomItem(HUD_TIPS), 10_000);
         this.hasShownSessionInstructions = true;
       }
+
       if (!this.hasShownJoinToast) {
         this.ui.showToast(randomItem(JOIN_MESSAGES), 'live', 2200);
         this.hasShownJoinToast = true;
       }
     });
 
-    this.socket.on('currentPlayers', (snapshot) => {
+    this.socket.on('currentPlayers', snapshot => {
       this.syncPlayers(snapshot);
     });
 
-    this.socket.on('newPlayer', (payload) => {
+    this.socket.on('newPlayer', payload => {
       this.upsertPlayerFromServer(payload, { hardSync: true });
       this.ui.showToast(`${payload.nickname} apareceu. Más notícias para todo mundo.`, 'info', 1800);
     });
 
-    this.socket.on('playerState', (payload) => {
+    this.socket.on('playerState', payload => {
       this.handlePlayerState(payload);
     });
 
-    this.socket.on('playerDisconnected', (playerId) => {
+    this.socket.on('playerDisconnected', playerId => {
       this.removePlayer(playerId);
     });
 
-    this.socket.on('playerMoved', (payload) => {
+    this.socket.on('playerMoved', payload => {
       const player = this.players.get(payload.id);
-      if (!player || payload.id === this.localPlayerId) return;
+      if (!player || payload.id === this.localPlayerId) {
+return;
+}
 
       player.targetPosition.set(payload.position.x, 0, payload.position.z);
     });
 
-    this.socket.on('newBalls', (payload) => {
+    this.socket.on('newBalls', payload => {
       this.syncBalls(payload, { replaceAll: this.awaitingBallSnapshot });
       this.awaitingBallSnapshot = false;
     });
 
-    this.socket.on('removeBalls', (payload) => {
+    this.socket.on('removeBalls', payload => {
       if (Array.isArray(payload)) {
-        payload.forEach((ballId) => {
+        for (const ballId of payload) {
           if (this.balls.has(ballId)) {
             if (!this.balls.get(ballId).hidden) {
               this.visibleBallCount = Math.max(0, this.visibleBallCount - 1);
             }
+
             this.balls.delete(ballId);
             this.scene.removeBall(ballId);
           }
-        });
+        }
       }
     });
 
-    this.socket.on('ballCollected', (payload) => {
+    this.socket.on('ballCollected', payload => {
       if (payload.type === 'NIGHT_MODE') {
         this.scene.setNightMode(true);
       } else if (payload.type === 'DAY_MODE') {
         this.scene.setNightMode(false);
       }
+
       this.handleBallCollected(payload);
     });
 
-    this.socket.on('updateScores', (scores) => {
-      Object.entries(scores).forEach(([playerId, score]) => {
+    this.socket.on('updateScores', scores => {
+      for (const [playerId, score] of Object.entries(scores)) {
         const player = this.players.get(playerId);
-        if (!player) return;
+        if (!player) {
+continue;
+}
 
         const previousScore = Number(player.score) || 0;
         const nextScore = Number(score) || 0;
@@ -491,14 +529,14 @@ class GameApp {
             }
           }
 
-          if (pendingQueue && pendingQueue.length === 0) {
+          if (pendingQueue?.length === 0) {
             this.pendingCollectionNotifs.delete(playerId);
           }
         }
 
         player.score = nextScore;
         player.sizeMultiplier = scoreToScale(nextScore);
-      });
+      }
     });
 
     this.socket.on('playerCount', () => {
@@ -506,7 +544,7 @@ class GameApp {
     });
 
     if (this.socket.io) {
-      this.socket.io.on('reconnect_attempt', (attempt) => {
+      this.socket.io.on('reconnect_attempt', attempt => {
         this.setConnectionState(`Reconectando ${attempt}`, 'warning');
       });
 
@@ -521,7 +559,9 @@ class GameApp {
   }
 
   joinGame() {
-    if (!this.socket?.connected) return;
+    if (!this.socket?.connected) {
+return;
+}
 
     this.awaitingBallSnapshot = true;
     this.socket.emit('joinGame', {
@@ -532,7 +572,9 @@ class GameApp {
 
   startAmbience() {
     if (!this.ambientAudio) {
-      if (!this.ambientTrackUrls.length) return;
+      if (this.ambientTrackUrls.length === 0) {
+return;
+}
 
       this.ambienceStarted = true;
       this.ambientPlaylist = this.shufflePlaylist(this.ambientTrackUrls);
@@ -544,6 +586,7 @@ class GameApp {
       this.onAmbientEnded = () => {
         this.handleAmbientTrackEnded();
       };
+
       this.ambientAudio.addEventListener('ended', this.onAmbientEnded);
       this.applyMusicModeToAmbient({ restart: false });
     }
@@ -554,8 +597,10 @@ class GameApp {
     });
   }
 
-  applyMusicModeToAmbient({ restart = true } = {}) {
-    if (!this.ambientAudio) return;
+  applyMusicModeToAmbient({ restart } = {}) {
+    if (!this.ambientAudio) {
+return;
+}
 
     if (this.isAutoMusicMode()) {
       if (this.ambientPlaylist.length === 0) {
@@ -568,10 +613,12 @@ class GameApp {
       if (track && this.ambientAudio.src !== track) {
         this.ambientAudio.src = track;
       }
+
       this.ambientTrackPlayCount = 1;
       if (restart) {
         this.ambientAudio.currentTime = 0;
       }
+
       return;
     }
 
@@ -588,6 +635,7 @@ class GameApp {
     if (this.ambientAudio.src !== selectedTrack) {
       this.ambientAudio.src = selectedTrack;
     }
+
     this.ambientTrackPlayCount = 1;
     if (restart) {
       this.ambientAudio.currentTime = 0;
@@ -595,16 +643,19 @@ class GameApp {
   }
 
   shufflePlaylist(items) {
-    const shuffled = items.slice();
+    const shuffled = [...items];
     for (let i = shuffled.length - 1; i > 0; i -= 1) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
+
     return shuffled;
   }
 
   playNextAmbientTrack() {
-    if (!this.ambientAudio || this.ambientPlaylist.length === 0 || !this.isAutoMusicMode()) return;
+    if (!this.ambientAudio || this.ambientPlaylist.length === 0 || !this.isAutoMusicMode()) {
+return;
+}
 
     this.ambientTrackIndex += 1;
     if (this.ambientTrackIndex >= this.ambientPlaylist.length) {
@@ -621,7 +672,9 @@ class GameApp {
   }
 
   handleAmbientTrackEnded() {
-    if (!this.ambientAudio || this.ambientPlaylist.length === 0 || !this.isAutoMusicMode()) return;
+    if (!this.ambientAudio || this.ambientPlaylist.length === 0 || !this.isAutoMusicMode()) {
+return;
+}
 
     if (this.ambientTrackPlayCount < 2) {
       this.ambientTrackPlayCount += 1;
@@ -664,7 +717,7 @@ class GameApp {
     };
   }
 
-  upsertPlayerFromServer(payload, { hardSync = false } = {}) {
+  upsertPlayerFromServer(payload, { hardSync } = {}) {
     let player = this.players.get(payload.id);
     if (!player) {
       player = this.makePlayerState(payload);
@@ -693,15 +746,15 @@ class GameApp {
   syncPlayers(snapshot) {
     const serverIds = new Set(Object.keys(snapshot));
 
-    [...this.players.keys()].forEach((playerId) => {
+    for (const playerId of this.players.keys()) {
       if (!serverIds.has(playerId)) {
         this.removePlayer(playerId);
       }
-    });
+    }
 
-    Object.values(snapshot).forEach((payload) => {
+    for (const payload of Object.values(snapshot)) {
       this.upsertPlayerFromServer(payload, { hardSync: true });
-    });
+    }
   }
 
   makeBallState(payload) {
@@ -716,18 +769,18 @@ class GameApp {
     };
   }
 
-  syncBalls(payloads, { replaceAll = false } = {}) {
+  syncBalls(payloads, { replaceAll } = {}) {
     if (replaceAll) {
-      const ids = new Set(payloads.map((ball) => ball.id));
-      [...this.balls.keys()].forEach((ballId) => {
+      const ids = new Set(payloads.map(ball => ball.id));
+      for (const ballId of this.balls.keys()) {
         if (!ids.has(ballId)) {
           this.balls.delete(ballId);
           this.scene.removeBall(ballId);
         }
-      });
+      }
     }
 
-    payloads.forEach((payload) => {
+    for (const payload of payloads) {
       const existing = this.balls.get(payload.id) || this.makeBallState(payload);
       existing.type = payload.type;
       existing.value = payload.value;
@@ -736,7 +789,7 @@ class GameApp {
       existing.hidden = false;
       existing.pendingUntilMs = 0;
       this.balls.set(payload.id, existing);
-    });
+    }
 
     this.refreshVisibleBallCount();
   }
@@ -747,8 +800,10 @@ class GameApp {
       if (!ball.hidden) {
         this.visibleBallCount = Math.max(0, this.visibleBallCount - 1);
       }
+
       this.balls.delete(payload.ballId);
     }
+
     this.scene.removeBall(payload.ballId);
 
     const pendingQueue = this.pendingCollectionNotifs.get(payload.playerId) || [];
@@ -760,6 +815,7 @@ class GameApp {
     if (pendingQueue.length > 6) {
       pendingQueue.splice(0, pendingQueue.length - 6);
     }
+
     this.pendingCollectionNotifs.set(payload.playerId, pendingQueue);
 
     if (payload.playerId === this.localPlayerId) {
@@ -776,6 +832,7 @@ class GameApp {
         const remaining = Math.max(0, payload.dashCooldownUntil - Date.now());
         this.dashCooldownUntilMs = Math.max(this.dashCooldownUntilMs, this.simulationTimeMs + remaining);
       }
+
       this.updateHud({ force: true });
       this.syncScene();
       this.scene.render();
@@ -793,24 +850,25 @@ class GameApp {
   }
 
   startLoop() {
-    if (this.animationHandle) return;
+    if (this.animationHandle) {
+return;
+}
 
-    const tick = (timestamp) => {
+    const tick = timestamp => {
       if (this.destroyed) {
         this.animationHandle = 0;
         return;
       }
-      if (!this.lastFrameAt) {
-        this.lastFrameAt = timestamp;
-      }
+
+      this.lastFrameAt ||= timestamp;
 
       const delta = Math.min(100, timestamp - this.lastFrameAt);
       this.lastFrameAt = timestamp;
       this.advanceSimulation(delta, { allowNetwork: true });
-      this.animationHandle = window.requestAnimationFrame(tick);
+      this.animationHandle = globalThis.requestAnimationFrame(tick);
     };
 
-    this.animationHandle = window.requestAnimationFrame(tick);
+    this.animationHandle = globalThis.requestAnimationFrame(tick);
   }
 
   advanceSimulation(ms, { allowNetwork } = { allowNetwork: true }) {
@@ -830,13 +888,13 @@ class GameApp {
   stepFixed({ allowNetwork }) {
     let becameVisible = 0;
 
-    this.balls.forEach((ball) => {
+    for (const ball of this.balls) {
       if (ball.hidden && ball.pendingUntilMs <= this.simulationTimeMs) {
         ball.hidden = false;
         ball.pendingUntilMs = 0;
         becameVisible += 1;
       }
-    });
+    }
 
     if (becameVisible) {
       this.visibleBallCount += becameVisible;
@@ -855,20 +913,23 @@ class GameApp {
 
   refreshVisibleBallCount() {
     let count = 0;
-    this.balls.forEach((ball) => {
+    for (const ball of this.balls) {
       if (!ball.hidden) {
         count += 1;
       }
-    });
+    }
+
     this.visibleBallCount = count;
   }
 
   updateRemotePlayers() {
-    this.players.forEach((player) => {
-      if (player.id === this.localPlayerId) return;
+    for (const player of this.players) {
+      if (player.id === this.localPlayerId) {
+continue;
+}
 
       const delta = this.remoteDelta.subVectors(player.targetPosition, player.position);
-      if (delta.lengthSq() > 0.000001) {
+      if (delta.lengthSq() > 0.000_001) {
         player.position.lerp(player.targetPosition, SETTINGS.interpolationSpeed);
         player.rotationY = lerpAngle(
           player.rotationY,
@@ -882,7 +943,7 @@ class GameApp {
         player.bobOffset *= 0.85;
         player.tilt *= 0.8;
       }
-    });
+    }
   }
 
   updateLocalPlayer(player, { allowNetwork }) {
@@ -925,6 +986,7 @@ class GameApp {
       if (allowNetwork && this.socket?.connected) {
         this.socket.emit('playerDash');
       }
+
       this.ui.showToast('DASH!', 'live', 400);
     } else if (this.pendingDash && !dashReady) {
       this.pendingDash = false;
@@ -980,6 +1042,7 @@ class GameApp {
       );
       this.lastDashTrailAtMs = this.simulationTimeMs;
     }
+
     if (isMoving) {
       const movementAngle = Math.atan2(player.velocity.x, player.velocity.z);
       player.rotationY = lerpAngle(player.rotationY, movementAngle, 0.24);
@@ -1014,15 +1077,21 @@ class GameApp {
   }
 
   checkBallCollisions(localPlayer) {
-    if (!this.socket?.connected) return;
+    if (!this.socket?.connected) {
+return;
+}
 
     const collectionRadius = SETTINGS.collectionDistance + ((localPlayer.sizeMultiplier - 1) * 0.3);
 
-    this.balls.forEach((ball) => {
-      if (ball.hidden) return;
+    for (const ball of this.balls) {
+      if (ball.hidden) {
+continue;
+}
 
       const distance = localPlayer.position.distanceTo(ball.position);
-      if (distance > collectionRadius) return;
+      if (distance > collectionRadius) {
+continue;
+}
 
       ball.hidden = true;
       ball.pendingUntilMs = this.simulationTimeMs + 5000;
@@ -1031,19 +1100,19 @@ class GameApp {
       this.socket.emit('collectBall', {
         ballId: ball.id,
       });
-    });
+    }
   }
 
   syncScene() {
-    this.players.forEach((player) => {
+    for (const player of this.players) {
       this.scene.upsertPlayer(player, {
         isLocal: player.id === this.localPlayerId,
       });
-    });
+    }
 
-    this.balls.forEach((ball) => {
+    for (const ball of this.balls) {
       this.scene.upsertBall(ball);
-    });
+    }
 
     const localPlayer = this.players.get(this.localPlayerId);
     if (localPlayer && this.mode !== 'menu') {
@@ -1059,20 +1128,22 @@ class GameApp {
         if (right.score !== left.score) {
           return right.score - left.score;
         }
+
         return left.nickname.localeCompare(right.nickname);
       })
       .slice(0, 3)
-      .map((player) => ({
+      .map(player => ({
         id: player.id,
         nickname: player.nickname,
         score: player.score,
       }));
   }
 
-  updateHud({ force = false } = {}) {
+  updateHud({ force } = {}) {
     if (!force && this.simulationTimeMs < this.nextHudUpdateAt) {
       return;
     }
+
     this.nextHudUpdateAt = this.simulationTimeMs + SETTINGS.hudUpdateIntervalMs;
 
     const localPlayer = this.players.get(this.localPlayerId);
@@ -1215,7 +1286,7 @@ class GameApp {
     let normalZ = nextDz;
     let normalDistanceSq = nextDistanceSq;
 
-    if (normalDistanceSq < 0.000001) {
+    if (normalDistanceSq < 0.000_001) {
       const previousDx = previousPosition.x - obstaclePosition.x;
       const previousDz = previousPosition.z - obstaclePosition.z;
       normalX = previousDx;
@@ -1223,13 +1294,13 @@ class GameApp {
       normalDistanceSq = (previousDx * previousDx) + (previousDz * previousDz);
     }
 
-    if (normalDistanceSq < 0.000001) {
+    if (normalDistanceSq < 0.000_001) {
       normalX = -obstaclePosition.x;
       normalZ = -obstaclePosition.z;
       normalDistanceSq = (normalX * normalX) + (normalZ * normalZ);
     }
 
-    if (normalDistanceSq < 0.000001) {
+    if (normalDistanceSq < 0.000_001) {
       return false;
     }
 
@@ -1268,17 +1339,19 @@ class GameApp {
     const localRadius = SETTINGS.playerRadius * (localPlayer.sizeMultiplier || 1);
     let corrected = false;
 
-    this.players.forEach((otherPlayer) => {
-      if (otherPlayer.id === this.localPlayerId) return;
+    for (const otherPlayer of this.players) {
+      if (otherPlayer.id === this.localPlayerId) {
+continue;
+}
 
       const otherRadius = SETTINGS.playerRadius * (otherPlayer.sizeMultiplier || 1);
       const minDistance = localRadius + otherRadius + SETTINGS.collisionPadding;
       let dx = localPlayer.position.x - otherPlayer.position.x;
       let dz = localPlayer.position.z - otherPlayer.position.z;
-      let distance = Math.sqrt((dx * dx) + (dz * dz));
+      let distance = Math.hypot((dx), (dz));
 
       if (distance >= minDistance) {
-        return;
+        continue;
       }
 
       if (distance < 0.0001) {
@@ -1291,7 +1364,7 @@ class GameApp {
       localPlayer.position.x += (dx / distance) * overlap;
       localPlayer.position.z += (dz / distance) * overlap;
       corrected = true;
-    });
+    }
 
     if (corrected) {
       this.clampPlayerToArena(localPlayer, SETTINGS.arenaEdgeSkin || 0);
@@ -1305,12 +1378,15 @@ class GameApp {
     const leaderboard = this.getLeaderboard();
 
     const visibleBalls = [...this.balls.values()]
-      .filter((ball) => !ball.hidden)
+      .filter(ball => !ball.hidden)
       .sort((left, right) => {
-        if (!localPlayer) return left.id.localeCompare(right.id);
+        if (!localPlayer) {
+return left.id.localeCompare(right.id);
+}
+
         return localPlayer.position.distanceTo(left.position) - localPlayer.position.distanceTo(right.position);
       })
-      .map((ball) => ({
+      .map(ball => ({
         id: ball.id,
         type: ball.type,
         value: ball.value,
@@ -1351,23 +1427,29 @@ class GameApp {
   }
 
   exposeTestingHooks() {
-    window.render_game_to_text = () => JSON.stringify(this.buildTextState());
-    window.advanceTime = async (ms) => {
+    globalThis.render_game_to_text = () => JSON.stringify(this.buildTextState());
+    globalThis.advanceTime = async ms => {
       this.advanceSimulation(ms, { allowNetwork: true });
     };
   }
 
   destroy() {
-    if (this.destroyed) return;
+    if (this.destroyed) {
+return;
+}
+
     this.destroyed = true;
     this.resetInputState();
 
     if (this.animationHandle) {
-      window.cancelAnimationFrame(this.animationHandle);
+      globalThis.cancelAnimationFrame(this.animationHandle);
       this.animationHandle = 0;
     }
 
-    this.disposers.forEach((dispose) => dispose());
+    for (const dispose of this.disposers) {
+dispose();
+}
+
     this.disposers = [];
 
     if (this.socket) {
@@ -1380,6 +1462,7 @@ class GameApp {
       if (this.onAmbientEnded) {
         this.ambientAudio.removeEventListener('ended', this.onAmbientEnded);
       }
+
       this.ambientAudio.pause();
       this.ambientAudio.src = '';
       this.ambientAudio.load();
@@ -1393,14 +1476,16 @@ class GameApp {
 
     this.ui.destroy?.();
     this.scene.dispose?.();
-    delete window.render_game_to_text;
-    delete window.advanceTime;
-    delete window.__pegaBolaApp;
+    delete globalThis.render_game_to_text;
+    delete globalThis.advanceTime;
+    delete globalThis.__pegaBolaApp;
   }
 
   toggleFullscreen() {
-    const appShell = this.elements.appShell;
-    if (!appShell) return;
+    const {appShell} = this.elements;
+    if (!appShell) {
+return;
+}
 
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
@@ -1413,34 +1498,36 @@ class GameApp {
 
 function getElements() {
   return {
-    appShell: document.getElementById('app-shell'),
-    gameRoot: document.getElementById('game-root'),
-    menuScreen: document.getElementById('menu-screen'),
-    nicknameInput: document.getElementById('nickname-input'),
-    musicVolumeInput: document.getElementById('music-volume-input'),
-    musicVolumeValue: document.getElementById('music-volume-value'),
-    musicMuteButton: document.getElementById('music-mute-button'),
-    musicModeSelect: document.getElementById('music-mode-select'),
-    playButton: document.getElementById('play-button'),
-    menuStatus: document.getElementById('menu-status'),
-    hud: document.getElementById('hud'),
-    scoreValue: document.getElementById('score-value'),
-    playerCountValue: document.getElementById('player-count-value'),
-    statusLine: document.getElementById('status-line'),
-    hudTip: document.getElementById('hud-tip'),
-    instructionsPanel: document.getElementById('instructions-panel'),
-    dashLabel: document.getElementById('dash-label'),
-    dashCooldownFill: document.getElementById('dash-cooldown-fill'),
-    leaderboard: document.getElementById('leaderboard'),
-    statusChip: document.getElementById('status-chip'),
-    toast: document.getElementById('message-toast'),
-    pickupFlash: document.getElementById('pickup-flash'),
+    appShell: document.querySelector('#app-shell'),
+    gameRoot: document.querySelector('#game-root'),
+    menuScreen: document.querySelector('#menu-screen'),
+    nicknameInput: document.querySelector('#nickname-input'),
+    musicVolumeInput: document.querySelector('#music-volume-input'),
+    musicVolumeValue: document.querySelector('#music-volume-value'),
+    musicMuteButton: document.querySelector('#music-mute-button'),
+    musicModeSelect: document.querySelector('#music-mode-select'),
+    playButton: document.querySelector('#play-button'),
+    menuStatus: document.querySelector('#menu-status'),
+    hud: document.querySelector('#hud'),
+    scoreValue: document.querySelector('#score-value'),
+    playerCountValue: document.querySelector('#player-count-value'),
+    statusLine: document.querySelector('#status-line'),
+    hudTip: document.querySelector('#hud-tip'),
+    instructionsPanel: document.querySelector('#instructions-panel'),
+    dashLabel: document.querySelector('#dash-label'),
+    dashCooldownFill: document.querySelector('#dash-cooldown-fill'),
+    leaderboard: document.querySelector('#leaderboard'),
+    statusChip: document.querySelector('#status-chip'),
+    toast: document.querySelector('#message-toast'),
+    pickupFlash: document.querySelector('#pickup-flash'),
   };
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   const app = new GameApp(getElements());
   app.init();
-  window.__pegaBolaApp = app;
-  window.addEventListener('pagehide', () => app.destroy(), { once: true });
+  globalThis.__pegaBolaApp = app;
+  window.addEventListener('pagehide', () => {
+ app.destroy();
+}, { once: true });
 });
