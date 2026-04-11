@@ -51,6 +51,13 @@ export class SceneController {
     this.cameraForward = new THREE.Vector3();
     this.idleCameraPosition = new THREE.Vector3();
     this.idleCameraLookAt = new THREE.Vector3(0, 1.8, 0);
+    this.freeCameraMode = false;
+    this.freeCameraYaw = 0;
+    this.freeCameraPitch = -0.22;
+    this.freeCameraTarget = new THREE.Vector3();
+    this.freeCameraForward = new THREE.Vector3();
+    this.freeCameraRight = new THREE.Vector3();
+    this.freeCameraMovement = new THREE.Vector3();
   }
 
   init() {
@@ -506,7 +513,7 @@ continue;
     this.layoutArenaDecor();
   }
 
-  layoutArenaDecor() {
+  layoutArenaDecor(simulationTimeMs = 0) {
     const scale = this.worldSize / 50;
     const postRadius = this.worldSize * SETTINGS.arenaPostRingScale;
 
@@ -1127,7 +1134,7 @@ return;
       this.skyDome.rotation.y = simulationTimeMs * 0.000_015;
     }
 
-    for (const entry of this.ballMeshes) {
+    for (const entry of this.ballMeshes.values()) {
       const hover = Math.sin((simulationTimeMs * 0.004) + entry.phase) * 0.18;
       entry.group.position.y = entry.baseY + hover;
       entry.core.rotation.y += 0.02;
@@ -1220,6 +1227,10 @@ continue;
   }
 
   updateCamera(player, heading) {
+    if (this.freeCameraMode) {
+      return;
+    }
+
     const scale = this.playerMeshes.get(player.id)?.displayScale || player.sizeMultiplier || 1;
     const growth = Math.max(0, scale - 1);
     const maxGrowth = Math.max(0.001, SETTINGS.maxSizeMultiplier - 1);
@@ -1364,6 +1375,126 @@ continue;
     }
 
     this.camera.lookAt(this.cameraLookTarget);
+  }
+
+  setFreeCameraMode(enabled, player = null) {
+    this.freeCameraMode = Boolean(enabled);
+
+    if (!this.camera) {
+      return;
+    }
+    if (player && this.freeCameraMode) {
+      const distance = SETTINGS.cameraDistance;
+      const lookHeight = SETTINGS.cameraLookHeight * (player.sizeMultiplier || 1);
+      const target = new THREE.Vector3(player.position.x, lookHeight, player.position.z);
+      this.camera.position.set(
+        player.position.x,
+        player.position.y + SETTINGS.cameraHeight,
+        player.position.z - distance,
+      );
+      const direction = target.clone().sub(this.camera.position).normalize();
+      this.freeCameraYaw = Math.atan2(direction.x, direction.z);
+      this.freeCameraPitch = Math.asin(THREE.MathUtils.clamp(direction.y, -0.97, 0.97));
+      this.camera.position.set(
+        player.position.x - (Math.sin(this.freeCameraYaw) * distance),
+        player.position.y + SETTINGS.cameraHeight,
+        player.position.z - (Math.cos(this.freeCameraYaw) * distance),
+      );
+      this.cameraLookTarget.copy(target);
+      this.freeCameraTarget.copy(target);
+    } else {
+      this.camera.getWorldDirection(this.freeCameraForward);
+      const planar = Math.hypot(this.freeCameraForward.x, this.freeCameraForward.z);
+      if (planar > 0.000_01) {
+        this.freeCameraYaw = Math.atan2(this.freeCameraForward.x, this.freeCameraForward.z);
+      }
+
+      this.freeCameraPitch = Math.asin(THREE.MathUtils.clamp(this.freeCameraForward.y, -0.97, 0.97));
+    }
+
+    this.cameraTrackedPlayerId = null;
+    this.cameraPickupFovBoost = 0;
+    this.cameraPickupDistanceBoost = 0;
+    this.cameraPickupHeightBoost = 0;
+    this.cameraPickupFovBoostTarget = 0;
+    this.cameraPickupDistanceBoostTarget = 0;
+    this.cameraPickupHeightBoostTarget = 0;
+  }
+
+  updateFreeCamera(inputState = null, deltaMs = 16) {
+    if (!this.camera) {
+      return;
+    }
+
+    if (!this.freeCameraMode) {
+      return;
+    }
+
+    const inputX = ((inputState?.right ? 1 : 0) - (inputState?.left ? 1 : 0));
+    const inputZ = ((inputState?.forward ? 1 : 0) - (inputState?.backward ? 1 : 0));
+    const inputY = ((inputState?.up ? 1 : 0) - (inputState?.down ? 1 : 0));
+    const accelerate = Boolean(inputState?.sprint);
+    const speed = accelerate ? 30 : 17;
+    const deltaSeconds = Math.max(0.001, deltaMs / 1000);
+
+    this.freeCameraForward.set(
+      Math.sin(this.freeCameraYaw) * Math.cos(this.freeCameraPitch),
+      Math.sin(this.freeCameraPitch),
+      Math.cos(this.freeCameraYaw) * Math.cos(this.freeCameraPitch),
+    ).normalize();
+
+    this.freeCameraRight.set(-this.freeCameraForward.z, 0, this.freeCameraForward.x).normalize();
+
+    this.freeCameraMovement.set(0, 0, 0)
+      .addScaledVector(this.freeCameraRight, inputX)
+      .addScaledVector(this.freeCameraForward, inputZ)
+      .addScaledVector(THREE.Object3D.DEFAULT_UP, inputY);
+
+    if (this.freeCameraMovement.lengthSq() > 0.000_01) {
+      this.freeCameraMovement.normalize().multiplyScalar(speed * deltaSeconds);
+      this.camera.position.add(this.freeCameraMovement);
+    }
+
+    const horizontalLimit = this.worldSize * 1.35;
+    const verticalMin = 1.2;
+    const verticalMax = this.worldSize * 0.9;
+    this.camera.position.x = THREE.MathUtils.clamp(this.camera.position.x, -horizontalLimit, horizontalLimit);
+    this.camera.position.z = THREE.MathUtils.clamp(this.camera.position.z, -horizontalLimit, horizontalLimit);
+    this.camera.position.y = THREE.MathUtils.clamp(this.camera.position.y, verticalMin, verticalMax);
+
+    this.freeCameraTarget.copy(this.camera.position).addScaledVector(this.freeCameraForward, 10);
+    this.cameraLookTarget.copy(this.freeCameraTarget);
+
+    if (Math.abs(this.camera.fov - SETTINGS.cameraBaseFov) > 0.01) {
+      this.camera.fov = SETTINGS.cameraBaseFov;
+      this.camera.updateProjectionMatrix();
+    }
+
+    this.camera.lookAt(this.cameraLookTarget);
+  }
+
+  adjustFreeCameraLook(deltaX = 0, deltaY = 0) {
+    if (!this.freeCameraMode) {
+      return;
+    }
+
+    const sensitivity = 0.0022;
+    this.freeCameraYaw -= deltaX * sensitivity;
+    this.freeCameraPitch = THREE.MathUtils.clamp(
+      this.freeCameraPitch - (deltaY * sensitivity),
+      -1.35,
+      1.35,
+    );
+  }
+
+  adjustFreeCameraZoom(deltaY = 0) {
+    if (!this.freeCameraMode || !this.camera) {
+      return;
+    }
+
+    this.camera.getWorldDirection(this.freeCameraForward);
+    const zoomStep = THREE.MathUtils.clamp(deltaY * 0.01, -2.5, 2.5);
+    this.camera.position.addScaledVector(this.freeCameraForward, zoomStep);
   }
 
   updateIdleCamera(simulationTimeMs) {

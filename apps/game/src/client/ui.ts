@@ -1,5 +1,8 @@
 function setToneClass(element, tone) {
-  if (!element) return;
+  if (!element) {
+return;
+}
+
   element.dataset.tone = tone;
 }
 
@@ -31,12 +34,13 @@ export function createUIController(elements) {
     if (state.startClickHandler) {
       elements.playButton.removeEventListener('click', state.startClickHandler);
     }
+
     if (state.nicknameKeydownHandler) {
       elements.nicknameInput.removeEventListener('keydown', state.nicknameKeydownHandler);
     }
 
     state.startClickHandler = handler;
-    state.nicknameKeydownHandler = (event) => {
+    state.nicknameKeydownHandler = event => {
       if (event.key === 'Enter') {
         event.preventDefault();
         handler();
@@ -66,40 +70,54 @@ export function createUIController(elements) {
     if (elements.musicVolumeInput) {
       elements.musicVolumeInput.disabled = isBusy;
     }
+
     if (elements.musicMuteButton) {
       elements.musicMuteButton.disabled = isBusy;
     }
+
     if (elements.musicModeSelect) {
       elements.musicModeSelect.disabled = isBusy;
     }
+
     elements.playButton.textContent = buttonLabel;
   }
 
   function setMusicModeOptions(options, selectedValue = 'auto') {
-    if (!elements.musicModeSelect) return;
+    if (!elements.musicModeSelect) {
+return;
+}
 
     elements.musicModeSelect.innerHTML = '';
-    options.forEach((option) => {
+    for (const option of options) {
       const item = document.createElement('option');
       item.value = option.value;
       item.textContent = option.label;
-      elements.musicModeSelect.appendChild(item);
-    });
+      elements.musicModeSelect.append(item);
+    }
+
     elements.musicModeSelect.value = selectedValue;
   }
 
   function getMusicMode() {
-    if (!elements.musicModeSelect) return 'auto';
+    if (!elements.musicModeSelect) {
+return 'auto';
+}
+
     return elements.musicModeSelect.value || 'auto';
   }
 
   function setMusicMode(value) {
-    if (!elements.musicModeSelect) return;
+    if (!elements.musicModeSelect) {
+return;
+}
+
     elements.musicModeSelect.value = value;
   }
 
   function bindMusicModeChange(handler) {
-    if (!elements.musicModeSelect) return;
+    if (!elements.musicModeSelect) {
+return;
+}
 
     if (state.musicModeChangeHandler) {
       elements.musicModeSelect.removeEventListener('change', state.musicModeChangeHandler);
@@ -113,12 +131,17 @@ export function createUIController(elements) {
   }
 
   function getMusicVolume() {
-    if (!elements.musicVolumeInput) return 0.08;
+    if (!elements.musicVolumeInput) {
+return 0.08;
+}
+
     return Number(elements.musicVolumeInput.value) / 100;
   }
 
   function setMusicVolume(value) {
-    if (!elements.musicVolumeInput || !elements.musicVolumeValue) return;
+    if (!elements.musicVolumeInput || !elements.musicVolumeValue) {
+return;
+}
 
     const safeValue = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0.08;
     const percent = Math.round(safeValue * 100);
@@ -127,7 +150,9 @@ export function createUIController(elements) {
   }
 
   function bindMusicVolumeChange(handler) {
-    if (!elements.musicVolumeInput) return;
+    if (!elements.musicVolumeInput) {
+return;
+}
 
     if (state.musicVolumeInputHandler) {
       elements.musicVolumeInput.removeEventListener('input', state.musicVolumeInputHandler);
@@ -143,7 +168,9 @@ export function createUIController(elements) {
   }
 
   function setMusicMuted(isMuted) {
-    if (!elements.musicMuteButton) return;
+    if (!elements.musicMuteButton) {
+return;
+}
 
     const muted = Boolean(isMuted);
     elements.musicMuteButton.setAttribute('aria-pressed', muted ? 'true' : 'false');
@@ -151,7 +178,9 @@ export function createUIController(elements) {
   }
 
   function bindMusicMuteToggle(handler) {
-    if (!elements.musicMuteButton) return;
+    if (!elements.musicMuteButton) {
+return;
+}
 
     if (state.musicMuteClickHandler) {
       elements.musicMuteButton.removeEventListener('click', state.musicMuteClickHandler);
@@ -165,7 +194,10 @@ export function createUIController(elements) {
   }
 
   function setMenuStatus(text, tone = 'idle') {
-    if (!elements.menuStatus) return;
+    if (!elements.menuStatus) {
+return;
+}
+
     elements.menuStatus.textContent = text;
     setToneClass(elements.menuStatus, tone);
   }
@@ -178,9 +210,10 @@ export function createUIController(elements) {
   function hideMenu() {
     elements.menuScreen.classList.add('is-hidden');
     if (state.menuHideTimer) {
-      window.clearTimeout(state.menuHideTimer);
+      globalThis.clearTimeout(state.menuHideTimer);
     }
-    state.menuHideTimer = window.setTimeout(() => {
+
+    state.menuHideTimer = globalThis.setTimeout(() => {
       if (elements.menuScreen.classList.contains('is-hidden')) {
         elements.menuScreen.hidden = true;
       }
@@ -222,10 +255,12 @@ export function createUIController(elements) {
         elements.statusChip.hidden = !chipVisible;
         state.lastStatusChipVisible = chipVisible;
       }
+
       if (state.lastStatusChipLabel !== chipLabel) {
         elements.statusChip.textContent = chipLabel;
         state.lastStatusChipLabel = chipLabel;
       }
+
       if (chipVisible && state.lastStatusChipTone !== chipTone) {
         setToneClass(elements.statusChip, chipTone);
         state.lastStatusChipTone = chipTone;
@@ -261,19 +296,20 @@ export function createUIController(elements) {
     if (state.lastLeaderboardKey === leaderboardKey) {
       return;
     }
+
     state.lastLeaderboardKey = leaderboardKey;
 
     elements.leaderboard.innerHTML = '';
 
-    if (!leaderboard.length) {
+    if (leaderboard.length === 0) {
       const empty = document.createElement('li');
       empty.className = 'leaderboard-entry';
       empty.textContent = 'Ninguém digno de vergonha ainda. Entra tu.';
-      elements.leaderboard.appendChild(empty);
+      elements.leaderboard.append(empty);
       return;
     }
 
-    leaderboard.forEach((player, index) => {
+    for (const [index, player] of leaderboard.entries()) {
       const item = document.createElement('li');
       item.className = 'leaderboard-entry';
       if (player.id === localPlayerId) {
@@ -293,8 +329,8 @@ export function createUIController(elements) {
       points.textContent = `${player.score}`;
 
       item.append(place, name, points);
-      elements.leaderboard.appendChild(item);
-    });
+      elements.leaderboard.append(item);
+    }
   }
 
   function showToast(text, tone = 'info', duration = 2200) {
@@ -304,12 +340,12 @@ export function createUIController(elements) {
     setToneClass(elements.toast, tone);
 
     if (state.toastTimer) {
-      window.clearTimeout(state.toastTimer);
+      globalThis.clearTimeout(state.toastTimer);
     }
 
-    state.toastTimer = window.setTimeout(() => {
+    state.toastTimer = globalThis.setTimeout(() => {
       elements.toast.classList.remove('is-visible');
-      window.setTimeout(() => {
+      globalThis.setTimeout(() => {
         if (!elements.toast.classList.contains('is-visible')) {
           elements.toast.hidden = true;
         }
@@ -319,7 +355,7 @@ export function createUIController(elements) {
 
   function hideToast() {
     if (state.toastTimer) {
-      window.clearTimeout(state.toastTimer);
+      globalThis.clearTimeout(state.toastTimer);
       state.toastTimer = null;
     }
 
@@ -335,17 +371,19 @@ export function createUIController(elements) {
     elements.pickupFlash.classList.add('is-animating');
 
     if (state.pickupTimer) {
-      window.clearTimeout(state.pickupTimer);
+      globalThis.clearTimeout(state.pickupTimer);
     }
 
-    state.pickupTimer = window.setTimeout(() => {
+    state.pickupTimer = globalThis.setTimeout(() => {
       elements.pickupFlash.classList.remove('is-animating');
       elements.pickupFlash.hidden = true;
     }, duration);
   }
 
   function showKillfeed(text, tone = 'info', duration = 2400) {
-    if (!elements.killfeed) return;
+    if (!elements.killfeed) {
+return;
+}
 
     elements.killfeed.hidden = false;
 
@@ -359,34 +397,37 @@ export function createUIController(elements) {
       elements.killfeed.lastElementChild?.remove();
     }
 
-    const timer = window.setTimeout(() => {
+    const timer = globalThis.setTimeout(() => {
       item.remove();
       state.killfeedTimers.delete(timer);
-      if (!elements.killfeed.children.length) {
+      if (elements.killfeed.children.length === 0) {
         elements.killfeed.hidden = true;
       }
     }, duration);
     state.killfeedTimers.add(timer);
   }
 
-  function showSessionInstructions(text, duration = 10000) {
-    if (!elements.instructionsPanel || !elements.hudTip) return;
+  function showSessionInstructions(text, duration = 10_000) {
+    if (!elements.instructionsPanel || !elements.hudTip) {
+return;
+}
 
     if (state.instructionTimer) {
-      window.clearTimeout(state.instructionTimer);
+      globalThis.clearTimeout(state.instructionTimer);
     }
+
     if (state.instructionHideTimer) {
-      window.clearTimeout(state.instructionHideTimer);
+      globalThis.clearTimeout(state.instructionHideTimer);
     }
 
     elements.hudTip.textContent = text;
     elements.instructionsPanel.hidden = false;
     elements.instructionsPanel.classList.remove('is-fading');
 
-    state.instructionTimer = window.setTimeout(() => {
+    state.instructionTimer = globalThis.setTimeout(() => {
       elements.instructionsPanel.classList.add('is-fading');
 
-      state.instructionHideTimer = window.setTimeout(() => {
+      state.instructionHideTimer = globalThis.setTimeout(() => {
         elements.instructionsPanel.hidden = true;
       }, 900);
     }, duration);
@@ -397,38 +438,51 @@ export function createUIController(elements) {
       elements.playButton.removeEventListener('click', state.startClickHandler);
       state.startClickHandler = null;
     }
+
     if (state.nicknameKeydownHandler) {
       elements.nicknameInput.removeEventListener('keydown', state.nicknameKeydownHandler);
       state.nicknameKeydownHandler = null;
     }
+
     if (state.musicVolumeInputHandler && elements.musicVolumeInput) {
       elements.musicVolumeInput.removeEventListener('input', state.musicVolumeInputHandler);
       state.musicVolumeInputHandler = null;
     }
+
     if (state.musicMuteClickHandler && elements.musicMuteButton) {
       elements.musicMuteButton.removeEventListener('click', state.musicMuteClickHandler);
       state.musicMuteClickHandler = null;
     }
+
     if (state.musicModeChangeHandler && elements.musicModeSelect) {
       elements.musicModeSelect.removeEventListener('change', state.musicModeChangeHandler);
       state.musicModeChangeHandler = null;
     }
+
     if (state.toastTimer) {
-      window.clearTimeout(state.toastTimer);
+      globalThis.clearTimeout(state.toastTimer);
     }
+
     if (state.pickupTimer) {
-      window.clearTimeout(state.pickupTimer);
+      globalThis.clearTimeout(state.pickupTimer);
     }
+
     if (state.instructionTimer) {
-      window.clearTimeout(state.instructionTimer);
+      globalThis.clearTimeout(state.instructionTimer);
     }
+
     if (state.instructionHideTimer) {
-      window.clearTimeout(state.instructionHideTimer);
+      globalThis.clearTimeout(state.instructionHideTimer);
     }
+
     if (state.menuHideTimer) {
-      window.clearTimeout(state.menuHideTimer);
+      globalThis.clearTimeout(state.menuHideTimer);
     }
-    state.killfeedTimers.forEach((timer) => window.clearTimeout(timer));
+
+    for (const timer of state.killfeedTimers) {
+globalThis.clearTimeout(timer);
+}
+
     state.killfeedTimers.clear();
   }
 

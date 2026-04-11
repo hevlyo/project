@@ -12,6 +12,7 @@ import { createUIController } from './client/ui.js';
 
 const MUSIC_VOLUME_STORAGE_KEY = 'pega-bola-music-volume';
 const MUSIC_MODE_STORAGE_KEY = 'pega-bola-music-mode';
+const FREE_CAMERA_STORAGE_KEY = 'pega-bola-free-camera-enabled';
 
 class GameApp {
   constructor(elements) {
@@ -54,6 +55,7 @@ class GameApp {
     this.musicVolume = this.restoreMusicVolume();
     this.lastNonZeroMusicVolume = this.musicVolume > 0 ? this.musicVolume : 0.08;
     this.musicMode = this.restoreMusicMode();
+    this.freeCameraMode = this.restoreFreeCameraMode();
     this.hasShownSessionInstructions = false;
     this.hasShownJoinToast = false;
     this.destroyed = false;
@@ -71,6 +73,7 @@ class GameApp {
 
   init() {
     this.scene.init();
+    this.scene.setFreeCameraMode(this.freeCameraMode);
     this.ui.bindStart(() => {
  this.handleStart();
 });
@@ -183,6 +186,22 @@ return 0.08;
     }
   }
 
+  restoreFreeCameraMode() {
+    try {
+      return localStorage.getItem(FREE_CAMERA_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  persistFreeCameraMode(enabled) {
+    try {
+      localStorage.setItem(FREE_CAMERA_STORAGE_KEY, enabled ? '1' : '0');
+    } catch {
+      // Ignore storage failures in private contexts.
+    }
+  }
+
   setMusicMode(mode) {
     const validModes = new Set(buildMusicModeOptions().map(option => option.value));
     const safeMode = validModes.has(mode) ? mode : 'auto';
@@ -275,9 +294,28 @@ return;
     this.bindEvent(globalThis, 'pointerdown', event => {
       if (event.button === 2) {
         event.preventDefault();
+        if (this.freeCameraMode) {
+          return;
+        }
+
         this.resetInputState();
       }
     });
+    this.bindEvent(globalThis, 'pointermove', event => {
+      if (!this.freeCameraMode || this.mode !== 'playing') {
+        return;
+      }
+
+      this.scene.adjustFreeCameraLook(event.movementX || 0, event.movementY || 0);
+    });
+    this.bindEvent(globalThis, 'wheel', event => {
+      if (!this.freeCameraMode || this.mode !== 'playing') {
+        return;
+      }
+
+      event.preventDefault();
+      this.scene.adjustFreeCameraZoom(event.deltaY || 0);
+    }, { passive: false });
     this.bindEvent(globalThis, 'keydown', event => {
       const {target} = event;
       const targetTag = target?.tagName;
@@ -300,6 +338,11 @@ return;
       switch (keyDownResult.command) {
         case 'toggleFullscreen': {
           this.toggleFullscreen();
+          return;
+        }
+
+        case 'toggleFreeCamera': {
+          this.toggleFreeCamera();
           return;
         }
 
@@ -332,6 +375,10 @@ return;
   }
 
   tryStartDash() {
+    if (this.freeCameraMode) {
+      return;
+    }
+
     if (this.mode !== 'playing') {
 return;
 }
@@ -369,6 +416,9 @@ return;
     this.pendingCollectionNotifs.clear();
     this.hasShownSessionInstructions = false;
     this.hasShownJoinToast = false;
+    this.freeCameraMode = false;
+    this.persistFreeCameraMode(false);
+    this.scene.setFreeCameraMode(false);
 
     if (!this.socket) {
       this.createSocket();
@@ -441,6 +491,9 @@ return;
         this.ui.showToast(randomItem(JOIN_MESSAGES), 'live', 2200);
         this.hasShownJoinToast = true;
       }
+
+      const localPlayer = this.players.get(this.localPlayerId);
+      this.scene.setFreeCameraMode(this.freeCameraMode, localPlayer);
     });
 
     this.socket.on('currentPlayers', snapshot => {
@@ -888,7 +941,7 @@ return;
   stepFixed({ allowNetwork }) {
     let becameVisible = 0;
 
-    for (const ball of this.balls) {
+    for (const ball of this.balls.values()) {
       if (ball.hidden && ball.pendingUntilMs <= this.simulationTimeMs) {
         ball.hidden = false;
         ball.pendingUntilMs = 0;
@@ -913,7 +966,7 @@ return;
 
   refreshVisibleBallCount() {
     let count = 0;
-    for (const ball of this.balls) {
+    for (const ball of this.balls.values()) {
       if (!ball.hidden) {
         count += 1;
       }
@@ -923,7 +976,7 @@ return;
   }
 
   updateRemotePlayers() {
-    for (const player of this.players) {
+    for (const player of this.players.values()) {
       if (player.id === this.localPlayerId) {
 continue;
 }
@@ -947,6 +1000,14 @@ continue;
   }
 
   updateLocalPlayer(player, { allowNetwork }) {
+    if (this.freeCameraMode) {
+      this.cameraHeading = this.scene.getCameraHeading(this.cameraHeading);
+      player.velocity.set(0, 0, 0);
+      this.pendingDash = false;
+      this.localWasMoving = false;
+      return;
+    }
+
     this.cameraHeading = this.scene.getCameraHeading(this.cameraHeading);
 
     const inputX = (this.keys.right ? 1 : 0) - (this.keys.left ? 1 : 0);
@@ -1083,7 +1144,7 @@ return;
 
     const collectionRadius = SETTINGS.collectionDistance + ((localPlayer.sizeMultiplier - 1) * 0.3);
 
-    for (const ball of this.balls) {
+    for (const ball of this.balls.values()) {
       if (ball.hidden) {
 continue;
 }
@@ -1104,22 +1165,50 @@ continue;
   }
 
   syncScene() {
-    for (const player of this.players) {
+    for (const player of this.players.values()) {
       this.scene.upsertPlayer(player, {
         isLocal: player.id === this.localPlayerId,
       });
     }
 
-    for (const ball of this.balls) {
+    for (const ball of this.balls.values()) {
       this.scene.upsertBall(ball);
     }
 
     const localPlayer = this.players.get(this.localPlayerId);
     if (localPlayer && this.mode !== 'menu') {
-      this.scene.updateCamera(localPlayer, this.cameraHeading);
+      if (this.freeCameraMode) {
+        this.scene.updateFreeCamera(this.keys, SETTINGS.frameMs);
+      } else {
+        this.scene.updateCamera(localPlayer, this.cameraHeading);
+      }
     } else {
       this.scene.updateIdleCamera(this.simulationTimeMs);
     }
+  }
+
+  toggleFreeCamera() {
+    if (this.mode !== 'playing') {
+      return;
+    }
+
+    const localPlayer = this.players.get(this.localPlayerId);
+    if (!localPlayer) {
+      return;
+    }
+
+    this.freeCameraMode = !this.freeCameraMode;
+    this.persistFreeCameraMode(this.freeCameraMode);
+    this.pendingDash = false;
+    resetInputKeys(this.keys);
+    this.scene.setFreeCameraMode(this.freeCameraMode, localPlayer);
+    this.ui.showToast(
+      this.freeCameraMode
+        ? 'Camera livre ativada (C). Movimento travado.'
+        : 'Camera livre desativada. Controle restaurado.',
+      this.freeCameraMode ? 'warning' : 'live',
+      1600,
+    );
   }
 
   getLeaderboard() {
@@ -1339,7 +1428,7 @@ continue;
     const localRadius = SETTINGS.playerRadius * (localPlayer.sizeMultiplier || 1);
     let corrected = false;
 
-    for (const otherPlayer of this.players) {
+    for (const otherPlayer of this.players.values()) {
       if (otherPlayer.id === this.localPlayerId) {
 continue;
 }
@@ -1494,6 +1583,10 @@ return;
 
     appShell.requestFullscreen?.().catch(() => {});
   }
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function getElements() {
