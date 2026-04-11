@@ -6,7 +6,8 @@
   "author": "Riquelme",
   "license": "MIT",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build:frontend": "bun build src/frontend/client/gameHud.ts --outdir public/js/client --format esm --target browser",
+    "build": "bun run build:frontend && tsc -p tsconfig.json",
     "start": "bun run build && node dist/server.js",
     "start:watch": "bun run build && node --watch dist/server.js",
     "test": "vitest run",

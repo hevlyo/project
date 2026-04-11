@@ -1,4 +1,5 @@
-import { SETTINGS, STORAGE_KEY, SESSION_STORAGE_KEY, JOIN_MESSAGES, DISCONNECT_MESSAGES, HUD_TIPS, clamp, isTimedStateActive, lerpAngle, normalizeNickname, randomItem, round, scoreToScale } from './client/config.js?v=20260410-uinotifysync1';
+import { SETTINGS, STORAGE_KEY, SESSION_STORAGE_KEY, JOIN_MESSAGES, DISCONNECT_MESSAGES, HUD_TIPS, isTimedStateActive, lerpAngle, normalizeNickname, randomItem, round, scoreToScale } from './client/config.js?v=20260410-uinotifysync1';
+import { resolveDashCooldownRatio, resolveStatusChip, resolveStatusLine } from './client/gameHud.js?v=20260411-frontrefactor1';
 import { SceneController, THREE } from './client/scene.js?v=20260410-uinotifysync1';
 import { createUIController } from './client/ui.js?v=20260410-uinotifysync1';
 
@@ -1215,12 +1216,8 @@ class GameApp {
     this.nextHudUpdateAt = this.simulationTimeMs + SETTINGS.hudUpdateIntervalMs;
 
     const localPlayer = this.players.get(this.localPlayerId);
-    const statusLine = this.mode === 'playing'
-      ? `${this.visibleBallCount} bolas vivas. Nenhuma veio voluntariamente.`
-      : this.mode === 'reconnecting'
-        ? 'Conexão em estado terminal. Tentando ressuscitar.'
-        : 'Aguardando conexão...';
-    const statusChip = this.getStatusChipState(localPlayer);
+    const statusLine = resolveStatusLine(this.mode, this.visibleBallCount);
+    const statusChip = resolveStatusChip(localPlayer);
 
     this.ui.updateHUD({
       score: localPlayer?.score || 0,
@@ -1238,46 +1235,13 @@ class GameApp {
 
   getDashCooldownRatio() {
     const localPlayer = this.players.get(this.localPlayerId);
-    const now = Date.now();
-    if (this.isDashUnlimitedActive(localPlayer, now)) {
-      const remaining = localPlayer.dashUnlimitedUntil - now;
-      return clamp(remaining / SETTINGS.infinityDashesDurationMs, 0, 1);
-    }
-
-    if (this.simulationTimeMs >= this.dashCooldownUntilMs) {
-      return 1;
-    }
-
-    const remaining = this.dashCooldownUntilMs - this.simulationTimeMs;
-    return clamp(1 - (remaining / SETTINGS.dashCooldownMs), 0, 1);
-  }
-
-  getStatusChipState(localPlayer) {
-    if (!localPlayer) return null;
-
-    const now = Date.now();
-    if (this.isDashUnlimitedActive(localPlayer, now)) {
-      return {
-        label: `Dash ilimitado ${Math.max(1, Math.ceil((localPlayer.dashUnlimitedUntil - now) / 1000))}s`,
-        tone: 'danger',
-      };
-    }
-    
-    if (isTimedStateActive(localPlayer.invulnerableUntil, now)) {
-      return {
-        label: `Protegido ${Math.max(1, Math.ceil((localPlayer.invulnerableUntil - now) / 1000))}s`,
-        tone: 'live',
-      };
-    }
-
-    if (isTimedStateActive(localPlayer.speedBoostUntil, now)) {
-      return {
-        label: `Turbo ${Math.max(1, Math.ceil((localPlayer.speedBoostUntil - now) / 1000))}s`,
-        tone: 'warning',
-      };
-    }
-
-    return null;
+    return resolveDashCooldownRatio({
+      dashCooldownUntilMs: this.dashCooldownUntilMs,
+      simulationTimeMs: this.simulationTimeMs,
+      dashCooldownMs: SETTINGS.dashCooldownMs,
+      infinityDashesDurationMs: SETTINGS.infinityDashesDurationMs,
+      dashUnlimitedUntil: localPlayer?.dashUnlimitedUntil,
+    });
   }
 
   isDashUnlimitedActive(player, now = this.simulationTimeMs) {

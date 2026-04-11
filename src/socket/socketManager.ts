@@ -1,6 +1,6 @@
 import config from '../config/gameConfig';
 import GameState from '../models/GameState';
-import type { SerializedPlayer } from '../models/contracts';
+import type { SerializedBall, SerializedPlayer, Vector3 } from '../models/contracts';
 
 interface SocketLike {
   id: string;
@@ -16,14 +16,50 @@ interface IoLike {
   emit(event: string, payload: unknown): void;
 }
 
+interface JoinPlayerResult {
+  player?: SerializedPlayer;
+  error?: string;
+}
+
+interface UpdatePlayerPositionResult {
+  player?: SerializedPlayer;
+  corrected?: boolean;
+  error?: string;
+}
+
+interface CollectBallResult {
+  ball?: SerializedBall;
+  awardedValue?: number;
+  player?: SerializedPlayer;
+  scores?: Record<string, number>;
+  error?: string;
+}
+
+interface GameStatePort {
+  joinPlayer(socketId: string, nickname: unknown, sessionId: unknown): JoinPlayerResult;
+  maintainBallCount(): { spawned: SerializedBall[]; despawned: string[] };
+  getWorldInfo(): { worldSize: number; ballCount: number; isNightMode: boolean };
+  getPlayersSnapshot(): Record<string, SerializedPlayer>;
+  getActiveBalls(): SerializedBall[];
+  getPlayerCount(): number;
+  getScoreMap(): Record<string, number>;
+  updatePlayerPosition(socketId: string, nextPosition: Vector3 | null | undefined): UpdatePlayerPositionResult;
+  collectBall(socketId: string, ballId?: string): CollectBallResult;
+  respawnBall(): SerializedBall | null;
+  activateDash(socketId: string): { player?: SerializedPlayer; dashCooldownUntil?: number; error?: string };
+  getPlayer(socketId: string): ReturnType<GameState['getPlayer']>;
+  serializePlayer(player: NonNullable<ReturnType<GameState['getPlayer']>>, now?: number): SerializedPlayer;
+  removePlayer(socketId: string): SerializedPlayer | null;
+}
+
 class SocketManager {
   io: IoLike;
-  gameState;
+  gameState: GameStatePort;
   lastMovementAt: Map<string, number>;
   lastCollectionAt: Map<string, number>;
   initialized: boolean;
 
-  constructor(io: IoLike, gameState = new GameState(config)) {
+  constructor(io: IoLike, gameState: GameStatePort = new GameState(config)) {
     if (!io || typeof io.on !== 'function') {
       throw new TypeError('SocketManager requires a Socket.IO server instance');
     }

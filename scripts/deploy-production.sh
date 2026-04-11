@@ -43,11 +43,14 @@ log "Starting deploy to ${REMOTE_HOST}:${REMOTE_APP_DIR}"
 log "Syncing files with rsync"
 rsync -az --delete "${EXCLUDES[@]}" "${REPO_ROOT}/" "${REMOTE_HOST}:${REMOTE_APP_DIR}/"
 
+log "Ensuring bun exists on remote"
+ssh "${REMOTE_HOST}" "if ! command -v bun >/dev/null 2>&1; then curl -fsSL https://bun.sh/install | bash >/dev/null 2>&1; fi"
+
 log "Installing dependencies on remote"
-ssh "${REMOTE_HOST}" "cd ${REMOTE_APP_DIR} && npm install"
+ssh "${REMOTE_HOST}" 'export PATH="$HOME/.bun/bin:$PATH"; cd '"${REMOTE_APP_DIR}"' && bun install'
 
 log "Building TypeScript on remote"
-ssh "${REMOTE_HOST}" "cd ${REMOTE_APP_DIR} && npm run build"
+ssh "${REMOTE_HOST}" 'export PATH="$HOME/.bun/bin:$PATH"; cd '"${REMOTE_APP_DIR}"' && bun run build'
 
 log "Restarting remote app with nohup"
 REMOTE_PID="$(ssh "${REMOTE_HOST}" "cd ${REMOTE_APP_DIR} && PIDS=\$(pgrep -f '^${REMOTE_NODE_BIN}[[:space:]]+dist/server\\.js$' || true) && if [ -n \"\$PIDS\" ]; then kill \$PIDS >/dev/null 2>&1 || true; fi; nohup ${REMOTE_NODE_BIN} dist/server.js > server.log 2>&1 < /dev/null & echo \$!" | tr -d '\r' | tail -n 1)"

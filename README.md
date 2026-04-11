@@ -1,6 +1,6 @@
 # Pega Bola 3000
 
-Jogo multiplayer em tempo real em que os jogadores entram, coletam bolas, crescem, disputam a liderança e podem consumir outros jogadores quando a regra de intenção permite.
+Jogo multiplayer em tempo real em que os jogadores entram, coletam bolas, crescem e disputam a liderança.
 
 ## Stack
 
@@ -41,7 +41,6 @@ http://localhost:25565
 
 - `WASD` para mover
 - `Space` para dash
-- `R` para tentativa de consumo
 - `f` para fullscreen
 - `Esc` para sair do fullscreen
 
@@ -51,9 +50,20 @@ http://localhost:25565
 - Movimentar pelo mapa
 - Coletar bolas para ganhar pontos e crescer
 - Disputar ranking
-- Consumir jogadores menores quando houver intenção ativa
 - Respawn com proteção curta
 - Reconnect curto sem duplicar o jogador local
+
+## Arquitetura e Manutenibilidade
+
+- O servidor usa uma fronteira explícita (`GameStatePort`) no `SocketManager` para reduzir acoplamento com a implementação concreta do estado do jogo.
+- O frontend iniciou migração para TypeScript com módulos puros em `src/frontend/client/`, compilados para `public/js/client/`.
+- A lógica de HUD foi extraída para `src/frontend/client/gameHud.ts`, facilitando evolução e testes isolados.
+
+## Testes e E2E Readiness
+
+- Priorize regras de negócio em funções puras (como no módulo de HUD) para simplificar cobertura unitária.
+- Use os hooks de depuração existentes do app para smoke tests E2E sem acoplar o teste à renderização frame a frame.
+- Em cada nova feature, adicione pelo menos um teste de regressão no servidor (`src/**.test.ts`) antes de alterar o fluxo do cliente.
 
 ## Estrutura
 
