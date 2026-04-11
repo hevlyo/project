@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "main": "dist/server.js",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "bun run build && node dist/server.js",

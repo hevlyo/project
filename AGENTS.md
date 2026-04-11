@@ -1,8 +1,19 @@
-- Sempre que corrigir um bug faça um teste de regressão para evitar que ele volte a acontecer.
-- Todo novo codigo deste repositorio deve ser escrito em TypeScript.
-- Nao criar novos arquivos `.js` para features, modulos, componentes, utilitarios ou logica nova.
-- Excecoes so sao permitidas para arquivos gerados automaticamente por ferramentas externas.
-- Sempre usar `bun` para executar scripts do projeto.
-- Sempre usar `bun` para instalar, remover ou atualizar dependencias.
-- Tipos explicitos para APIs publicas (funcoes, classes, contratos de dados).
-- Sem uso de `any` sem justificativa documentada.
+## Princípios
+
+- Toda mudança de comportamento deve vir com validação automatizada adequada.
+- Correção de bug exige teste de regressão.
+- Código novo deve ser TypeScript.
+- APIs públicas devem ter tipos explícitos.
+- Evite `any`; se inevitável, documente a justificativa no código.
+
+## Fonte da Verdade
+
+- Não duplique scripts, comandos ou detalhes de build/deploy aqui.
+- Use os arquivos de configuração do repositório como referência primária (`package.json`, `tsconfig*`, configs de teste, scripts de deploy).
+- Em caso de conflito entre documentação e código/configuração, priorize código/configuração.
+
+## Convenções de Mudança
+
+- Prefira alterações pequenas, isoladas e fáceis de revisar.
+- Preserve compatibilidade de contratos compartilhados; mudanças de contrato devem ser explícitas e acompanhadas por testes.
+- Não manter documentação redundante de caminhos/comandos que podem driftar.

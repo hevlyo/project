@@ -207,4 +207,525 @@ describe('GameState core rules', () => {
       randomSpy.mockRestore();
     }
   });
+
+  it('sanitizes nickname and rejects invalid inputs', () => {
+    const state = new GameState(gameConfig);
+
+    expect(state.sanitizeNickname(123)).toBe('');
+    expect(state.sanitizeNickname(' a@@  b  ')).toBe('a b');
+    expect(state.sanitizeNickname('x')).toBe('');
+    expect(state.sanitizeNickname('  jogador_valido  ')).toBe('jogador_valido');
+  });
+
+  it('supports world info, player count and active balls snapshot', () => {
+    const state = new GameState(gameConfig);
+    const beforeJoin = state.getWorldInfo();
+    expect(beforeJoin.worldSize).toBe(gameConfig.WORLD_SIZE);
+
+    state.joinPlayer('socket-a', 'Alpha', 'player-a');
+    state.joinPlayer('socket-b', 'Bravo', 'player-b');
+    expect(state.getPlayerCount()).toBe(2);
+    expect(state.getActiveBalls().length).toBeGreaterThan(0);
+  });
+
+  it('handles player id generation and lookup mapping', () => {
+    const state = new GameState(gameConfig);
+    const generated = state.makePlayerId(undefined);
+    expect(generated.startsWith('player-')).toBe(true);
+    expect(state.makePlayerId('abcdefgh')).toBe('abcdefgh');
+
+    const join = state.joinPlayer('socket-map', 'Map', 'player-map');
+    expect(state.resolvePlayerId('socket-map')).toBe(join.player?.id);
+    expect(state.getPlayer('socket-map')?.id).toBe(join.player?.id);
+    expect(state.getPlayer('missing-socket')).toBeNull();
+  });
+
+  it('reconnects existing player preserving id and replacing old socket mapping', () => {
+    const state = new GameState(gameConfig);
+    state.joinPlayer('socket-old', 'Alpha', 'persistent-player');
+
+    const rejoined = state.joinPlayer('socket-new', 'Alpha2', 'persistent-player');
+
+    expect(rejoined.player?.id).toBe('persistent-player');
+    expect(state.resolvePlayerId('socket-old')).toBeNull();
+    expect(state.resolvePlayerId('socket-new')).toBe('persistent-player');
+    expect(state.players['persistent-player'].nickname).toBe('Alpha2');
+  });
+
+  it('handles player removal and expiration lifecycle', () => {
+    vi.useFakeTimers();
+    const state = new GameState(gameConfig);
+    state.joinPlayer('socket-remove', 'Alpha', 'player-remove');
+
+    const removed = state.removePlayer('socket-remove');
+    expect(removed?.id).toBe('player-remove');
+    expect(state.players['player-remove'].connected).toBe(false);
+
+    vi.advanceTimersByTime(gameConfig.PLAYER_RECONNECT_GRACE_MS + 1);
+    expect(state.players['player-remove']).toBeUndefined();
+    expect(state.expireDisconnectedPlayer('missing-player')).toBeNull();
+
+    vi.useRealTimers();
+  });
+
+  it('does not expire a still-connected player', () => {
+    const state = new GameState(gameConfig);
+    state.joinPlayer('socket-keep', 'Keep', 'player-keep');
+
+    expect(state.expireDisconnectedPlayer('player-keep')).toBeNull();
+    expect(state.players['player-keep']).toBeDefined();
+  });
+
+  it('maintains and respawns ball count in both directions', () => {
+    const state = new GameState(gameConfig);
+
+    state.balls = {};
+    const grow = state.maintainBallCount();
+    expect(grow.spawned.length).toBe(state.getTargetBallCount());
+
+    const ids = Object.keys(state.balls);
+    state.balls[`${ids[0]}-extra-a`] = { ...state.balls[ids[0]], id: `${ids[0]}-extra-a` };
+    state.balls[`${ids[0]}-extra-b`] = { ...state.balls[ids[0]], id: `${ids[0]}-extra-b` };
+
+    const shrink = state.maintainBallCount();
+    expect(shrink.despawned.length).toBeGreaterThan(0);
+
+    const blockedRespawn = state.respawnBall();
+    expect(blockedRespawn).toBeNull();
+
+    const oneId = Object.keys(state.balls)[0];
+    delete state.balls[oneId];
+    const respawned = state.respawnBall();
+    expect(respawned).not.toBeNull();
+  });
+
+  it('covers createBall random branches for day/night and non-mode fallback', () => {
+    const state = new GameState(gameConfig);
+    const positionSpy = vi.spyOn(state, 'getRandomArenaPosition').mockReturnValue({ x: 1, z: 1 });
+
+    const nightRandom = vi.spyOn(Math, 'random').mockReturnValue(0.005);
+    state.isNightMode = false;
+    expect(state.createBall().type).toBe('NIGHT_MODE');
+
+    nightRandom.mockRestore();
+    const dayRandom = vi.spyOn(Math, 'random').mockReturnValue(0.01);
+    state.isNightMode = true;
+    expect(state.createBall().type).toBe('DAY_MODE');
+
+    dayRandom.mockRestore();
+    const fallbackRandom = vi
+      .spyOn(Math, 'random')
+      .mockImplementationOnce(() => 0.8)
+      .mockImplementationOnce(() => 0.9)
+      .mockImplementationOnce(() => 0.2);
+    state.isNightMode = false;
+    const fallbackBall = state.createBall();
+    expect(fallbackBall.type).not.toBe('NIGHT_MODE');
+    expect(fallbackBall.type).not.toBe('DAY_MODE');
+    expect(fallbackBall.type).not.toBe('INFINITY_DASHES');
+
+    fallbackRandom.mockRestore();
+    positionSpy.mockRestore();
+  });
+
+  it('validates movement and collect errors', () => {
+    const state = new GameState(gameConfig);
+
+    expect(state.updatePlayerPosition('missing', { x: 0, y: 0, z: 0 }).error).toBe('Player not found');
+    state.joinPlayer('socket-move', 'Move', 'player-move');
+    expect(state.updatePlayerPosition('socket-move', null).error).toBe('Invalid movement data');
+    expect(state.updatePlayerPosition('socket-move', { x: Number.NaN, y: 0, z: 0 }).error).toBe('Invalid movement data');
+
+    expect(state.collectBall('missing', 'x').error).toBe('Player not found');
+    expect(state.collectBall('socket-move', '').error).toBe('Invalid ball data');
+    expect(state.collectBall('socket-move', 'missing-ball').error).toBe('Ball not found');
+  });
+
+  it('marks movement as corrected when post-collision correction is applied', () => {
+    const state = new GameState(gameConfig);
+    state.joinPlayer('socket-post', 'Post', 'player-post');
+
+    const arenaSpy = vi.spyOn(state, 'resolveArenaSlide').mockReturnValue(false);
+    const postSpy = vi.spyOn(state, 'resolvePostCollisions').mockReturnValue(true);
+    const pushSpy = vi.spyOn(state, 'resolvePlayerPush').mockReturnValue(false);
+
+    const result = state.updatePlayerPosition('socket-post', { x: 1, y: 0, z: 1 });
+
+    expect(result.error).toBeUndefined();
+    expect(result.corrected).toBe(true);
+    expect(arenaSpy).toHaveBeenCalled();
+    expect(postSpy).toHaveBeenCalled();
+    expect(pushSpy).toHaveBeenCalled();
+
+    arenaSpy.mockRestore();
+    postSpy.mockRestore();
+    pushSpy.mockRestore();
+  });
+
+  it('rejects collecting ball when too far and toggles speed/day-night states', () => {
+    const state = new GameState(gameConfig);
+    const join = state.joinPlayer('socket-collect', 'Collector', 'player-collect');
+    const player = state.players[join.player!.id];
+
+    state.balls = {
+      far: {
+        id: 'far',
+        type: 'NORMAL',
+        value: 10,
+        color: 0xffffff,
+        position: { x: 999, y: 0, z: 999 },
+      },
+    };
+    expect(state.collectBall('socket-collect', 'far').error).toBe('Ball too far to collect');
+
+    player.position = { x: 0, y: 0, z: 0 };
+    state.balls = {
+      speed: {
+        id: 'speed',
+        type: 'SPEED',
+        value: 5,
+        color: 0x00ff00,
+        position: { x: 0, y: 0, z: 0 },
+      },
+      night: {
+        id: 'night',
+        type: 'NIGHT_MODE',
+        value: 50,
+        color: 0x000000,
+        position: { x: 0, y: 0, z: 0 },
+      },
+      day: {
+        id: 'day',
+        type: 'DAY_MODE',
+        value: 50,
+        color: 0xffffff,
+        position: { x: 0, y: 0, z: 0 },
+      },
+    };
+
+    const speedResult = state.collectBall('socket-collect', 'speed');
+    expect(speedResult.player?.speedBoostUntil).toBeGreaterThan(0);
+
+    state.collectBall('socket-collect', 'night');
+    expect(state.isNightMode).toBe(true);
+
+    state.collectBall('socket-collect', 'day');
+    expect(state.isNightMode).toBe(false);
+  });
+
+  it('resets timed states and invulnerability checks', () => {
+    const state = new GameState(gameConfig);
+    const join = state.joinPlayer('socket-timed', 'Timer', 'player-timed');
+    const player = state.players[join.player!.id];
+    const now = Date.now();
+
+    player.invulnerableUntil = now - 1;
+    player.speedBoostUntil = now - 1;
+    player.dashUnlimitedUntil = now - 1;
+
+    state.refreshPlayerTimedState(player, now);
+    expect(player.invulnerableUntil).toBe(0);
+    expect(player.speedBoostUntil).toBe(0);
+    expect(player.dashUnlimitedUntil).toBe(0);
+    expect(state.isInvulnerable(player, now)).toBe(false);
+    expect(state.isInvulnerable(undefined, now)).toBe(false);
+  });
+
+  it('resets player on respawn and handles missing respawn target', () => {
+    const state = new GameState(gameConfig);
+    const join = state.joinPlayer('socket-respawn', 'Respawn', 'player-respawn');
+    const player = state.players[join.player!.id];
+
+    player.score = 100;
+    player.speedBoostUntil = Date.now() + 1000;
+    player.dashUnlimitedUntil = Date.now() + 1000;
+
+    const respawned = state.respawnPlayer(player.id, 10000);
+    expect(respawned).not.toBeNull();
+    expect(respawned?.score).toBe(0);
+    expect(respawned?.dashCooldownUntil).toBe(10000);
+    expect(state.respawnPlayer('missing')).toBeNull();
+  });
+
+  it('pushes overlapping players and handles exact overlap axis fallback', () => {
+    const state = new GameState(gameConfig);
+    state.joinPlayer('socket-a', 'Alpha', 'aaa-player');
+    state.joinPlayer('socket-b', 'Bravo', 'bbb-player');
+
+    const a = state.players['aaa-player'];
+    const b = state.players['bbb-player'];
+    a.position = { x: 0, y: 0, z: 0 };
+    b.position = { x: 0, y: 0, z: 0 };
+
+    expect(state.resolvePlayerPush('aaa-player')).toBe(true);
+    expect(state.resolvePlayerPush('missing-player')).toBe(false);
+  });
+
+  it('handles top score recomputation and score map snapshot with disconnected players', () => {
+    const state = new GameState(gameConfig);
+    state.joinPlayer('socket-a', 'Alpha', 'player-a');
+    state.joinPlayer('socket-b', 'Bravo', 'player-b');
+    state.players['player-a'].score = 10;
+    state.players['player-b'].score = 20;
+    state.players['player-b'].connected = false;
+
+    state.recalculateTopScore();
+    expect(state.topScore).toBe(10);
+    expect(state.topScorePlayer).toBe('player-a');
+
+    const scoreMap = state.getScoreMap();
+    expect(scoreMap).toEqual({ 'player-a': 10 });
+
+    const snapshot = state.getPlayersSnapshot();
+    expect(snapshot['player-a']).toBeDefined();
+    expect(snapshot['player-b']).toBeUndefined();
+  });
+
+  it('covers random position fallback and utility passthrough methods', () => {
+    const state = new GameState(gameConfig);
+    state.players = {
+      p1: {
+        id: 'p1',
+        nickname: 'P1',
+        socketId: 'p1',
+        connected: true,
+        color: 1,
+        position: { x: 0, y: 0, z: 0 },
+        score: 0,
+        invulnerableUntil: 0,
+        speedBoostUntil: 0,
+        dashCooldownUntil: 0,
+        dashUnlimitedUntil: 0,
+        lastUpdate: 0,
+      },
+    };
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const position = state.getRandomArenaPosition(1000, 1);
+    expect(position).toBeDefined();
+    randomSpy.mockRestore();
+
+    expect(gameConfig.PLAYER_COLORS).toContain(state.getPlayerColor());
+    expect(state.clamp(5, 0, 3)).toBe(3);
+    expect(state.clamp(-1, 0, 3)).toBe(0);
+    expect(state.getArenaLimit(1)).toBeGreaterThan(0);
+    expect(state.isInsideArena({ x: 0, y: 0, z: 0 }, 1)).toBe(true);
+
+    const prev = { x: 0, y: 0, z: 0 };
+    const next = { x: 999, y: 0, z: 999 };
+    expect(state.resolveArenaSlide(prev, next, 1)).toBe(true);
+    expect(Array.isArray(state.getArenaPosts())).toBe(true);
+    expect(typeof state.resolveObstacleSlide(prev, next, 1, { x: 0, z: 0 }, 1, 0.1)).toBe('boolean');
+    expect(typeof state.resolvePostCollisions(prev, next, 1)).toBe('boolean');
+  });
+
+  it('handles removePlayer unresolved mapping and stale player mapping cases', () => {
+    const state = new GameState(gameConfig);
+    expect(state.removePlayer('missing')).toBeNull();
+
+    state.socketToPlayerId.set('socket-stale', 'ghost-player');
+    expect(state.removePlayer('socket-stale')).toBeNull();
+  });
+
+  it('returns dash cooldown error when unlimited window is over', () => {
+    const state = new GameState(gameConfig);
+    state.joinPlayer('socket-dash-error', 'DashError', 'player-dash-error');
+    const player = state.players['player-dash-error'];
+
+    player.dashCooldownUntil = 200;
+    player.dashUnlimitedUntil = 100;
+
+    const result = state.activateDash('socket-dash-error', 150);
+    expect(result.error).toBe('Dash on cooldown');
+    expect(result.dashCooldownUntil).toBe(200);
+  });
+
+  it('returns player not found for dash when socket is unknown', () => {
+    const state = new GameState(gameConfig);
+    const result = state.activateDash('missing-socket');
+    expect(result.error).toBe('Player not found');
+  });
+
+  it('rejects invalid nickname in joinPlayer', () => {
+    const state = new GameState(gameConfig);
+    const result = state.joinPlayer('socket-invalid', 'x', 'player-invalid');
+    expect(result.error).toBe('Invalid nickname');
+  });
+
+  it('cancels pending reconnect removal timer explicitly', () => {
+    vi.useFakeTimers();
+    const state = new GameState(gameConfig);
+    state.joinPlayer('socket-cancel', 'Cancel', 'player-cancel');
+    state.removePlayer('socket-cancel');
+
+    expect(state.playerReconnectTimers.has('player-cancel')).toBe(true);
+    state.cancelPendingRemoval('player-cancel');
+    expect(state.playerReconnectTimers.has('player-cancel')).toBe(false);
+
+    vi.useRealTimers();
+  });
+
+  it('expires disconnected player and clears old socket mapping when socket id is still present', () => {
+    const state = new GameState(gameConfig);
+    state.players['player-expire'] = {
+      id: 'player-expire',
+      nickname: 'Expire',
+      socketId: 'socket-expire',
+      connected: false,
+      color: 1,
+      position: { x: 0, y: 0, z: 0 },
+      score: 10,
+      invulnerableUntil: 0,
+      speedBoostUntil: 0,
+      dashCooldownUntil: 0,
+      dashUnlimitedUntil: 0,
+      lastUpdate: Date.now(),
+      disconnectedAt: Date.now(),
+    };
+    state.socketToPlayerId.set('socket-expire', 'player-expire');
+
+    const expired = state.expireDisconnectedPlayer('player-expire');
+    expect(expired?.id).toBe('player-expire');
+    expect(state.resolvePlayerId('socket-expire')).toBeNull();
+  });
+
+  it('returns false when resolvePlayerPush finds no overlap', () => {
+    const state = new GameState(gameConfig);
+    state.joinPlayer('socket-a', 'Alpha', 'player-a');
+    state.joinPlayer('socket-b', 'Bravo', 'player-b');
+
+    state.players['player-a'].position = { x: 0, y: 0, z: 0 };
+    state.players['player-b'].position = { x: 999, y: 0, z: 999 };
+
+    expect(state.resolvePlayerPush('player-a')).toBe(false);
+  });
+
+  it('covers player scale ceiling and player radius calculation', () => {
+    const state = new GameState(gameConfig);
+    const hugeScale = state.getPlayerScale(999999);
+    expect(hugeScale).toBe(gameConfig.MAX_SIZE_MULTIPLIER);
+
+    const join = state.joinPlayer('socket-radius', 'Radius', 'player-radius');
+    const player = state.players[join.player!.id];
+    player.score = 50;
+    expect(state.getPlayerRadius(player)).toBeGreaterThan(gameConfig.PLAYER_BASE_RADIUS);
+  });
+
+  it('returns null for getPlayer when mapping exists but player is missing', () => {
+    const state = new GameState(gameConfig);
+    state.socketToPlayerId.set('socket-ghost', 'ghost-player');
+    expect(state.getPlayer('socket-ghost')).toBeNull();
+  });
+
+  it('keeps ball count stable when already at target', () => {
+    const state = new GameState(gameConfig);
+    const result = state.maintainBallCount();
+    expect(result.spawned).toEqual([]);
+    expect(result.despawned).toEqual([]);
+  });
+
+  it('rejoins with same socket without removing previous mapping', () => {
+    const state = new GameState(gameConfig);
+    state.joinPlayer('socket-same', 'Alpha', 'player-same');
+    const rejoined = state.joinPlayer('socket-same', 'Alpha2', 'player-same');
+
+    expect(rejoined.player?.id).toBe('player-same');
+    expect(state.resolvePlayerId('socket-same')).toBe('player-same');
+  });
+
+  it('keeps socket id when removePlayer is called through alternate mapping', () => {
+    const state = new GameState(gameConfig);
+    state.players.player = {
+      id: 'player',
+      nickname: 'Mismatch',
+      socketId: 'socket-real',
+      connected: true,
+      color: 1,
+      position: { x: 0, y: 0, z: 0 },
+      score: 0,
+      invulnerableUntil: 0,
+      speedBoostUntil: 0,
+      dashCooldownUntil: 0,
+      dashUnlimitedUntil: 0,
+      lastUpdate: Date.now(),
+    };
+    state.socketToPlayerId.set('socket-alias', 'player');
+
+    const removed = state.removePlayer('socket-alias');
+    expect(removed?.id).toBe('player');
+    expect(state.players.player.socketId).toBe('socket-real');
+  });
+
+  it('covers no-comeback branch when top score is zero but player score is positive', () => {
+    const state = new GameState(gameConfig);
+    state.players = {};
+    state.topScore = 0;
+
+    const scaled = state.getScaledBallValue(10, 5);
+    expect(scaled).toBeGreaterThan(10);
+  });
+
+  it('covers both exact-overlap axis choices in player push', () => {
+    const state = new GameState(gameConfig);
+
+    state.players.aaa = {
+      id: 'aaa',
+      nickname: 'A',
+      socketId: 'aaa',
+      connected: true,
+      color: 1,
+      position: { x: 0, y: 0, z: 0 },
+      score: 0,
+      invulnerableUntil: 0,
+      speedBoostUntil: 0,
+      dashCooldownUntil: 0,
+      dashUnlimitedUntil: 0,
+      lastUpdate: 0,
+    };
+    state.players.bbb = {
+      id: 'bbb',
+      nickname: 'B',
+      socketId: 'bbb',
+      connected: true,
+      color: 1,
+      position: { x: 0, y: 0, z: 0 },
+      score: 0,
+      invulnerableUntil: 0,
+      speedBoostUntil: 0,
+      dashCooldownUntil: 0,
+      dashUnlimitedUntil: 0,
+      lastUpdate: 0,
+    };
+
+    expect(state.resolvePlayerPush('aaa')).toBe(true);
+    state.players.aaa.position = { x: 0, y: 0, z: 0 };
+    state.players.bbb.position = { x: 0, y: 0, z: 0 };
+    expect(state.resolvePlayerPush('bbb')).toBe(true);
+  });
+
+  it('uses clampPositionToArena default skin fallback when config skin is zero', () => {
+    const zeroSkinState = new GameState({
+      ...gameConfig,
+      ARENA_EDGE_SKIN: 0,
+    });
+
+    const position = { x: 999, y: 0, z: 999 };
+    zeroSkinState.clampPositionToArena(position, 0);
+    expect(zeroSkinState.isInsideArena(position, 0)).toBe(true);
+  });
+
+  it('supports schedulePlayerRemoval when timeout handle has no unref', () => {
+    const state = new GameState(gameConfig);
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((handler: TimerHandler) => {
+      if (typeof handler === 'function') {
+        handler();
+      }
+      return 123 as unknown as ReturnType<typeof setTimeout>;
+    }) as typeof setTimeout);
+
+    state.schedulePlayerRemoval('player-no-unref');
+    expect(state.playerReconnectTimers.has('player-no-unref')).toBe(true);
+
+    setTimeoutSpy.mockRestore();
+  });
 });

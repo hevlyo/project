@@ -85,4 +85,92 @@ describe('ArenaPhysics', () => {
 
     expect(corrected).toBe(false);
   });
+
+  it('returns cached posts and validates inside-arena checks', () => {
+    const first = physics.getArenaPosts();
+    const second = physics.getArenaPosts();
+
+    expect(first).toBe(second);
+    expect(physics.isInsideArena({ x: 0, y: 0, z: 0 }, 0)).toBe(true);
+    expect(physics.isInsideArena({ x: 9999, y: 0, z: 9999 }, 0)).toBe(false);
+  });
+
+  it('covers obstacle slide fallback branches for zero-length normals', () => {
+    const obstacle = { x: 0, z: 0 };
+    const moverRadius = 1;
+    const obstacleRadius = 1;
+    const previous = { x: 0, y: 0, z: 0 };
+    const next = { x: 0, y: 0, z: 0 };
+
+    // When both previous and next are exactly at obstacle origin, the method should safely return false.
+    const corrected = physics.resolveObstacleSlide(previous, next, moverRadius, obstacle, obstacleRadius, 0);
+    expect(corrected).toBe(false);
+
+    // If previous provides a direction, the fallback should correct position.
+    const previousDirected = { x: 1, y: 0, z: 0 };
+    const nextDirected = { x: 0, y: 0, z: 0 };
+    const correctedDirected = physics.resolveObstacleSlide(previousDirected, nextDirected, moverRadius, obstacle, obstacleRadius, 0);
+    expect(correctedDirected).toBe(true);
+  });
+
+  it('supports config with zero obstacle rings', () => {
+    const zeroPhysics = new ArenaPhysics({
+      ...gameConfig,
+      ARENA_POST_COUNT: 0,
+      ARENA_MONOLITH_COUNT: 0,
+      ARENA_LANTERN_COUNT: 0,
+      ARENA_PLANT_COUNT: 0,
+    });
+
+    expect(zeroPhysics.getArenaObstacleCircles()).toEqual([]);
+    expect(zeroPhysics.resolvePostCollisions(
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 0, z: 0 },
+      1,
+    )).toBe(false);
+  });
+
+  it('uses zero fallback for skin when edge skin config is zero', () => {
+    const zeroSkinPhysics = new ArenaPhysics({
+      ...gameConfig,
+      ARENA_EDGE_SKIN: 0,
+    });
+
+    const inside = { x: 1, y: 0, z: 1 };
+    const wasCorrected = zeroSkinPhysics.resolveArenaSlide({ ...inside }, inside, 0);
+    expect(wasCorrected).toBe(false);
+
+    const outside = { x: 999, y: 0, z: 999 };
+    zeroSkinPhysics.clampPositionToArena(outside, 0);
+    expect(zeroSkinPhysics.isInsideArena(outside, 0)).toBe(true);
+
+    const next = { x: 50, y: 0, z: 50 };
+    expect(zeroSkinPhysics.resolvePostCollisions({ x: 0, y: 0, z: 0 }, next, 0.5)).toBeTypeOf('boolean');
+  });
+
+  it('returns false when obstacle is farther than minimum collision distance', () => {
+    const corrected = physics.resolveObstacleSlide(
+      { x: 0, y: 0, z: 0 },
+      { x: 20, y: 0, z: 20 },
+      1,
+      { x: 0, z: 0 },
+      1,
+      0,
+    );
+
+    expect(corrected).toBe(false);
+  });
+
+  it('resolves obstacle collision without needing zero-distance fallback', () => {
+    const corrected = physics.resolveObstacleSlide(
+      { x: 0, y: 0, z: 0 },
+      { x: 1.2, y: 0, z: 0 },
+      1,
+      { x: 0, z: 0 },
+      1,
+      0,
+    );
+
+    expect(corrected).toBe(true);
+  });
 });

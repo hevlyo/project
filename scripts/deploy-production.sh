@@ -72,7 +72,7 @@ log "Building TypeScript on remote"
 ssh "${REMOTE_HOST}" 'export PATH="$HOME/.bun/bin:$PATH"; cd '"${REMOTE_APP_DIR}"' && bun run build'
 
 log "Restarting remote app with nohup"
-REMOTE_PID="$(ssh "${REMOTE_HOST}" "cd ${REMOTE_APP_DIR} && PIDS=\$(pgrep -f '^${REMOTE_NODE_BIN}[[:space:]]+.*server\\.js$' || true) && if [ -n \"\$PIDS\" ]; then kill \$PIDS >/dev/null 2>&1 || true; fi; nohup ${REMOTE_NODE_BIN} apps/server/dist/server.js > server.log 2>&1 < /dev/null & echo \$!" | tr -d '\r' | tail -n 1)"
+REMOTE_PID="$(ssh "${REMOTE_HOST}" "cd ${REMOTE_APP_DIR} && PID_FILE=apps/server/server.pid && if [ -f \"\$PID_FILE\" ]; then OLD_PID=\$(cat \"\$PID_FILE\" 2>/dev/null || true); if [ -n \"\$OLD_PID\" ] && kill -0 \"\$OLD_PID\" >/dev/null 2>&1; then kill \"\$OLD_PID\" >/dev/null 2>&1 || true; fi; fi; PIDS=\$(pgrep -f '^${REMOTE_NODE_BIN}[[:space:]]+apps/server/dist/server\\.js$' || true); if [ -n \"\$PIDS\" ]; then kill \$PIDS >/dev/null 2>&1 || true; fi; nohup ${REMOTE_NODE_BIN} apps/server/dist/server.js > server.log 2>&1 < /dev/null & echo \$! | tee \"\$PID_FILE\"" | tr -d '\r' | tail -n 1)"
 
 if [[ -z "${REMOTE_PID}" ]]; then
   printf 'Failed to start remote process (empty pid).\n' >&2
