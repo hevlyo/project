@@ -42,6 +42,12 @@ export interface GameConfig {
   ARENA_PLANT_RADIUS: number;
   MOVEMENT_THROTTLE_MS: number;
   COLLECTION_THROTTLE_MS: number;
+  PLAYER_MAX_HEALTH: number;
+  ATTACK_COOLDOWN_MS: number;
+  FIREBALL_SPEED: number;
+  FIREBALL_DAMAGE: number;
+  FIREBALL_RADIUS: number;
+  FIREBALL_LIFETIME_MS: number;
   BALL_TYPES: Record<string, BallTypeConfig>;
   PLAYER_COLORS: number[];
   RESPAWN_DELAY: number;
@@ -72,6 +78,19 @@ export interface BallState {
   position: Vector3;
 }
 
+export interface ProjectileState {
+  id: string;
+  ownerId: string;
+  position: Vector3;
+  direction: Vector3;
+  speed: number;
+  radius: number;
+  damage: number;
+  color: number;
+  createdAt: number;
+  expiresAt: number;
+}
+
 export interface PlayerState {
   id: string;
   nickname: string;
@@ -80,10 +99,13 @@ export interface PlayerState {
   color: number;
   position: Vector3;
   score: number;
+  health: number;
+  maxHealth: number;
   invulnerableUntil: number;
   speedBoostUntil: number;
   dashCooldownUntil: number;
   dashUnlimitedUntil: number;
+  attackCooldownUntil: number;
   disconnectedAt?: number;
   lastUpdate: number;
 }
@@ -94,11 +116,28 @@ export interface SerializedPlayer {
   color: number;
   score: number;
   sizeMultiplier: number;
+  serverTimeMs: number;
+  health: number;
+  maxHealth: number;
   invulnerableUntil: number;
   speedBoostUntil: number;
   dashCooldownUntil: number;
   dashUnlimitedUntil: number;
+  attackCooldownUntil: number;
   position: Vector3;
+}
+
+export interface SerializedProjectile {
+  id: string;
+  ownerId: string;
+  position: Vector3;
+  direction: Vector3;
+  speed: number;
+  radius: number;
+  damage: number;
+  color: number;
+  createdAt: number;
+  expiresAt: number;
 }
 
 export interface SerializedBall {

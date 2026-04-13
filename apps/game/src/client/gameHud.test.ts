@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   resolveDashCooldownRatio,
+  resolveHealthRatio,
   resolveStatusChip,
   resolveStatusLine,
 } from './gameHud';
@@ -46,5 +47,12 @@ describe('gameHud helpers', () => {
     });
 
     expect(unlimitedRatio).toBeCloseTo(0.8, 1);
+  });
+
+  it('clamps health ratio safely', () => {
+    expect(resolveHealthRatio(75, 100)).toBe(0.75);
+    expect(resolveHealthRatio(150, 100)).toBe(1);
+    expect(resolveHealthRatio(-10, 100)).toBe(0);
+    expect(resolveHealthRatio(10, 0)).toBe(1);
   });
 });

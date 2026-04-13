@@ -96,6 +96,7 @@ export const DISCONNECT_MESSAGES = [
 export const HUD_TIPS = [
   'WASD pra arrastar essa desgraça. Shift pra fingir que sabe correr.',
   'Space dá dash. Tem cooldown porque o jogo ainda tem piedade de você.',
+  'Clique esquerdo dispara fire ball na direção da câmera. Sim, agora você também pode ser tóxico.',
   'Colete bolas sem parar. Sobreviver já é uma vitória pra sua autoestima.',
   'Bola dourada vale 3x. A verde dá speed. A branca vale pouco, igual seu esforço.',
   'Dica: os maiores foram pequenos há 30 segundos. Pense nisso enquanto foge.',

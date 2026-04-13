@@ -19,6 +19,14 @@ function createMockIo() {
   };
 }
 
+function combatMocks() {
+  return {
+    getActiveProjectiles: vi.fn().mockReturnValue([]),
+    fireballAttack: vi.fn().mockReturnValue({ error: 'Player not found' }),
+    advanceCombat: vi.fn().mockReturnValue({ spawned: [], destroyed: [], hits: [] }),
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -58,6 +66,7 @@ describe('SocketManager', () => {
         position: { x: 0, y: 0, z: 0 },
       }),
       removePlayer: vi.fn().mockReturnValue(null),
+      ...combatMocks(),
     };
 
     const manager = new SocketManager(io, gameState as never);
@@ -69,6 +78,7 @@ describe('SocketManager', () => {
     expect(socket.on).toHaveBeenCalledWith('joinGame', expect.any(Function));
     expect(socket.on).toHaveBeenCalledWith('playerMovement', expect.any(Function));
     expect(socket.on).toHaveBeenCalledWith('collectBall', expect.any(Function));
+    expect(socket.on).toHaveBeenCalledWith('playerAttack', expect.any(Function));
     expect(socket.on).toHaveBeenCalledWith('playerDash', expect.any(Function));
     expect(socket.on).toHaveBeenCalledWith('disconnect', expect.any(Function));
 
@@ -86,6 +96,78 @@ describe('SocketManager', () => {
 
     manager.initialize();
     expect(io.on).toHaveBeenCalledTimes(1);
+    manager.destroy();
+  });
+
+  it('broadcasts fireball spawn and combat impact', () => {
+    const io = createMockIo();
+    const playerState = {
+      id: 'player-1',
+      nickname: 'Alpha',
+      color: 1,
+      score: 0,
+      sizeMultiplier: 1,
+      health: 100,
+      maxHealth: 100,
+      invulnerableUntil: 0,
+      speedBoostUntil: 0,
+      dashCooldownUntil: 0,
+      dashUnlimitedUntil: 0,
+      attackCooldownUntil: 900,
+      position: { x: 0, y: 0, z: 0 },
+    };
+    const projectile = {
+      id: 'projectile-1',
+      ownerId: 'player-1',
+      position: { x: 1, y: 0, z: 0 },
+      direction: { x: 1, y: 0, z: 0 },
+      speed: 38,
+      radius: 1.15,
+      damage: 25,
+      color: 1,
+      createdAt: 1000,
+      expiresAt: 2800,
+    };
+    const gameState = {
+      joinPlayer: vi.fn(),
+      maintainBallCount: vi.fn(),
+      getWorldInfo: vi.fn(),
+      getPlayersSnapshot: vi.fn(),
+      getActiveBalls: vi.fn(),
+      getActiveProjectiles: vi.fn().mockReturnValue([]),
+      getPlayerCount: vi.fn(),
+      getScoreMap: vi.fn(),
+      updatePlayerPosition: vi.fn(),
+      collectBall: vi.fn(),
+      respawnBall: vi.fn(),
+      fireballAttack: vi.fn().mockReturnValue({ projectile, player: playerState }),
+      advanceCombat: vi.fn().mockReturnValue({
+        spawned: [],
+        destroyed: ['projectile-1'],
+        hits: [{ projectile, player: playerState, damage: 25, wasFatal: true }],
+      }),
+      activateDash: vi.fn(),
+      getPlayer: vi.fn(),
+      serializePlayer: vi.fn(),
+      removePlayer: vi.fn(),
+    };
+
+    const manager = new SocketManager(io, gameState as never);
+    const socket = createMockSocket('sock-attack');
+
+    manager.handlePlayerAttack(socket, { direction: { x: 1, y: 0, z: 0 } });
+    manager.handleCombatTick();
+
+    expect(io.emit).toHaveBeenCalledWith('projectileSpawned', projectile);
+    expect(io.emit).toHaveBeenCalledWith('projectileDestroyed', { projectileId: 'projectile-1' });
+    expect(io.emit).toHaveBeenCalledWith('fireballImpact', expect.objectContaining({
+      projectileId: 'projectile-1',
+      playerId: 'player-1',
+      damage: 25,
+      wasFatal: true,
+    }));
+    expect(io.emit).toHaveBeenCalledWith('playerState', expect.objectContaining({ syncMode: 'attack' }));
+    expect(io.emit).toHaveBeenCalledWith('playerState', expect.objectContaining({ syncMode: 'respawn' }));
     manager.destroy();
   });
 
@@ -107,6 +189,7 @@ describe('SocketManager', () => {
       getPlayer: vi.fn(),
       serializePlayer: vi.fn(),
       removePlayer: vi.fn(),
+      ...combatMocks(),
     };
 
     const manager = new SocketManager(io, gameState as never);
@@ -136,6 +219,7 @@ describe('SocketManager', () => {
       getPlayer: vi.fn(),
       serializePlayer: vi.fn(),
       removePlayer: vi.fn(),
+      ...combatMocks(),
     };
 
     const manager = new SocketManager(io, gameState as never);
@@ -168,6 +252,7 @@ describe('SocketManager', () => {
       getPlayer: vi.fn(),
       serializePlayer: vi.fn(),
       removePlayer: vi.fn(),
+      ...combatMocks(),
     };
 
     const manager = new SocketManager(io, gameState as never);
@@ -199,6 +284,7 @@ describe('SocketManager', () => {
       getPlayer: vi.fn(),
       serializePlayer: vi.fn(),
       removePlayer: vi.fn(),
+      ...combatMocks(),
     };
 
     const manager = new SocketManager(io, gameState as never);
@@ -235,6 +321,7 @@ describe('SocketManager', () => {
       getPlayer: vi.fn(),
       serializePlayer: vi.fn(),
       removePlayer: vi.fn(),
+      ...combatMocks(),
     };
 
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1000);
@@ -268,6 +355,7 @@ describe('SocketManager', () => {
       getPlayer: vi.fn(),
       serializePlayer: vi.fn(),
       removePlayer: vi.fn(),
+      ...combatMocks(),
     };
 
     const manager = new SocketManager(io, gameState as never);
@@ -313,6 +401,7 @@ describe('SocketManager', () => {
       getPlayer: vi.fn(),
       serializePlayer: vi.fn(),
       removePlayer: vi.fn(),
+      ...combatMocks(),
     };
 
     const manager = new SocketManager(io, gameState as never);
@@ -366,6 +455,7 @@ describe('SocketManager', () => {
       getPlayer: vi.fn(),
       serializePlayer: vi.fn(),
       removePlayer: vi.fn(),
+      ...combatMocks(),
     };
 
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(2000);
@@ -422,6 +512,7 @@ describe('SocketManager', () => {
       getPlayer: vi.fn().mockReturnValueOnce(playerState).mockReturnValueOnce(null),
       serializePlayer: vi.fn().mockReturnValue(playerState),
       removePlayer: vi.fn(),
+      ...combatMocks(),
     };
 
     const manager = new SocketManager(io, gameState as never);
@@ -456,6 +547,7 @@ describe('SocketManager', () => {
       getPlayer: vi.fn(),
       serializePlayer: vi.fn(),
       removePlayer: vi.fn().mockReturnValueOnce({ id: 'player-1' }).mockReturnValueOnce(null).mockReturnValueOnce({ id: 'player-1' }),
+      ...combatMocks(),
     };
 
     const manager = new SocketManager(io, gameState as never);

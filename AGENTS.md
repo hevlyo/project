@@ -1,4 +1,5 @@
 - Toda mudança de comportamento deve vir com validação automatizada adequada.
+- Toda adição precisa seguir seguir os principios SOLID.
 - Correção de bug exige teste de regressão.
 - Código novo deve ser TypeScript.
 - APIs públicas devem ter tipos explícitos.

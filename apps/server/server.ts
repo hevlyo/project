@@ -1,8 +1,8 @@
 import express from 'express';
 import type { Express } from 'express-serve-static-core';
-import fs from 'fs';
-import path from 'path';
-import http, { type Server as HttpServer } from 'http';
+import fs from 'node:fs';
+import path from 'node:path';
+import http, { type Server as HttpServer } from 'node:http';
 import { Server as SocketIOServer } from 'socket.io';
 import config from './src/config/gameConfig';
 import SocketManager from './src/socket/socketManager';

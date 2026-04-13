@@ -1,6 +1,6 @@
 import config from '../config/gameConfig';
 import GameState from '../models/GameState';
-import type { SerializedBall, SerializedPlayer, Vector3 } from '@pegabola/shared';
+import type { SerializedBall, SerializedPlayer, SerializedProjectile, Vector3 } from '@pegabola/shared';
 
 interface SocketLike {
   id: string;
@@ -35,17 +35,37 @@ interface CollectBallResult {
   error?: string;
 }
 
+interface FireballAttackResult {
+  projectile?: SerializedProjectile;
+  player?: SerializedPlayer;
+  error?: string;
+}
+
+interface CombatTickResult {
+  spawned: SerializedProjectile[];
+  destroyed: string[];
+  hits: Array<{
+    projectile: SerializedProjectile;
+    player: SerializedPlayer;
+    damage: number;
+    wasFatal: boolean;
+  }>;
+}
+
 interface GameStatePort {
   joinPlayer(socketId: string, nickname: unknown, sessionId: unknown): JoinPlayerResult;
   maintainBallCount(): { spawned: SerializedBall[]; despawned: string[] };
   getWorldInfo(): { worldSize: number; ballCount: number; isNightMode: boolean };
   getPlayersSnapshot(): Record<string, SerializedPlayer>;
   getActiveBalls(): SerializedBall[];
+  getActiveProjectiles(): SerializedProjectile[];
   getPlayerCount(): number;
   getScoreMap(): Record<string, number>;
   updatePlayerPosition(socketId: string, nextPosition: Vector3 | null | undefined): UpdatePlayerPositionResult;
   collectBall(socketId: string, ballId?: string): CollectBallResult;
   respawnBall(): SerializedBall | null;
+  fireballAttack(socketId: string, direction: Vector3 | null | undefined): FireballAttackResult;
+  advanceCombat(now?: number): CombatTickResult;
   activateDash(socketId: string): { player?: SerializedPlayer; dashCooldownUntil?: number; error?: string };
   getPlayer(socketId: string): ReturnType<GameState['getPlayer']>;
   serializePlayer(player: NonNullable<ReturnType<GameState['getPlayer']>>, now?: number): SerializedPlayer;
@@ -57,6 +77,7 @@ class SocketManager {
   gameState: GameStatePort;
   lastMovementAt: Map<string, number>;
   lastCollectionAt: Map<string, number>;
+  combatTimer: ReturnType<typeof setInterval> | null;
   initialized: boolean;
 
   constructor(io: IoLike, gameState: GameStatePort = new GameState(config)) {
@@ -68,6 +89,7 @@ class SocketManager {
     this.gameState = gameState;
     this.lastMovementAt = new Map();
     this.lastCollectionAt = new Map();
+    this.combatTimer = null;
     this.initialized = false;
     this.initialize();
   }
@@ -82,9 +104,14 @@ class SocketManager {
       socket.on('joinGame', (playerData) => this.handleJoinGame(socket, playerData));
       socket.on('playerMovement', (movementData) => this.handlePlayerMovement(socket, movementData));
       socket.on('collectBall', (data) => this.handleBallCollection(socket, data));
+      socket.on('playerAttack', (data) => this.handlePlayerAttack(socket, data));
       socket.on('playerDash', () => this.handlePlayerDash(socket));
       socket.on('disconnect', () => this.handlePlayerDisconnect(socket));
     });
+
+    this.combatTimer = globalThis.setInterval(() => {
+      this.handleCombatTick();
+    }, 50);
   }
 
   emitScores() {
@@ -103,7 +130,10 @@ class SocketManager {
   }
 
   destroy() {
-    // no-op for now
+    if (this.combatTimer) {
+      globalThis.clearInterval(this.combatTimer);
+      this.combatTimer = null;
+    }
   }
 
   handleJoinGame(socket: SocketLike, playerData: { nickname?: unknown; sessionId?: unknown } | undefined) {
@@ -126,6 +156,7 @@ class SocketManager {
     socket.emit('playerInfo', result.player);
     socket.emit('currentPlayers', this.gameState.getPlayersSnapshot());
     socket.emit('newBalls', this.gameState.getActiveBalls());
+    socket.emit('currentProjectiles', this.gameState.getActiveProjectiles());
 
     socket.broadcast.emit('newPlayer', result.player);
     this.io.emit('playerCount', this.gameState.getPlayerCount());
@@ -187,6 +218,52 @@ class SocketManager {
         this.io.emit('newBalls', [newBall]);
       }
     }, config.RESPAWN_DELAY);
+  }
+
+  handlePlayerAttack(socket: SocketLike, data: { direction?: Vector3 } | undefined) {
+    const result = this.gameState.fireballAttack(socket.id, data?.direction);
+    if (result.error) {
+      if (result.player) {
+        this.emitPlayerState(socket, result.player, 'attack-cooldown');
+      } else {
+        this.emitError(socket, result.error);
+      }
+      return;
+    }
+
+    if (result.projectile) {
+      this.io.emit('projectileSpawned', result.projectile);
+    }
+
+    if (result.player) {
+      this.io.emit('playerState', {
+        ...result.player,
+        syncMode: 'attack',
+      });
+    }
+  }
+
+  handleCombatTick() {
+    const result = this.gameState.advanceCombat(Date.now());
+
+    for (const projectileId of result.destroyed) {
+      this.io.emit('projectileDestroyed', { projectileId });
+    }
+
+    for (const hit of result.hits) {
+      this.io.emit('fireballImpact', {
+        projectileId: hit.projectile.id,
+        playerId: hit.player.id,
+        position: hit.projectile.position,
+        color: hit.projectile.color,
+        damage: hit.damage,
+        wasFatal: hit.wasFatal,
+      });
+      this.io.emit('playerState', {
+        ...hit.player,
+        syncMode: hit.wasFatal ? 'respawn' : 'damage',
+      });
+    }
   }
 
   handlePlayerDash(socket: SocketLike) {
