@@ -1101,7 +1101,7 @@ export class SceneController {
 			entry.healthFill.material.color.setHex(0xff_7f_7f);
 		}
 
-		entry.healthBarGroup.visible = healthRatio < 1;
+		entry.healthBarGroup.visible = healthRatio < 1 || entry.localState;
 	}
 
 	removePlayer(playerId) {
@@ -1433,7 +1433,7 @@ export class SceneController {
 		});
 	}
 
-	step(simulationTimeMs) {
+	step(simulationTimeMs, serverNowMs = simulationTimeMs) {
 		if (this.skyDome) {
 			this.skyDome.rotation.y = simulationTimeMs * 0.000_015;
 		}
@@ -1448,12 +1448,12 @@ export class SceneController {
 		}
 
 		for (const entry of this.projectileMeshes.values()) {
-			const ageSeconds = Math.max(0, (simulationTimeMs - entry.bornAt) / 1000);
+			const ageSeconds = Math.max(0, (serverNowMs - entry.bornAt) / 1000);
 			const progress = Math.max(
 				0,
 				Math.min(
 					1,
-					(simulationTimeMs - entry.bornAt) /
+					(serverNowMs - entry.bornAt) /
 						Math.max(1, entry.expiresAt - entry.bornAt),
 				),
 			);
@@ -1975,6 +1975,27 @@ export class SceneController {
 
 	render() {
 		this.renderer.render(this.scene, this.camera);
+	}
+
+	getMouseWorldDirection(playerPos, mouseX, mouseY, fallbackHeading) {
+		const raycaster = new THREE.Raycaster();
+		raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), this.camera);
+
+		const targetPoint = new THREE.Vector3();
+		const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+		raycaster.ray.intersectPlane(floorPlane, targetPoint);
+
+		const direction = new THREE.Vector3().subVectors(targetPoint, playerPos);
+		direction.y = 0;
+		if (direction.lengthSq() > 0.001) {
+			return direction.normalize();
+		}
+
+		return new THREE.Vector3(
+			Math.sin(fallbackHeading),
+			0,
+			Math.cos(fallbackHeading),
+		);
 	}
 
 	getCameraHeading(fallback = 0) {

@@ -67,7 +67,8 @@ class GameApp {
 		this.localWasMoving = false;
 		this.awaitingBallSnapshot = false;
 		this.visibleBallCount = 0;
-		this.nextHudUpdateAt = 0;
+		this.mouseX = 0;
+		this.mouseY = 0;
 		this.ambienceStarted = false;
 		this.ambientAudio = null;
 		this.ambientTrackUrls = buildAmbientTrackUrls();
@@ -76,8 +77,8 @@ class GameApp {
 		this.ambientTrackPlayCount = 0;
 		this.onAmbientEnded = null;
 		this.musicVolume = this.restoreMusicVolume();
-		this.lastNonZeroMusicVolume
-			= this.musicVolume > 0 ? this.musicVolume : 0.08;
+		this.lastNonZeroMusicVolume =
+			this.musicVolume > 0 ? this.musicVolume : 0.08;
 		this.musicMode = this.restoreMusicMode();
 		this.freeCameraMode = this.restoreFreeCameraMode();
 		this.hasShownSessionInstructions = false;
@@ -108,13 +109,13 @@ class GameApp {
 		this.ui.setMusicVolume(this.musicVolume);
 		this.ui.setMusicMuted(this.musicVolume === 0);
 		this.ui.setMusicModeOptions(buildMusicModeOptions(), this.musicMode);
-		this.ui.bindMusicVolumeChange(volume => {
+		this.ui.bindMusicVolumeChange((volume) => {
 			this.setMusicVolume(volume);
 		});
 		this.ui.bindMusicMuteToggle(() => {
 			this.toggleMusicMuted();
 		});
-		this.ui.bindMusicModeChange(mode => {
+		this.ui.bindMusicModeChange((mode) => {
 			this.setMusicMode(mode);
 		});
 		this.sessionId = this.restoreSessionId();
@@ -144,9 +145,9 @@ class GameApp {
 	}
 
 	restoreSessionId() {
-		const fallback
-			= globalThis.crypto?.randomUUID?.()
-				|| `pb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+		const fallback =
+			globalThis.crypto?.randomUUID?.() ||
+			`pb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 		try {
 			const existing = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -190,7 +191,9 @@ class GameApp {
 
 	restoreMusicMode() {
 		const fallback = "auto";
-		const validModes = new Set(buildMusicModeOptions().map(option => option.value),);
+		const validModes = new Set(
+			buildMusicModeOptions().map((option) => option.value),
+		);
 
 		try {
 			const stored = localStorage.getItem(MUSIC_MODE_STORAGE_KEY);
@@ -229,7 +232,9 @@ class GameApp {
 	}
 
 	setMusicMode(mode) {
-		const validModes = new Set(buildMusicModeOptions().map(option => option.value),);
+		const validModes = new Set(
+			buildMusicModeOptions().map((option) => option.value),
+		);
 		const safeMode = validModes.has(mode) ? mode : "auto";
 		this.musicMode = safeMode;
 		this.persistMusicMode(safeMode);
@@ -255,9 +260,9 @@ class GameApp {
 		const [, indexToken] = String(this.musicMode).split(":");
 		const index = Number(indexToken);
 		if (
-			!Number.isInteger(index)
-			|| index < 0
-			|| index >= this.ambientTrackUrls.length
+			!Number.isInteger(index) ||
+			index < 0 ||
+			index >= this.ambientTrackUrls.length
 		) {
 			return null;
 		}
@@ -283,8 +288,8 @@ class GameApp {
 
 	toggleMusicMuted() {
 		if (this.musicVolume === 0) {
-			const restored
-				= this.lastNonZeroMusicVolume > 0 ? this.lastNonZeroMusicVolume : 0.08;
+			const restored =
+				this.lastNonZeroMusicVolume > 0 ? this.lastNonZeroMusicVolume : 0.08;
 			this.setMusicVolume(restored);
 			return;
 		}
@@ -298,7 +303,7 @@ class GameApp {
 		};
 
 		this.bindEvent(globalThis, "pointerdown", attemptStart, { passive: true });
-		this.bindEvent(globalThis, "keydown", event => {
+		this.bindEvent(globalThis, "keydown", (event) => {
 			if (event.ctrlKey || event.metaKey || event.altKey) {
 				return;
 			}
@@ -318,11 +323,11 @@ class GameApp {
 		this.bindEvent(globalThis, "blur", () => {
 			this.resetInputState();
 		});
-		this.bindEvent(document, "contextmenu", event => {
+		this.bindEvent(document, "contextmenu", (event) => {
 			event.preventDefault();
 			this.resetInputState();
 		});
-		this.bindEvent(globalThis, "pointerdown", event => {
+		this.bindEvent(globalThis, "pointerdown", (event) => {
 			if (event.button === 0) {
 				this.tryStartFireball();
 			}
@@ -336,7 +341,10 @@ class GameApp {
 				this.resetInputState();
 			}
 		});
-		this.bindEvent(globalThis, "pointermove", event => {
+		this.bindEvent(globalThis, "pointermove", (event) => {
+			this.mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+			this.mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+
 			if (!this.freeCameraMode || this.mode !== "playing") {
 				return;
 			}
@@ -349,7 +357,7 @@ class GameApp {
 		this.bindEvent(
 			globalThis,
 			"wheel",
-			event => {
+			(event) => {
 				if (!this.freeCameraMode || this.mode !== "playing") {
 					return;
 				}
@@ -359,13 +367,13 @@ class GameApp {
 			},
 			{ passive: false },
 		);
-		this.bindEvent(globalThis, "keydown", event => {
+		this.bindEvent(globalThis, "keydown", (event) => {
 			const { target } = event;
 			const targetTag = target?.tagName;
-			const typing
-				= targetTag === "INPUT"
-					|| targetTag === "TEXTAREA"
-					|| target?.isContentEditable === true;
+			const typing =
+				targetTag === "INPUT" ||
+				targetTag === "TEXTAREA" ||
+				target?.isContentEditable === true;
 			const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
 
 			const keyDownResult = resolveKeyDownCommand({
@@ -401,7 +409,7 @@ class GameApp {
 			}
 		});
 
-		this.bindEvent(globalThis, "keyup", event => {
+		this.bindEvent(globalThis, "keyup", (event) => {
 			applyInputCommand(this.keys, resolveKeyUpCommand(event.key));
 		});
 	}
@@ -465,12 +473,18 @@ class GameApp {
 		}
 
 		const heading = this.scene.getCameraHeading(this.cameraHeading);
+		const direction = this.scene.getMouseWorldDirection(
+			localPlayer.position,
+			this.mouseX,
+			this.mouseY,
+			heading,
+		);
 
 		this.socket.emit("playerAttack", {
 			direction: {
-				x: Math.sin(heading),
-				y: 0,
-				z: Math.cos(heading),
+				x: direction.x,
+				y: direction.y,
+				z: direction.z,
 			},
 		});
 	}
@@ -535,7 +549,7 @@ class GameApp {
 			this.joinGame();
 		});
 
-		this.socket.on("disconnect", reason => {
+		this.socket.on("disconnect", (reason) => {
 			this.mode = this.mode === "menu" ? "menu" : "reconnecting";
 			this.pendingCollectionNotifs.clear();
 			this.setConnectionState("Reconectando", "warning");
@@ -547,13 +561,13 @@ class GameApp {
 			);
 		});
 
-		this.socket.on("error", payload => {
+		this.socket.on("error", (payload) => {
 			if (payload?.message) {
 				this.ui.showToast(payload.message, "danger", 2400);
 			}
 		});
 
-		this.socket.on("worldInfo", payload => {
+		this.socket.on("worldInfo", (payload) => {
 			this.worldSize = payload.worldSize || SETTINGS.worldSize;
 			this.scene.setWorldSize(this.worldSize);
 			if (payload.isNightMode !== undefined) {
@@ -561,7 +575,7 @@ class GameApp {
 			}
 		});
 
-		this.socket.on("playerInfo", payload => {
+		this.socket.on("playerInfo", (payload) => {
 			this.localPlayerId = payload.id;
 			this.upsertPlayerFromServer(payload, { hardSync: true });
 			this.mode = "playing";
@@ -583,11 +597,11 @@ class GameApp {
 			this.scene.setFreeCameraMode(this.freeCameraMode, localPlayer);
 		});
 
-		this.socket.on("currentPlayers", snapshot => {
+		this.socket.on("currentPlayers", (snapshot) => {
 			this.syncPlayers(snapshot);
 		});
 
-		this.socket.on("newPlayer", payload => {
+		this.socket.on("newPlayer", (payload) => {
 			this.upsertPlayerFromServer(payload, { hardSync: true });
 			this.ui.showToast(
 				`${payload.nickname} apareceu. Más notícias para todo mundo.`,
@@ -596,15 +610,15 @@ class GameApp {
 			);
 		});
 
-		this.socket.on("playerState", payload => {
+		this.socket.on("playerState", (payload) => {
 			this.handlePlayerState(payload);
 		});
 
-		this.socket.on("playerDisconnected", playerId => {
+		this.socket.on("playerDisconnected", (playerId) => {
 			this.removePlayer(playerId);
 		});
 
-		this.socket.on("playerMoved", payload => {
+		this.socket.on("playerMoved", (payload) => {
 			const player = this.players.get(payload.id);
 			if (!player || payload.id === this.localPlayerId) {
 				return;
@@ -613,28 +627,28 @@ class GameApp {
 			player.targetPosition.set(payload.position.x, 0, payload.position.z);
 		});
 
-		this.socket.on("newBalls", payload => {
+		this.socket.on("newBalls", (payload) => {
 			this.syncBalls(payload, { replaceAll: this.awaitingBallSnapshot });
 			this.awaitingBallSnapshot = false;
 		});
 
-		this.socket.on("currentProjectiles", payload => {
+		this.socket.on("currentProjectiles", (payload) => {
 			this.syncProjectiles(payload, { replaceAll: true });
 		});
 
-		this.socket.on("projectileSpawned", payload => {
+		this.socket.on("projectileSpawned", (payload) => {
 			this.handleProjectileSpawned(payload);
 		});
 
-		this.socket.on("projectileDestroyed", payload => {
+		this.socket.on("projectileDestroyed", (payload) => {
 			this.handleProjectileDestroyed(payload?.projectileId);
 		});
 
-		this.socket.on("fireballImpact", payload => {
+		this.socket.on("fireballImpact", (payload) => {
 			this.handleFireballImpact(payload);
 		});
 
-		this.socket.on("removeBalls", payload => {
+		this.socket.on("removeBalls", (payload) => {
 			if (Array.isArray(payload)) {
 				for (const ballId of payload) {
 					if (this.balls.has(ballId)) {
@@ -649,7 +663,7 @@ class GameApp {
 			}
 		});
 
-		this.socket.on("ballCollected", payload => {
+		this.socket.on("ballCollected", (payload) => {
 			if (payload.type === "NIGHT_MODE") {
 				this.scene.setNightMode(true);
 			} else if (payload.type === "DAY_MODE") {
@@ -659,7 +673,7 @@ class GameApp {
 			this.handleBallCollected(payload);
 		});
 
-		this.socket.on("updateScores", scores => {
+		this.socket.on("updateScores", (scores) => {
 			for (const [playerId, score] of Object.entries(scores)) {
 				const player = this.players.get(playerId);
 				if (!player) {
@@ -675,8 +689,8 @@ class GameApp {
 					const pending = pendingQueue?.shift();
 
 					if (pending) {
-						const popupScale
-							= pending.sizeMultiplier || player.sizeMultiplier || 1;
+						const popupScale =
+							pending.sizeMultiplier || player.sizeMultiplier || 1;
 						this.scene.spawnFloatingValue(
 							pending.position,
 							`+${gainedScore}`,
@@ -705,7 +719,7 @@ class GameApp {
 		});
 
 		if (this.socket.io) {
-			this.socket.io.on("reconnect_attempt", attempt => {
+			this.socket.io.on("reconnect_attempt", (attempt) => {
 				this.setConnectionState(`Reconectando ${attempt}`, "warning");
 			});
 
@@ -818,9 +832,9 @@ class GameApp {
 
 	playNextAmbientTrack() {
 		if (
-			!this.ambientAudio
-			|| this.ambientPlaylist.length === 0
-			|| !this.isAutoMusicMode()
+			!this.ambientAudio ||
+			this.ambientPlaylist.length === 0 ||
+			!this.isAutoMusicMode()
 		) {
 			return;
 		}
@@ -841,9 +855,9 @@ class GameApp {
 
 	handleAmbientTrackEnded() {
 		if (
-			!this.ambientAudio
-			|| this.ambientPlaylist.length === 0
-			|| !this.isAutoMusicMode()
+			!this.ambientAudio ||
+			this.ambientPlaylist.length === 0 ||
+			!this.isAutoMusicMode()
 		) {
 			return;
 		}
@@ -1022,7 +1036,7 @@ class GameApp {
 
 	syncProjectiles(payloads, { replaceAll } = {}) {
 		if (replaceAll) {
-			const ids = new Set(payloads.map(projectile => projectile.id));
+			const ids = new Set(payloads.map((projectile) => projectile.id));
 			for (const projectileId of this.projectiles.keys()) {
 				if (!ids.has(projectileId)) {
 					this.projectiles.delete(projectileId);
@@ -1032,8 +1046,8 @@ class GameApp {
 		}
 
 		for (const payload of payloads) {
-			const existing
-				= this.projectiles.get(payload.id) || this.makeProjectileState(payload);
+			const existing =
+				this.projectiles.get(payload.id) || this.makeProjectileState(payload);
 			existing.ownerId = payload.ownerId;
 			existing.position.set(
 				payload.position.x,
@@ -1060,8 +1074,8 @@ class GameApp {
 			return;
 		}
 
-		const projectile
-			= this.projectiles.get(payload.id) || this.makeProjectileState(payload);
+		const projectile =
+			this.projectiles.get(payload.id) || this.makeProjectileState(payload);
 		projectile.ownerId = payload.ownerId;
 		projectile.position.set(
 			payload.position.x,
@@ -1117,7 +1131,7 @@ class GameApp {
 
 	syncBalls(payloads, { replaceAll } = {}) {
 		if (replaceAll) {
-			const ids = new Set(payloads.map(ball => ball.id));
+			const ids = new Set(payloads.map((ball) => ball.id));
 			for (const ballId of this.balls.keys()) {
 				if (!ids.has(ballId)) {
 					this.balls.delete(ballId);
@@ -1127,8 +1141,8 @@ class GameApp {
 		}
 
 		for (const payload of payloads) {
-			const existing
-				= this.balls.get(payload.id) || this.makeBallState(payload);
+			const existing =
+				this.balls.get(payload.id) || this.makeBallState(payload);
 			existing.type = payload.type;
 			existing.value = payload.value;
 			existing.color = payload.color;
@@ -1153,15 +1167,15 @@ class GameApp {
 
 		this.scene.removeBall(payload.ballId);
 
-		const pendingQueue
-			= this.pendingCollectionNotifs.get(payload.playerId) || [];
+		const pendingQueue =
+			this.pendingCollectionNotifs.get(payload.playerId) || [];
 		pendingQueue.push({
 			position: payload.position,
 			color: payload.color,
 			sizeMultiplier:
-				payload.sizeMultiplier
-				|| this.players.get(payload.playerId)?.sizeMultiplier
-				|| 1,
+				payload.sizeMultiplier ||
+				this.players.get(payload.playerId)?.sizeMultiplier ||
+				1,
 		});
 		if (pendingQueue.length > 6) {
 			pendingQueue.splice(0, pendingQueue.length - 6);
@@ -1211,7 +1225,7 @@ class GameApp {
 			return;
 		}
 
-		const tick = timestamp => {
+		const tick = (timestamp) => {
 			if (this.destroyed) {
 				this.animationHandle = 0;
 				return;
@@ -1238,7 +1252,7 @@ class GameApp {
 		}
 
 		this.syncScene();
-		this.scene.step(this.simulationTimeMs);
+		this.scene.step(this.simulationTimeMs, this.getServerNowMs());
 		this.scene.render();
 	}
 
@@ -1398,14 +1412,14 @@ class GameApp {
 
 		const movementSmoothing = dashActive
 			? SETTINGS.dashAcceleration
-			: (hasInput
+			: hasInput
 				? SETTINGS.acceleration
-				: SETTINGS.deceleration);
+				: SETTINGS.deceleration;
 		player.velocity.lerp(desiredVelocity, movementSmoothing);
 		if (
-			!hasInput
-			&& !dashActive
-			&& player.velocity.lengthSq() < SETTINGS.inputDeadZone
+			!hasInput &&
+			!dashActive &&
+			player.velocity.lengthSq() < SETTINGS.inputDeadZone
 		) {
 			player.velocity.set(0, 0, 0);
 		}
@@ -1418,11 +1432,11 @@ class GameApp {
 		const slidOnPosts = this.resolvePostCollisions(previousPosition, player);
 		const pushedByPlayers = this.resolveLocalPlayerPush(player);
 
-		const isMoving
-			= player.velocity.lengthSq() > 0.0002
-				|| slidOnArena
-				|| slidOnPosts
-				|| pushedByPlayers;
+		const isMoving =
+			player.velocity.lengthSq() > 0.0002 ||
+			slidOnArena ||
+			slidOnPosts ||
+			pushedByPlayers;
 		if (dashActive && this.simulationTimeMs - this.lastDashTrailAtMs >= 34) {
 			this.scene.spawnDashTrail(
 				player.position,
@@ -1448,9 +1462,9 @@ class GameApp {
 			return;
 		}
 
-		const moved
-			= Math.abs(previousX - player.position.x) > 0.0005
-				|| Math.abs(previousZ - player.position.z) > 0.0005;
+		const moved =
+			Math.abs(previousX - player.position.x) > 0.0005 ||
+			Math.abs(previousZ - player.position.z) > 0.0005;
 		const sinceLastSend = performance.now() - this.lastSentMovementAt;
 
 		if (moved && (sinceLastSend > 45 || (!isMoving && this.localWasMoving))) {
@@ -1473,8 +1487,8 @@ class GameApp {
 			return;
 		}
 
-		const collectionRadius
-			= SETTINGS.collectionDistance + (localPlayer.sizeMultiplier - 1) * 0.3;
+		const collectionRadius =
+			SETTINGS.collectionDistance + (localPlayer.sizeMultiplier - 1) * 0.3;
 
 		for (const ball of this.balls.values()) {
 			if (ball.hidden) {
@@ -1507,8 +1521,9 @@ class GameApp {
 			this.scene.upsertBall(ball);
 		}
 
+		const nowMs = this.getServerNowMs();
 		for (const projectile of this.projectiles.values()) {
-			this.scene.upsertProjectile(projectile, this.simulationTimeMs);
+			this.scene.upsertProjectile(projectile, nowMs);
 		}
 
 		const localPlayer = this.players.get(this.localPlayerId);
@@ -1557,7 +1572,7 @@ class GameApp {
 				return left.nickname.localeCompare(right.nickname);
 			})
 			.slice(0, 3)
-			.map(player => ({
+			.map((player) => ({
 				id: player.id,
 				nickname: player.nickname,
 				score: player.score,
@@ -1617,15 +1632,15 @@ class GameApp {
 
 		const nextOffset = serverTimeMs - receivedAt;
 		if (
-			!Number.isFinite(this.serverClockOffsetMs)
-			|| this.serverClockOffsetMs === 0
+			!Number.isFinite(this.serverClockOffsetMs) ||
+			this.serverClockOffsetMs === 0
 		) {
 			this.serverClockOffsetMs = nextOffset;
 			return;
 		}
 
-		this.serverClockOffsetMs
-			= this.serverClockOffsetMs * 0.8 + nextOffset * 0.2;
+		this.serverClockOffsetMs =
+			this.serverClockOffsetMs * 0.8 + nextOffset * 0.2;
 	}
 
 	syncServerClockFromCooldownPayload(payload) {
@@ -1634,16 +1649,16 @@ class GameApp {
 		}
 
 		if (
-			payload.syncMode === "dash"
-			&& Number.isFinite(payload?.dashCooldownUntil)
+			payload.syncMode === "dash" &&
+			Number.isFinite(payload?.dashCooldownUntil)
 		) {
 			this.syncServerClock(payload.dashCooldownUntil - SETTINGS.dashCooldownMs);
 			return;
 		}
 
 		if (
-			payload.syncMode === "attack"
-			&& Number.isFinite(payload?.attackCooldownUntil)
+			payload.syncMode === "attack" &&
+			Number.isFinite(payload?.attackCooldownUntil)
 		) {
 			this.syncServerClock(payload.attackCooldownUntil - 900);
 		}
@@ -1859,8 +1874,8 @@ class GameApp {
 	}
 
 	resolveLocalPlayerPush(localPlayer) {
-		const localRadius
-			= SETTINGS.playerRadius * (localPlayer.sizeMultiplier || 1);
+		const localRadius =
+			SETTINGS.playerRadius * (localPlayer.sizeMultiplier || 1);
 		let corrected = false;
 
 		for (const otherPlayer of this.players.values()) {
@@ -1868,8 +1883,8 @@ class GameApp {
 				continue;
 			}
 
-			const otherRadius
-				= SETTINGS.playerRadius * (otherPlayer.sizeMultiplier || 1);
+			const otherRadius =
+				SETTINGS.playerRadius * (otherPlayer.sizeMultiplier || 1);
 			const minDistance = localRadius + otherRadius + SETTINGS.collisionPadding;
 			let dx = localPlayer.position.x - otherPlayer.position.x;
 			let dz = localPlayer.position.z - otherPlayer.position.z;
@@ -1903,18 +1918,18 @@ class GameApp {
 		const leaderboard = this.getLeaderboard();
 
 		const visibleBalls = [...this.balls.values()]
-			.filter(ball => !ball.hidden)
+			.filter((ball) => !ball.hidden)
 			.sort((left, right) => {
 				if (!localPlayer) {
 					return left.id.localeCompare(right.id);
 				}
 
 				return (
-					localPlayer.position.distanceTo(left.position)
-					- localPlayer.position.distanceTo(right.position)
+					localPlayer.position.distanceTo(left.position) -
+					localPlayer.position.distanceTo(right.position)
 				);
 			})
-			.map(ball => ({
+			.map((ball) => ({
 				id: ball.id,
 				type: ball.type,
 				value: ball.value,
@@ -1958,7 +1973,7 @@ class GameApp {
 	exposeTestingHooks() {
 		globalThis.render_game_to_text = () =>
 			JSON.stringify(this.buildTextState());
-		globalThis.advanceTime = async ms => {
+		globalThis.advanceTime = async (ms) => {
 			this.advanceSimulation(ms, { allowNetwork: true });
 		};
 	}
@@ -2031,6 +2046,9 @@ function clamp(value, min, max) {
 }
 
 function getElements() {
+	const legacyHealth = document.querySelector("#health-panel");
+	if (legacyHealth) legacyHealth.remove();
+
 	return {
 		appShell: document.querySelector("#app-shell"),
 		gameRoot: document.querySelector("#game-root"),
