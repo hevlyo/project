@@ -10,20 +10,20 @@ import type {
 } from "@pegabola/shared";
 import { ArenaPhysics } from "./ArenaPhysics";
 
-interface AttackResult {
+type AttackResult = {
 	projectile?: SerializedProjectile;
 	player?: SerializedPlayer;
 	error?: string;
 }
 
-interface CombatHitEvent {
+type CombatHitEvent = {
 	projectile: SerializedProjectile;
 	player: SerializedPlayer;
 	damage: number;
 	wasFatal: boolean;
 }
 
-interface CombatTickResult {
+type CombatTickResult = {
 	spawned: SerializedProjectile[];
 	destroyed: string[];
 	hits: CombatHitEvent[];
@@ -97,29 +97,24 @@ class GameState {
 
 	getScoreMap(): Record<string, number> {
 		this.refreshAllTimedStates();
-		return Object.fromEntries(
-			this.getConnectedPlayers().map((player) => [player.id, player.score]),
-		);
+		return Object.fromEntries(this.getConnectedPlayers().map(player => [player.id, player.score]),);
 	}
 
 	getPlayersSnapshot(): Record<string, SerializedPlayer> {
 		this.refreshAllTimedStates();
-		return Object.fromEntries(
-			this.getConnectedPlayers().map((player) => [
+		return Object.fromEntries(this.getConnectedPlayers().map(player => [
 				player.id,
 				this.serializePlayer(player),
-			]),
-		);
+			]),);
 	}
 
 	getActiveBalls(): SerializedBall[] {
-		return Object.values(this.balls).map((ball) => this.serializeBall(ball));
+		return Object.values(this.balls).map(ball => this.serializeBall(ball));
 	}
 
 	getActiveProjectiles(): SerializedProjectile[] {
-		return Object.values(this.projectiles).map((projectile) =>
-			this.serializeProjectile(projectile),
-		);
+		return Object.values(this.projectiles).map(projectile =>
+			this.serializeProjectile(projectile),);
 	}
 
 	getPlayer(socketId: string): PlayerState | undefined {
@@ -132,7 +127,7 @@ class GameState {
 	}
 
 	getConnectedPlayers(): PlayerState[] {
-		return Object.values(this.players).filter((player) => player.connected);
+		return Object.values(this.players).filter(player => player.connected);
 	}
 
 	resolvePlayerId(socketId: string): string | undefined {
@@ -141,9 +136,9 @@ class GameState {
 
 	makePlayerId(requestedId: unknown): string {
 		if (
-			typeof requestedId === "string" &&
-			requestedId.length >= 8 &&
-			requestedId.length <= 80
+			typeof requestedId === "string"
+			&& requestedId.length >= 8
+			&& requestedId.length <= 80
 		) {
 			return requestedId;
 		}
@@ -195,8 +190,8 @@ class GameState {
 
 	getTargetBallCount(): number {
 		const playerCount = this.getConnectedPlayers().length;
-		const target =
-			this.config.MIN_BALL_COUNT + playerCount * this.config.BALLS_PER_PLAYER;
+		const target
+			= this.config.MIN_BALL_COUNT + playerCount * this.config.BALLS_PER_PLAYER;
 		return Math.min(target, this.config.MAX_BALL_COUNT);
 	}
 
@@ -211,12 +206,10 @@ class GameState {
 
 	createBall(): BallState {
 		const r = Math.random();
-		const nonModeTypes = Object.keys(this.config.BALL_TYPES).filter(
-			(k) => k !== "DAY_MODE" && k !== "NIGHT_MODE" && k !== "INFINITY_DASHES",
-		);
+		const nonModeTypes = Object.keys(this.config.BALL_TYPES).filter(k => k !== "DAY_MODE" && k !== "NIGHT_MODE" && k !== "INFINITY_DASHES",);
 		let typeName: string;
 
-		if (this.isNightMode && r < 0.02) {
+		if (this.isNightMode && r < 0.1) {
 			typeName = "DAY_MODE";
 		} else if (!this.isNightMode && r < 0.01) {
 			typeName = "NIGHT_MODE";
@@ -353,8 +346,8 @@ class GameState {
 	): ProjectileState {
 		const normalizedDirection = this.normalizeDirection(direction);
 		const projectileRadius = this.config.FIREBALL_RADIUS;
-		const spawnDistance =
-			this.getPlayerRadius(player) + projectileRadius + 0.35;
+		const spawnDistance
+			= this.getPlayerRadius(player) + projectileRadius + 0.35;
 
 		this.projectileSequence += 1;
 
@@ -378,7 +371,7 @@ class GameState {
 
 	normalizeDirection(direction: Vector3): Vector3 {
 		const length = Math.hypot(direction.x, direction.y, direction.z);
-		if (length <= 0.000001) {
+		if (length <= 0.000_001) {
 			return { x: 0, y: 0, z: 1 };
 		}
 
@@ -423,7 +416,7 @@ class GameState {
 
 	fireballAttack(
 		socketId: string,
-		direction: Vector3 | null | undefined,
+		direction: Vector3 | undefined,
 		now = Date.now(),
 	): AttackResult {
 		const player = this.getPlayer(socketId);
@@ -432,10 +425,10 @@ class GameState {
 		}
 
 		if (
-			!direction ||
-			typeof direction.x !== "number" ||
-			typeof direction.y !== "number" ||
-			typeof direction.z !== "number"
+			!direction
+			|| typeof direction.x !== "number"
+			|| typeof direction.y !== "number"
+			|| typeof direction.z !== "number"
 		) {
 			return { error: "Invalid attack direction" };
 		}
@@ -505,12 +498,12 @@ class GameState {
 			return { destroyed: true };
 		}
 
-		projectile.position.x +=
-			projectile.direction.x * projectile.speed * deltaSeconds;
-		projectile.position.y +=
-			projectile.direction.y * projectile.speed * deltaSeconds;
-		projectile.position.z +=
-			projectile.direction.z * projectile.speed * deltaSeconds;
+		projectile.position.x
+			+= projectile.direction.x * projectile.speed * deltaSeconds;
+		projectile.position.y
+			+= projectile.direction.y * projectile.speed * deltaSeconds;
+		projectile.position.z
+			+= projectile.direction.z * projectile.speed * deltaSeconds;
 
 		if (
 			!this.arenaPhysics.isInsideArena(projectile.position, projectile.radius)
@@ -544,7 +537,7 @@ class GameState {
 	}
 
 	isProjectileHittingObstacle(projectile: ProjectileState): boolean {
-		return this.arenaPhysics.getArenaObstacleCircles().some((obstacle) => {
+		return this.arenaPhysics.getArenaObstacleCircles().some(obstacle => {
 			const dx = projectile.position.x - obstacle.x;
 			const dz = projectile.position.z - obstacle.z;
 			const minDistance = obstacle.radius + projectile.radius;
@@ -555,7 +548,7 @@ class GameState {
 	findProjectileHitPlayer(
 		projectile: ProjectileState,
 		now: number,
-	): PlayerState | null {
+	): PlayerState | undefined {
 		for (const player of this.getConnectedPlayers()) {
 			if (player.id === projectile.ownerId) {
 				continue;
@@ -590,13 +583,13 @@ class GameState {
 		}
 
 		if (
-			!nextPosition ||
-			typeof nextPosition.x !== "number" ||
-			typeof nextPosition.y !== "number" ||
-			typeof nextPosition.z !== "number" ||
-			Number.isNaN(nextPosition.x) ||
-			Number.isNaN(nextPosition.y) ||
-			Number.isNaN(nextPosition.z)
+			!nextPosition
+			|| typeof nextPosition.x !== "number"
+			|| typeof nextPosition.y !== "number"
+			|| typeof nextPosition.z !== "number"
+			|| Number.isNaN(nextPosition.x)
+			|| Number.isNaN(nextPosition.y)
+			|| Number.isNaN(nextPosition.z)
 		) {
 			return { error: "Invalid movement data" };
 		}
@@ -686,8 +679,8 @@ class GameState {
 			}
 
 			case "INFINITY_DASHES": {
-				player.dashUnlimitedUntil =
-					now + this.config.INFINITY_DASHES_DURATION_MS;
+				player.dashUnlimitedUntil
+					= now + this.config.INFINITY_DASHES_DURATION_MS;
 
 				break;
 			}
@@ -888,7 +881,7 @@ class GameState {
 	respawnPlayer(
 		playerId: string,
 		now = Date.now(),
-	): { player: SerializedPlayer; wasFatal: boolean } | null {
+	): { player: SerializedPlayer; wasFatal: boolean } | undefined {
 		const player = this.players[playerId];
 		if (!player) {
 			return null;
@@ -930,8 +923,8 @@ class GameState {
 			}
 
 			const otherRadius = this.getPlayerRadius(otherPlayer);
-			const minDistance =
-				movedRadius + otherRadius + this.config.PLAYER_COLLISION_PADDING;
+			const minDistance
+				= movedRadius + otherRadius + this.config.PLAYER_COLLISION_PADDING;
 			let dx = movedPlayer.position.x - otherPlayer.position.x;
 			let dz = movedPlayer.position.z - otherPlayer.position.z;
 			let distance = Math.hypot(dx, dz);
@@ -990,13 +983,13 @@ class GameState {
 		);
 
 		// Bonus de comeback para quem esta atras do lider.
-		const comebackBonus =
-			maxScore > 0
+		const comebackBonus
+			= maxScore > 0
 				? Math.max(0, (maxScore - safeScore) / Math.max(1, maxScore)) * 1.2
 				: 0;
 
-		const multiplier =
-			connectedPlayers <= 1
+		const multiplier
+			= connectedPlayers <= 1
 				? 1 + progressionBonus
 				: 1 + progressionBonus + comebackBonus;
 
@@ -1009,8 +1002,8 @@ class GameState {
 		edgeMargin = 6,
 	): { x: number; z: number } {
 		const takenPositions = [
-			...Object.values(this.players).map((player) => player.position),
-			...Object.values(this.balls).map((ball) => ball.position),
+			...Object.values(this.players).map(player => player.position),
+			...Object.values(this.balls).map(ball => ball.position),
 		];
 		const limit = this.config.WORLD_SIZE - edgeMargin;
 
@@ -1022,7 +1015,7 @@ class GameState {
 				z: Math.sin(angle) * radius,
 			};
 
-			const valid = takenPositions.every((position) => {
+			const valid = takenPositions.every(position => {
 				const dx = position.x - candidate.x;
 				const dz = position.z - candidate.z;
 				return Math.hypot(dx, dz) >= clearance;
@@ -1060,30 +1053,26 @@ class GameState {
 		];
 
 		const occupied = Object.values(this.players)
-			.filter((player) => player.id !== excludedPlayerId)
-			.map((player) => player.position);
+			.filter(player => player.id !== excludedPlayerId)
+			.map(player => player.position);
 		let bestSlot = slots[0];
 		let bestDistance = -1;
 
 		for (const slot of slots) {
-			const nearestDistanceToPlayer =
-				occupied.length > 0
-					? Math.min(
-							...occupied.map((position) => {
+			const nearestDistanceToPlayer
+				= occupied.length > 0
+					? Math.min(...occupied.map(position => {
 								const dx = position.x - slot.x;
 								const dz = position.z - slot.z;
 								return Math.hypot(dx, dz);
-							}),
-						)
+							}),)
 					: Number.POSITIVE_INFINITY;
 
-			const nearestDistanceToObstacle = Math.min(
-				...this.arenaPhysics.getArenaObstacleCircles().map((obs) => {
+			const nearestDistanceToObstacle = Math.min(...this.arenaPhysics.getArenaObstacleCircles().map(obs => {
 					const dx = obs.x - slot.x;
 					const dz = obs.z - slot.z;
 					return Math.hypot(dx, dz) - obs.radius;
-				}),
-			);
+				}),);
 
 			const nearestDistance = Math.min(
 				nearestDistanceToPlayer,

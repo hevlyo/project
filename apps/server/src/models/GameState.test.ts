@@ -2,13 +2,32 @@ import { describe, expect, it, vi } from "vitest";
 import gameConfig from "../config/gameConfig";
 import GameState from "./GameState";
 
+function expectJoinedPlayer(
+	result: ReturnType<GameState["joinPlayer"]>,
+): NonNullable<ReturnType<GameState["joinPlayer"]>["player"]> {
+	if (!result.player) {
+		throw new Error("Expected joinPlayer to return player data");
+	}
+
+	return result.player;
+}
+
+function expectSocketId(socketId: string | null): string {
+	if (!socketId) {
+		throw new Error("Expected player to have an active socket id");
+	}
+
+	return socketId;
+}
+
 function setupTwoPlayers() {
 	const state = new GameState(gameConfig);
-	const joinA = state.joinPlayer("socket-a", "Alpha", "player-a");
-	const joinB = state.joinPlayer("socket-b", "Bravo", "player-b");
-
-	const aId = joinA.player.id;
-	const bId = joinB.player.id;
+	const aId = expectJoinedPlayer(
+		state.joinPlayer("socket-a", "Alpha", "player-a"),
+	).id;
+	const bId = expectJoinedPlayer(
+		state.joinPlayer("socket-b", "Bravo", "player-b"),
+	).id;
 	const playerA = state.players[aId];
 	const playerB = state.players[bId];
 
@@ -28,7 +47,7 @@ describe("GameState core rules", () => {
 		const { state, playerA } = setupTwoPlayers();
 		const now = Date.now();
 
-		const dash = state.activateDash(playerA.socketId, now);
+		const dash = state.activateDash(expectSocketId(playerA.socketId), now);
 		expect(dash.error).toBeUndefined();
 		expect(state.players[playerA.id].invulnerableUntil).toBeGreaterThan(now);
 		expect(state.isInvulnerable(state.players[playerA.id], now + 1)).toBe(true);
@@ -37,7 +56,8 @@ describe("GameState core rules", () => {
 	it("grants five seconds of unlimited dash after collecting INFINITY_DASHES", () => {
 		const state = new GameState(gameConfig);
 		const join = state.joinPlayer("socket-dash", "Dash", "player-dash");
-		const player = state.players[join.player.id];
+		const joinedPlayer = expectJoinedPlayer(join);
+		const player = state.players[joinedPlayer.id];
 		const now = Date.now();
 
 		state.balls = {
@@ -50,7 +70,10 @@ describe("GameState core rules", () => {
 			},
 		};
 
-		const collected = state.collectBall(player.socketId, "ball-double-dash");
+		const collected = state.collectBall(
+			expectSocketId(player.socketId),
+			"ball-double-dash",
+		);
 		if (!collected.player) {
 			throw new Error("Expected collected player data");
 		}
@@ -58,8 +81,11 @@ describe("GameState core rules", () => {
 			now + gameConfig.INFINITY_DASHES_DURATION_MS - 1,
 		);
 
-		const firstDash = state.activateDash(player.socketId, now);
-		const secondDash = state.activateDash(player.socketId, now + 100);
+		const firstDash = state.activateDash(expectSocketId(player.socketId), now);
+		const secondDash = state.activateDash(
+			expectSocketId(player.socketId),
+			now + 100,
+		);
 
 		expect(firstDash.error).toBeUndefined();
 		expect(secondDash.error).toBeUndefined();
@@ -107,7 +133,10 @@ describe("GameState core rules", () => {
 		const { state, playerA } = setupTwoPlayers();
 		const before = { ...playerA.position };
 
-		const result = state.updatePlayerPosition(playerA.socketId, before);
+		const result = state.updatePlayerPosition(
+			expectSocketId(playerA.socketId),
+			before,
+		);
 
 		expect(result.error).toBeUndefined();
 		expect(result.player).toBeDefined();
@@ -116,12 +145,13 @@ describe("GameState core rules", () => {
 	it("corrects movement when player attempts to leave arena boundary", () => {
 		const state = new GameState(gameConfig);
 		const join = state.joinPlayer("socket-edge", "Edge", "player-edge");
-		const player = state.players[join.player.id];
+		const joinedPlayer = expectJoinedPlayer(join);
+		const player = state.players[joinedPlayer.id];
 		const radius = state.getPlayerRadius(player);
 		const limit = state.getArenaLimit(radius) - gameConfig.ARENA_EDGE_SKIN;
 
 		player.position = { x: limit - 0.5, y: 0, z: 0 };
-		const result = state.updatePlayerPosition(player.socketId, {
+		const result = state.updatePlayerPosition(expectSocketId(player.socketId), {
 			x: limit + 4,
 			y: 0,
 			z: 0,
@@ -138,7 +168,8 @@ describe("GameState core rules", () => {
 	it("scales ball value beyond fixed base in solo progression", () => {
 		const state = new GameState(gameConfig);
 		const join = state.joinPlayer("socket-solo", "Solo", "player-solo");
-		const solo = state.players[join.player.id];
+		const joinedPlayer = expectJoinedPlayer(join);
+		const solo = state.players[joinedPlayer.id];
 
 		const baseNormal = gameConfig.BALL_TYPES.NORMAL.value;
 		expect(state.getScaledBallValue(baseNormal, 0)).toBe(baseNormal);
@@ -169,7 +200,8 @@ describe("GameState core rules", () => {
 	it("returns awardedValue equal to real score delta on collect", () => {
 		const state = new GameState(gameConfig);
 		const join = state.joinPlayer("socket-delta", "Delta", "player-delta");
-		const player = state.players[join.player.id];
+		const joinedPlayer = expectJoinedPlayer(join);
+		const player = state.players[joinedPlayer.id];
 
 		player.score = 40;
 		state.recalculateTopScore();
@@ -181,6 +213,9 @@ describe("GameState core rules", () => {
 
 		const scoreBefore = player.score;
 		const result = state.collectBall("socket-delta", ballId);
+		if (!result.player) {
+			throw new Error("Expected collectBall to return player data");
+		}
 		const scoreAfter = result.player.score;
 
 		expect(result.awardedValue).toBe(scoreAfter - scoreBefore);
@@ -356,7 +391,7 @@ describe("GameState core rules", () => {
 			state.updatePlayerPosition("missing", { x: 0, y: 0, z: 0 }).error,
 		).toBe("Player not found");
 		state.joinPlayer("socket-move", "Move", "player-move");
-		expect(state.updatePlayerPosition("socket-move", null).error).toBe(
+		expect(state.updatePlayerPosition("socket-move", undefined).error).toBe(
 			"Invalid movement data",
 		);
 		expect(
@@ -409,7 +444,8 @@ describe("GameState core rules", () => {
 			"Collector",
 			"player-collect",
 		);
-		const player = state.players[join.player!.id];
+		const joinedPlayer = expectJoinedPlayer(join);
+		const player = state.players[joinedPlayer.id];
 
 		state.balls = {
 			far: {
@@ -475,7 +511,8 @@ describe("GameState core rules", () => {
 	it("resets timed states and invulnerability checks", () => {
 		const state = new GameState(gameConfig);
 		const join = state.joinPlayer("socket-timed", "Timer", "player-timed");
-		const player = state.players[join.player!.id];
+		const joinedPlayer = expectJoinedPlayer(join);
+		const player = state.players[joinedPlayer.id];
 		const now = Date.now();
 
 		player.invulnerableUntil = now - 1;
@@ -497,7 +534,8 @@ describe("GameState core rules", () => {
 			"Respawn",
 			"player-respawn",
 		);
-		const player = state.players[join.player!.id];
+		const joinedPlayer = expectJoinedPlayer(join);
+		const player = state.players[joinedPlayer.id];
 
 		player.score = 100;
 		player.health = 10;
@@ -525,8 +563,10 @@ describe("GameState core rules", () => {
 			"player-victim",
 		);
 
-		const attacker = state.players[attackerJoin.player!.id];
-		const victim = state.players[victimJoin.player!.id];
+		const attackerPlayer = expectJoinedPlayer(attackerJoin);
+		const victimPlayer = expectJoinedPlayer(victimJoin);
+		const attacker = state.players[attackerPlayer.id];
+		const victim = state.players[victimPlayer.id];
 		const now = Date.now();
 
 		attacker.position = { x: 0, y: 0, z: 0 };
@@ -535,18 +575,22 @@ describe("GameState core rules", () => {
 		state.lastCombatUpdateAt = now;
 
 		const attack = state.fireballAttack(
-			attacker.socketId,
+			expectSocketId(attacker.socketId),
 			{ x: 1, y: 0, z: 0 },
 			now,
 		);
 		expect(attack.error).toBeUndefined();
 		expect(attack.projectile).toBeDefined();
-		expect(state.projectiles[attack.projectile!.id]).toBeDefined();
+		if (!attack.projectile) {
+			throw new Error("Expected fireballAttack to spawn a projectile");
+		}
+
+		expect(state.projectiles[attack.projectile.id]).toBeDefined();
 
 		const tick = state.advanceCombat(now + 100);
 		expect(tick.hits).toHaveLength(1);
 		expect(tick.hits[0].wasFatal).toBe(true);
-		expect(state.projectiles[attack.projectile!.id]).toBeUndefined();
+		expect(state.projectiles[attack.projectile.id]).toBeUndefined();
 		expect(state.players[victim.id].health).toBe(gameConfig.PLAYER_MAX_HEALTH);
 		expect(state.players[victim.id].invulnerableUntil).toBeGreaterThan(now);
 	});
@@ -684,10 +728,13 @@ describe("GameState core rules", () => {
 			color: 1,
 			position: { x: 0, y: 0, z: 0 },
 			score: 10,
+			health: gameConfig.PLAYER_MAX_HEALTH,
+			maxHealth: gameConfig.PLAYER_MAX_HEALTH,
 			invulnerableUntil: 0,
 			speedBoostUntil: 0,
 			dashCooldownUntil: 0,
 			dashUnlimitedUntil: 0,
+			attackCooldownUntil: 0,
 			lastUpdate: Date.now(),
 			disconnectedAt: Date.now(),
 		};
@@ -715,7 +762,8 @@ describe("GameState core rules", () => {
 		expect(hugeScale).toBe(gameConfig.MAX_SIZE_MULTIPLIER);
 
 		const join = state.joinPlayer("socket-radius", "Radius", "player-radius");
-		const player = state.players[join.player!.id];
+		const joinedPlayer = expectJoinedPlayer(join);
+		const player = state.players[joinedPlayer.id];
 		player.score = 50;
 		expect(state.getPlayerRadius(player)).toBeGreaterThan(
 			gameConfig.PLAYER_BASE_RADIUS,
@@ -754,10 +802,13 @@ describe("GameState core rules", () => {
 			color: 1,
 			position: { x: 0, y: 0, z: 0 },
 			score: 0,
+			health: gameConfig.PLAYER_MAX_HEALTH,
+			maxHealth: gameConfig.PLAYER_MAX_HEALTH,
 			invulnerableUntil: 0,
 			speedBoostUntil: 0,
 			dashCooldownUntil: 0,
 			dashUnlimitedUntil: 0,
+			attackCooldownUntil: 0,
 			lastUpdate: Date.now(),
 		};
 		state.socketToPlayerId.set("socket-alias", "player");
@@ -840,7 +891,7 @@ describe("GameState core rules", () => {
 					handler();
 				}
 				return 123 as unknown as ReturnType<typeof setTimeout>;
-			}) as typeof setTimeout);
+			}) as unknown as typeof setTimeout);
 
 		state.schedulePlayerRemoval("player-no-unref");
 		expect(state.playerReconnectTimers.has("player-no-unref")).toBe(true);

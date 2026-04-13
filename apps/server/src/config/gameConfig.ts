@@ -1,11 +1,11 @@
 import type { GameConfig } from "@pegabola/shared";
 
-const PORT = Number(process.env.PORT || 25565);
+const PORT = Number(process.env.PORT || 25_565);
 
 const WORLD_SIZE = 100;
-const MIN_BALL_COUNT = 15;
-const MAX_BALL_COUNT = 80;
-const BALLS_PER_PLAYER = 10;
+const MIN_BALL_COUNT = 18;
+const MAX_BALL_COUNT = 96;
+const BALLS_PER_PLAYER = 12;
 const DEFAULT_BALL_VALUE = 10;
 const SIZE_INCREASE_PER_BALL = 0.05;
 const MAX_SIZE_MULTIPLIER = 2.5;
@@ -28,6 +28,9 @@ const ARENA_MONOLITH_RADIUS = 1.2;
 const ARENA_LANTERN_COUNT = 8;
 const ARENA_LANTERN_RING_SCALE = 0.405;
 const ARENA_LANTERN_RADIUS = 1.1;
+const ARENA_BRAZIER_COUNT = 20;
+const ARENA_BRAZIER_RING_SCALE = 0.79;
+const ARENA_BRAZIER_RADIUS = 0.9;
 const ARENA_PLANT_COUNT = 6;
 const ARENA_PLANT_RING_SCALE = 0.285;
 const ARENA_PLANT_RADIUS = 1;
@@ -41,21 +44,21 @@ const FIREBALL_RADIUS = 1.15;
 const FIREBALL_LIFETIME_MS = 2800;
 
 const BALL_TYPES = {
-	NORMAL: { value: 10, color: 0xffffff },
-	GOLDEN: { value: 30, color: 0xffd700 },
-	SPEED: { value: 5, color: 0x00ff00 },
-	INFINITY_DASHES: { value: 15, color: 0xff00ff },
-	NIGHT_MODE: { value: 50, color: 0x3b1c6e },
-	DAY_MODE: { value: 50, color: 0xffd166 },
+	NORMAL: { value: 10, color: 0xFF_FF_FF },
+	GOLDEN: { value: 30, color: 0xFF_D7_00 },
+	SPEED: { value: 5, color: 0x00_FF_00 },
+	INFINITY_DASHES: { value: 15, color: 0xFF_00_FF },
+	NIGHT_MODE: { value: 50, color: 0x3B_1C_6E },
+	DAY_MODE: { value: 50, color: 0xFF_D1_66 },
 };
 
 const PLAYER_COLORS = [
-	0xf5d76e, 0x70d6ff, 0xff9770, 0x7bf1a8, 0xff70a6, 0xc7f464,
+	0xF5_D7_6E, 0x70_D6_FF, 0xFF_97_70, 0x7B_F1_A8, 0xFF_70_A6, 0xC7_F4_64,
 ];
 
 const RESPAWN_DELAY = 3000;
 const PLAYER_RESPAWN_INVULNERABLE_MS = 2000;
-const PLAYER_RECONNECT_GRACE_MS = 10000;
+const PLAYER_RECONNECT_GRACE_MS = 10_000;
 const SPEED_BOOST_DURATION_MS = 4000;
 const SPEED_BOOST_MULTIPLIER = 1.35;
 const DASH_COOLDOWN_MS = 1700;
@@ -65,8 +68,8 @@ const INFINITY_DASHES_CHANCE = 0.1;
 const MAX_COLLECTION_DISTANCE = 5;
 
 const SOCKET_CONFIG = {
-	pingInterval: 10000,
-	pingTimeout: 20000,
+	pingInterval: 10_000,
+	pingTimeout: 20_000,
 	cors: {
 		origin: "*",
 		methods: ["GET", "POST"],
@@ -101,6 +104,9 @@ const gameConfig: GameConfig = {
 	ARENA_LANTERN_COUNT,
 	ARENA_LANTERN_RING_SCALE,
 	ARENA_LANTERN_RADIUS,
+	ARENA_BRAZIER_COUNT,
+	ARENA_BRAZIER_RING_SCALE,
+	ARENA_BRAZIER_RADIUS,
 	ARENA_PLANT_COUNT,
 	ARENA_PLANT_RING_SCALE,
 	ARENA_PLANT_RADIUS,

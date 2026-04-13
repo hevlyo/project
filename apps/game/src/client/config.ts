@@ -15,9 +15,12 @@ export const SETTINGS = {
   arenaLanternCount: 8,
   arenaLanternRingScale: 0.405,
   arenaLanternRadius: 1.1,
+  arenaBrazierCount: 20,
+  arenaBrazierRingScale: 0.79,
+  arenaBrazierRadius: 0.9,
   arenaPlantCount: 6,
   arenaPlantRingScale: 0.285,
-  arenaPlantRadius: 1.0,
+  arenaPlantRadius: 1,
   moveSpeed: 0.19,
   sprintMultiplier: 1.45,
   dashSpeedMultiplier: 3.1,
@@ -76,46 +79,44 @@ export const STORAGE_KEY = 'pega-bola-nickname';
 export const SESSION_STORAGE_KEY = 'pega-bola-session';
 export const NICKNAME_MAX_LENGTH = 16;
 
-export const NICKNAME_PATTERN = /^[a-zA-Z0-9\s\-_]+$/;
-
 export const JOIN_MESSAGES = [
-  'Parabéns por não ter nada melhor pra fazer. A arena agradece sua falta de propósito.',
-  'Você entrou. O servidor não pediu, mas também não pode recusar.',
-  'Bem-vindo à pocilga digital. Sua mãe ia ter orgulho — se soubesse o que você faz da vida.',
-  'O matchmaking te achou. Boa sorte. Você vai precisar.',
-  'Arena liberada. Seu terapeuta ia adorar saber que é aqui que você gasta energia.',
+  'Entrou. O nível médio do servidor acabou de cair.',
+  'Bem-vindo. Ninguém te chamou, mas aqui estamos.',
+  'Parabéns por não ter nada melhor pra fazer.',
+  'O matchmaking te encontrou. Boa sorte, vai precisar.',
+  'Chegou mais um. A fila de quem vai te xingar já está formada.',
 ];
 
 export const DISCONNECT_MESSAGES = [
-  'A internet caiu — ou talvez o servidor tenha te expulsado por incompetência. Reconectando.',
-  'Conexão perdida. Igual sua dignidade, mas essa a gente tenta recuperar.',
-  'O cabo tropeçou. Ou o universo tá te poupando de mais uma humilhação. Tentando de novo.',
-  'Desconectou. O servidor sentiu o alívio por 0.3 segundos.',
+  'Desconectou. O servidor agradece.',
+  'Caiu. Melhor assim.',
+  'Conexão perdida. Sua dignidade já tinha ido antes.',
+  'Saiu. Pelo menos uma coisa certa você fez hoje.',
 ];
 
 export const HUD_TIPS = [
-  'WASD pra arrastar essa desgraça. Shift pra fingir que sabe correr.',
-  'Space dá dash. Tem cooldown porque o jogo ainda tem piedade de você.',
-  'Clique esquerdo dispara fire ball na direção da câmera. Sim, agora você também pode ser tóxico.',
-  'Colete bolas sem parar. Sobreviver já é uma vitória pra sua autoestima.',
-  'Bola dourada vale 3x. A verde dá speed. A branca vale pouco, igual seu esforço.',
-  'Dica: os maiores foram pequenos há 30 segundos. Pense nisso enquanto foge.',
+  'WASD pra mover. Tenta não tropeçar.',
+  'Shift pra correr. Não vai ajudar muito, mas tenta.',
+  'Clique esquerdo atira. Mira ajuda, se souber usar.',
+  'Colete as bolas. Sobreviver já é lucro.',
+  'Bola dourada vale 3x. A branca vale o mesmo que seu impacto no jogo.',
+  'Até os bons já foram ruins. A diferença é que eles saíram dessa fase.',
 ];
 
-export function clamp(value, min, max) {
+export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-export function lerp(a, b, t) {
+export function lerp(a: number, b: number, t: number): number {
   return a + ((b - a) * t);
 }
 
-export function lerpAngle(a, b, t) {
+export function lerpAngle(a: number, b: number, t: number): number {
   const difference = ((((b - a) % (Math.PI * 2)) + (Math.PI * 3)) % (Math.PI * 2)) - Math.PI;
   return a + (difference * t);
 }
 
-export function scoreToScale(score) {
+export function scoreToScale(score: number): number {
   const ballsCollected = score / SETTINGS.defaultBallValue;
   return Math.min(
     1 + (ballsCollected * SETTINGS.sizeIncreasePerBall),
@@ -123,32 +124,80 @@ export function scoreToScale(score) {
   );
 }
 
-export function normalizeNickname(rawValue) {
+export function normalizeNickname(rawValue: unknown): string {
   const fallback = `Bola${Math.floor(Math.random() * 900) + 100}`;
-  if (typeof rawValue !== 'string') return fallback;
+  if (typeof rawValue !== 'string') {
+    return fallback;
+  }
 
-  const cleaned = rawValue
-    .trim()
-    .replace(/[^a-zA-Z0-9\s\-_]/g, '')
-    .replace(/\s+/g, ' ')
-    .slice(0, NICKNAME_MAX_LENGTH);
+  const cleaned = sanitizeNickname(rawValue).slice(0, NICKNAME_MAX_LENGTH);
 
-  if (cleaned.length >= 2 && NICKNAME_PATTERN.test(cleaned)) {
+  if (cleaned.length >= 2) {
     return cleaned;
   }
 
   return fallback;
 }
 
-export function randomItem(items) {
+function sanitizeNickname(value: string): string {
+  const trimmed = value.trim();
+  let sanitized = '';
+
+  for (const character of trimmed) {
+    if (isAllowedNicknameCharacter(character)) {
+      sanitized += character;
+    }
+  }
+
+  let collapsed = '';
+  let previousWasSpace = false;
+  for (const character of sanitized) {
+    const isSpace = character === ' ';
+    if (isSpace && previousWasSpace) {
+      continue;
+    }
+
+    collapsed += character;
+    previousWasSpace = isSpace;
+  }
+
+  return collapsed;
+}
+
+function isAllowedNicknameCharacter(character: string): boolean {
+  const code = character.codePointAt(0);
+  if (code === undefined) {
+    return false;
+  }
+
+  if (isAsciiLetter(code)) {
+    return true;
+  }
+
+  if (isAsciiDigit(code)) {
+    return true;
+  }
+
+  return code === 32 || code === 95 || code === 45;
+}
+
+function isAsciiLetter(code: number): boolean {
+  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+}
+
+function isAsciiDigit(code: number): boolean {
+  return code >= 48 && code <= 57;
+}
+
+export function randomItem<T>(items: readonly T[]): T {
   return items[Math.floor(Math.random() * items.length)];
 }
 
-export function isTimedStateActive(untilMs, now = Date.now()) {
+export function isTimedStateActive(untilMs: number | undefined, now = Date.now()): boolean {
   return typeof untilMs === 'number' && untilMs > now;
 }
 
-export function round(value, digits = 2) {
+export function round(value: number, digits = 2): number {
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
 }

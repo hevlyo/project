@@ -136,7 +136,7 @@ describe('SocketManager', () => {
       getActiveBalls: vi.fn(),
       getActiveProjectiles: vi.fn().mockReturnValue([]),
       getPlayerCount: vi.fn(),
-      getScoreMap: vi.fn(),
+      getScoreMap: vi.fn().mockReturnValue({ 'player-1': 0 }),
       updatePlayerPosition: vi.fn(),
       collectBall: vi.fn(),
       respawnBall: vi.fn(),
@@ -168,6 +168,7 @@ describe('SocketManager', () => {
     }));
     expect(io.emit).toHaveBeenCalledWith('playerState', expect.objectContaining({ syncMode: 'attack' }));
     expect(io.emit).toHaveBeenCalledWith('playerState', expect.objectContaining({ syncMode: 'respawn' }));
+    expect(io.emit).toHaveBeenCalledWith('updateScores', expect.any(Object));
     manager.destroy();
   });
 

@@ -37,6 +37,9 @@ export interface GameConfig {
   ARENA_LANTERN_COUNT: number;
   ARENA_LANTERN_RING_SCALE: number;
   ARENA_LANTERN_RADIUS: number;
+  ARENA_BRAZIER_COUNT: number;
+  ARENA_BRAZIER_RING_SCALE: number;
+  ARENA_BRAZIER_RADIUS: number;
   ARENA_PLANT_COUNT: number;
   ARENA_PLANT_RING_SCALE: number;
   ARENA_PLANT_RADIUS: number;

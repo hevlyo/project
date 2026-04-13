@@ -28,6 +28,9 @@ export interface ArenaPhysicsConfig {
   ARENA_LANTERN_COUNT: number;
   ARENA_LANTERN_RING_SCALE: number;
   ARENA_LANTERN_RADIUS: number;
+  ARENA_BRAZIER_COUNT: number;
+  ARENA_BRAZIER_RING_SCALE: number;
+  ARENA_BRAZIER_RADIUS: number;
   ARENA_PLANT_COUNT: number;
   ARENA_PLANT_RING_SCALE: number;
   ARENA_PLANT_RADIUS: number;
@@ -136,6 +139,11 @@ export class ArenaPhysics {
         this.config.ARENA_LANTERN_RADIUS,
       ),
       ...this.getRingObstacleCircles(
+        this.config.ARENA_BRAZIER_COUNT,
+        this.config.ARENA_BRAZIER_RING_SCALE,
+        this.config.ARENA_BRAZIER_RADIUS,
+      ),
+      ...this.getRingObstacleCircles(
         this.config.ARENA_PLANT_COUNT,
         this.config.ARENA_PLANT_RING_SCALE,
         this.config.ARENA_PLANT_RADIUS,
@@ -154,6 +162,11 @@ export class ArenaPhysics {
         this.config.ARENA_LANTERN_COUNT,
         this.config.ARENA_LANTERN_RING_SCALE,
         this.config.ARENA_LANTERN_RADIUS,
+      ),
+      ...this.getRingObstacleCircles(
+        this.config.ARENA_BRAZIER_COUNT,
+        this.config.ARENA_BRAZIER_RING_SCALE,
+        this.config.ARENA_BRAZIER_RADIUS,
       ),
       ...this.getRingObstacleCircles(
         this.config.ARENA_PLANT_COUNT,

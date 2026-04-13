@@ -1,8 +1,10 @@
+import type {
+ SerializedBall, SerializedPlayer, SerializedProjectile, Vector3
+} from '@pegabola/shared';
 import config from '../config/gameConfig';
 import GameState from '../models/GameState';
-import type { SerializedBall, SerializedPlayer, SerializedProjectile, Vector3 } from '@pegabola/shared';
 
-interface SocketLike {
+type SocketLike = {
   id: string;
   emit(event: string, payload: unknown): void;
   on(event: string, handler: (...args: unknown[]) => void): void;
@@ -11,23 +13,23 @@ interface SocketLike {
   };
 }
 
-interface IoLike {
+type IoLike = {
   on(event: 'connection', handler: (socket: SocketLike) => void): void;
   emit(event: string, payload: unknown): void;
 }
 
-interface JoinPlayerResult {
+type JoinPlayerResult = {
   player?: SerializedPlayer;
   error?: string;
 }
 
-interface UpdatePlayerPositionResult {
+type UpdatePlayerPositionResult = {
   player?: SerializedPlayer;
   corrected?: boolean;
   error?: string;
 }
 
-interface CollectBallResult {
+type CollectBallResult = {
   ball?: SerializedBall;
   awardedValue?: number;
   player?: SerializedPlayer;
@@ -35,13 +37,13 @@ interface CollectBallResult {
   error?: string;
 }
 
-interface FireballAttackResult {
+type FireballAttackResult = {
   projectile?: SerializedProjectile;
   player?: SerializedPlayer;
   error?: string;
 }
 
-interface CombatTickResult {
+type CombatTickResult = {
   spawned: SerializedProjectile[];
   destroyed: string[];
   hits: Array<{
@@ -52,7 +54,7 @@ interface CombatTickResult {
   }>;
 }
 
-interface GameStatePort {
+type GameStatePort = {
   joinPlayer(socketId: string, nickname: unknown, sessionId: unknown): JoinPlayerResult;
   maintainBallCount(): { spawned: SerializedBall[]; despawned: string[] };
   getWorldInfo(): { worldSize: number; ballCount: number; isNightMode: boolean };
@@ -61,15 +63,15 @@ interface GameStatePort {
   getActiveProjectiles(): SerializedProjectile[];
   getPlayerCount(): number;
   getScoreMap(): Record<string, number>;
-  updatePlayerPosition(socketId: string, nextPosition: Vector3 | null | undefined): UpdatePlayerPositionResult;
+  updatePlayerPosition(socketId: string, nextPosition: Vector3 | undefined): UpdatePlayerPositionResult;
   collectBall(socketId: string, ballId?: string): CollectBallResult;
-  respawnBall(): SerializedBall | null;
-  fireballAttack(socketId: string, direction: Vector3 | null | undefined): FireballAttackResult;
+  respawnBall(): SerializedBall | undefined;
+  fireballAttack(socketId: string, direction: Vector3 | undefined): FireballAttackResult;
   advanceCombat(now?: number): CombatTickResult;
   activateDash(socketId: string): { player?: SerializedPlayer; dashCooldownUntil?: number; error?: string };
   getPlayer(socketId: string): ReturnType<GameState['getPlayer']>;
   serializePlayer(player: NonNullable<ReturnType<GameState['getPlayer']>>, now?: number): SerializedPlayer;
-  removePlayer(socketId: string): SerializedPlayer | null;
+  removePlayer(socketId: string): SerializedPlayer | undefined;
 }
 
 class SocketManager {
@@ -77,7 +79,7 @@ class SocketManager {
   gameState: GameStatePort;
   lastMovementAt: Map<string, number>;
   lastCollectionAt: Map<string, number>;
-  combatTimer: ReturnType<typeof setInterval> | null;
+  combatTimer: ReturnType<typeof setInterval> | undefined;
   initialized: boolean;
 
   constructor(io: IoLike, gameState: GameStatePort = new GameState(config)) {
@@ -95,18 +97,33 @@ class SocketManager {
   }
 
   initialize() {
-    if (this.initialized) return;
+    if (this.initialized) {
+return;
+}
+
     this.initialized = true;
 
-    this.io.on('connection', (socket) => {
+    this.io.on('connection', socket => {
       console.log(`Player connected: ${socket.id}`);
 
-      socket.on('joinGame', (playerData) => this.handleJoinGame(socket, playerData));
-      socket.on('playerMovement', (movementData) => this.handlePlayerMovement(socket, movementData));
-      socket.on('collectBall', (data) => this.handleBallCollection(socket, data));
-      socket.on('playerAttack', (data) => this.handlePlayerAttack(socket, data));
-      socket.on('playerDash', () => this.handlePlayerDash(socket));
-      socket.on('disconnect', () => this.handlePlayerDisconnect(socket));
+      socket.on('joinGame', playerData => {
+ this.handleJoinGame(socket, playerData);
+});
+      socket.on('playerMovement', movementData => {
+ this.handlePlayerMovement(socket, movementData);
+});
+      socket.on('collectBall', data => {
+ this.handleBallCollection(socket, data);
+});
+      socket.on('playerAttack', data => {
+ this.handlePlayerAttack(socket, data);
+});
+      socket.on('playerDash', () => {
+ this.handlePlayerDash(socket);
+});
+      socket.on('disconnect', () => {
+ this.handlePlayerDisconnect(socket);
+});
     });
 
     this.combatTimer = globalThis.setInterval(() => {
@@ -166,7 +183,10 @@ class SocketManager {
   handlePlayerMovement(socket: SocketLike, movementData: { position?: { x: number; y: number; z: number } } | undefined) {
     const now = Date.now();
     const last = this.lastMovementAt.get(socket.id) || 0;
-    if (now - last < config.MOVEMENT_THROTTLE_MS) return;
+    if (now - last < config.MOVEMENT_THROTTLE_MS) {
+return;
+}
+
     this.lastMovementAt.set(socket.id, now);
 
     const result = this.gameState.updatePlayerPosition(socket.id, movementData?.position);
@@ -188,7 +208,10 @@ class SocketManager {
   handleBallCollection(socket: SocketLike, data: { ballId?: string } | undefined) {
     const now = Date.now();
     const last = this.lastCollectionAt.get(socket.id) || 0;
-    if (now - last < config.COLLECTION_THROTTLE_MS) return;
+    if (now - last < config.COLLECTION_THROTTLE_MS) {
+return;
+}
+
     this.lastCollectionAt.set(socket.id, now);
 
     const result = this.gameState.collectBall(socket.id, data?.ballId);
@@ -228,6 +251,7 @@ class SocketManager {
       } else {
         this.emitError(socket, result.error);
       }
+
       return;
     }
 
@@ -245,6 +269,7 @@ class SocketManager {
 
   handleCombatTick() {
     const result = this.gameState.advanceCombat(Date.now());
+    let hasFatalHit = false;
 
     for (const projectileId of result.destroyed) {
       this.io.emit('projectileDestroyed', { projectileId });
@@ -263,6 +288,14 @@ class SocketManager {
         ...hit.player,
         syncMode: hit.wasFatal ? 'respawn' : 'damage',
       });
+
+      if (hit.wasFatal) {
+        hasFatalHit = true;
+      }
+    }
+
+    if (hasFatalHit) {
+      this.emitScores();
     }
   }
 
@@ -271,9 +304,13 @@ class SocketManager {
     if (result.error) {
       if (result.dashCooldownUntil) {
         const player = this.gameState.getPlayer(socket.id);
-        if (!player) return;
+        if (!player) {
+return;
+}
+
         this.emitPlayerState(socket, this.gameState.serializePlayer(player, Date.now()), 'dash-cooldown');
       }
+
       return;
     }
 
@@ -286,7 +323,9 @@ class SocketManager {
   handlePlayerDisconnect(socket: SocketLike) {
     const removedPlayer = this.gameState.removePlayer(socket.id);
     console.log(`Player disconnected: ${socket.id}`);
-    if (!removedPlayer) return;
+    if (!removedPlayer) {
+return;
+}
 
     this.lastMovementAt.delete(socket.id);
     this.lastCollectionAt.delete(socket.id);

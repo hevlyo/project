@@ -75,6 +75,28 @@ describe('ArenaPhysics', () => {
     expect(distance).toBeGreaterThanOrEqual(moverRadius + obstacle.radius + gameConfig.PLAYER_COLLISION_PADDING);
   });
 
+  it('pushes out from arena brazier collision', () => {
+    const obstacle = physics.getArenaObstacleCircles().find((circle) => circle.radius === gameConfig.ARENA_BRAZIER_RADIUS);
+
+    expect(obstacle).toBeDefined();
+    if (!obstacle) {
+      throw new Error('Expected brazier obstacle circle');
+    }
+
+    const moverRadius = 0.5;
+    const previous = { x: obstacle.x + 0.1, y: 0, z: obstacle.z + 0.1 };
+    const next = { x: obstacle.x, y: 0, z: obstacle.z };
+
+    const corrected = physics.resolvePostCollisions(previous, next, moverRadius);
+
+    const dx = next.x - obstacle.x;
+    const dz = next.z - obstacle.z;
+    const distance = Math.hypot(dx, dz);
+
+    expect(corrected).toBe(true);
+    expect(distance).toBeGreaterThanOrEqual(moverRadius + obstacle.radius + gameConfig.PLAYER_COLLISION_PADDING);
+  });
+
   it('does not apply legacy post collision circles in movement resolution', () => {
     const post = physics.getArenaPosts()[0];
     const moverRadius = 0.5;
@@ -119,6 +141,7 @@ describe('ArenaPhysics', () => {
       ARENA_POST_COUNT: 0,
       ARENA_MONOLITH_COUNT: 0,
       ARENA_LANTERN_COUNT: 0,
+      ARENA_BRAZIER_COUNT: 0,
       ARENA_PLANT_COUNT: 0,
     });
 

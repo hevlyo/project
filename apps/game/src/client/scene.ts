@@ -1,5 +1,9 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import {
+	ARENA_ASSET_DEFINITIONS,
+	resolveRenderProfile,
+} from "./arenaAssets.js";
 import { SETTINGS } from "./config.js";
 import {
 	createArenaPatchTexture,
@@ -17,17 +21,17 @@ export class SceneController {
 	// aware of the fields without over-modeling the Three.js object graphs.
 	container: HTMLElement;
 	worldSize: number;
-	scene: THREE.Scene | null;
-	camera: THREE.PerspectiveCamera | null;
-	renderer: THREE.WebGLRenderer | null;
-	floor: THREE.Mesh | null;
-	innerDisk: THREE.Mesh | null;
-	brassRing: THREE.Mesh | null;
-	boundaryRing: THREE.Mesh | null;
+	scene: THREE.Scene | undefined;
+	camera: THREE.PerspectiveCamera | undefined;
+	renderer: THREE.WebGLRenderer | undefined;
+	floor: THREE.Mesh | undefined;
+	innerDisk: THREE.Mesh | undefined;
+	brassRing: THREE.Mesh | undefined;
+	boundaryRing: THREE.Mesh | undefined;
 	posts: THREE.Mesh[];
-	skyDome: THREE.Mesh | null;
-	arenaDecorGroup: THREE.Group | null;
-	arenaAssetGroup: THREE.Group | null;
+	skyDome: THREE.Mesh | undefined;
+	arenaDecorGroup: THREE.Group | undefined;
+	arenaAssetGroup: THREE.Group | undefined;
 	arenaAssetRoots: any[];
 	arenaDecorations: any[];
 	playerMeshes: Map<string, any>;
@@ -36,10 +40,10 @@ export class SceneController {
 	projectileTrails: any[];
 	pickupBursts: any[];
 	valuePopups: any[];
-	valuePopupLayer: HTMLDivElement | null;
+	valuePopupLayer: HTMLDivElement | undefined;
 	valuePopupProjectPoint: THREE.Vector3;
 	cameraLookTarget: THREE.Vector3;
-	cameraTrackedPlayerId: string | null;
+	cameraTrackedPlayerId: string | undefined;
 	cameraCurrentFov: number;
 	cameraCurrentDistance: number;
 	cameraCurrentHeight: number;
@@ -62,11 +66,12 @@ export class SceneController {
 	freeCameraForward: THREE.Vector3;
 	freeCameraRight: THREE.Vector3;
 	freeCameraMovement: THREE.Vector3;
-	ambientLight: THREE.AmbientLight | null;
-	hemiLight: THREE.HemisphereLight | null;
-	directionalLight: THREE.DirectionalLight | null;
+	ambientLight: THREE.AmbientLight | undefined;
+	hemiLight: THREE.HemisphereLight | undefined;
+	directionalLight: THREE.DirectionalLight | undefined;
 	isNightMode: boolean;
-	fireballTexture: THREE.Texture | null;
+	fireballTexture: THREE.Texture | undefined;
+	renderProfile: { pixelRatioCap: number; shadowsEnabled: boolean; shadowMapSize: number };
 
 	constructor({ container, worldSize }) {
 		this.container = container;
@@ -116,13 +121,14 @@ export class SceneController {
 		this.freeCameraRight = new THREE.Vector3();
 		this.freeCameraMovement = new THREE.Vector3();
 		this.fireballTexture = null;
+		this.renderProfile = resolveRenderProfile();
 	}
 
 	init() {
 		this.scene = new THREE.Scene();
-		this.scene.background = new THREE.Color(0x8f_b8_bf);
+		this.scene.background = new THREE.Color(0x8F_B8_BF);
 		this.scene.fog = new THREE.Fog(
-			0x8f_b8_bf,
+			0x8F_B8_BF,
 			this.worldSize * 0.9,
 			this.worldSize * 3.1,
 		);
@@ -139,11 +145,10 @@ export class SceneController {
 			antialias: SETTINGS.renderAntialias,
 			powerPreference: SETTINGS.renderPowerPreference,
 		});
-		this.renderer.setPixelRatio(
-			Math.min(window.devicePixelRatio || 1, SETTINGS.renderPixelRatioCap),
-		);
-		this.renderer.shadowMap.enabled = SETTINGS.renderShadows;
-		if (SETTINGS.renderShadows) {
+		this.renderProfile = resolveRenderProfile();
+		this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.renderProfile.pixelRatioCap),);
+		this.renderer.shadowMap.enabled = this.renderProfile.shadowsEnabled;
+		if (this.renderProfile.shadowsEnabled) {
 			this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 		}
 
@@ -157,9 +162,7 @@ export class SceneController {
 		this.createArena();
 		void this.loadArenaAssets();
 
-		this.fireballTexture = new THREE.TextureLoader().load(
-			"/assets/textures/fireball.png",
-		);
+		this.fireballTexture = new THREE.TextureLoader().load("/assets/textures/fireball.png",);
 		this.fireballTexture.colorSpace = THREE.SRGBColorSpace;
 	}
 
@@ -175,19 +178,20 @@ export class SceneController {
 	}
 
 	createLights() {
-		this.ambientLight = new THREE.AmbientLight(0xff_f4_d7, 0.34);
+		this.ambientLight = new THREE.AmbientLight(0xFF_F4_D7, 0.34);
 		this.scene.add(this.ambientLight);
 
-		this.hemiLight = new THREE.HemisphereLight(0xf7_e8_c5, 0x0f_2a_32, 1.15);
+		this.hemiLight = new THREE.HemisphereLight(0xF7_E8_C5, 0x0F_2A_32, 1.15);
 		this.scene.add(this.hemiLight);
 
-		this.directionalLight = new THREE.DirectionalLight(0xff_f0_be, 1.55);
+		this.directionalLight = new THREE.DirectionalLight(0xFF_F0_BE, 1.55);
 		this.directionalLight.position.set(18, 28, 12);
-		this.directionalLight.castShadow = SETTINGS.renderShadows;
-		if (SETTINGS.renderShadows) {
-			this.directionalLight.shadow.mapSize.width = SETTINGS.renderShadowMapSize;
-			this.directionalLight.shadow.mapSize.height =
-				SETTINGS.renderShadowMapSize;
+		this.directionalLight.castShadow = this.renderProfile.shadowsEnabled;
+		if (this.renderProfile.shadowsEnabled) {
+			this.directionalLight.shadow.mapSize.width
+				= this.renderProfile.shadowMapSize;
+			this.directionalLight.shadow.mapSize.height
+				= this.renderProfile.shadowMapSize;
 			this.directionalLight.shadow.camera.left = -80;
 			this.directionalLight.shadow.camera.right = 80;
 			this.directionalLight.shadow.camera.top = 80;
@@ -197,7 +201,7 @@ export class SceneController {
 
 		this.scene.add(this.directionalLight);
 
-		const rim = new THREE.PointLight(0x7b_df_f2, 12, 100, 2);
+		const rim = new THREE.PointLight(0x7B_DF_F2, 12, 100, 2);
 		rim.position.set(-24, 12, -18);
 		this.scene.add(rim);
 	}
@@ -205,47 +209,56 @@ export class SceneController {
 	setNightMode(isNight) {
 		this.isNightMode = isNight;
 		if (isNight) {
-			this.scene.background.setHex(0x1a_1a_2e);
-			this.scene.fog.color.setHex(0x1a_1a_2e);
-			if (this.skyDome) {
-				this.skyDome.material.color.setHex(0x22_22_33);
-			}
+			this.applyNightPalette();
+			return;
+		}
 
-			if (this.ambientLight) {
-				this.ambientLight.intensity = 0.1;
-			}
+		this.applyDayPalette();
+	}
 
-			if (this.hemiLight) {
-				this.hemiLight.intensity = 0.3;
-				this.hemiLight.color.setHex(0x40_55_80);
-				this.hemiLight.groundColor.setHex(0x08_10_16);
-			}
+	applyNightPalette() {
+		this.scene.background.setHex(0x1A_1A_2E);
+		this.scene.fog.color.setHex(0x1A_1A_2E);
+		if (this.skyDome) {
+			this.skyDome.material.color.setHex(0x22_22_33);
+		}
 
-			if (this.directionalLight) {
-				this.directionalLight.intensity = 0.25;
-				this.directionalLight.color.setHex(0x8a_a8_d4);
-			}
-		} else {
-			this.scene.background.setHex(0x8f_b8_bf);
-			this.scene.fog.color.setHex(0x8f_b8_bf);
-			if (this.skyDome) {
-				this.skyDome.material.color.setHex(0xff_ff_ff);
-			}
+		if (this.ambientLight) {
+			this.ambientLight.intensity = 0.1;
+		}
 
-			if (this.ambientLight) {
-				this.ambientLight.intensity = 0.34;
-			}
+		if (this.hemiLight) {
+			this.hemiLight.intensity = 0.3;
+			this.hemiLight.color.setHex(0x40_55_80);
+			this.hemiLight.groundColor.setHex(0x08_10_16);
+		}
 
-			if (this.hemiLight) {
-				this.hemiLight.intensity = 1.15;
-				this.hemiLight.color.setHex(0xf7_e8_c5);
-				this.hemiLight.groundColor.setHex(0x0f_2a_32);
-			}
+		if (this.directionalLight) {
+			this.directionalLight.intensity = 0.25;
+			this.directionalLight.color.setHex(0x8A_A8_D4);
+		}
+	}
 
-			if (this.directionalLight) {
-				this.directionalLight.intensity = 1.55;
-				this.directionalLight.color.setHex(0xff_f0_be);
-			}
+	applyDayPalette() {
+		this.scene.background.setHex(0x8F_B8_BF);
+		this.scene.fog.color.setHex(0x8F_B8_BF);
+		if (this.skyDome) {
+			this.skyDome.material.color.setHex(0xFF_FF_FF);
+		}
+
+		if (this.ambientLight) {
+			this.ambientLight.intensity = 0.34;
+		}
+
+		if (this.hemiLight) {
+			this.hemiLight.intensity = 1.15;
+			this.hemiLight.color.setHex(0xF7_E8_C5);
+			this.hemiLight.groundColor.setHex(0x0F_2A_32);
+		}
+
+		if (this.directionalLight) {
+			this.directionalLight.intensity = 1.55;
+			this.directionalLight.color.setHex(0xFF_F0_BE);
 		}
 	}
 
@@ -254,9 +267,7 @@ export class SceneController {
 			8,
 			this.renderer?.capabilities?.getMaxAnisotropy?.() || 1,
 		);
-		const grassMap = new THREE.TextureLoader().load(
-			"/assets/textures/grass.jpg",
-		);
+		const grassMap = new THREE.TextureLoader().load("/assets/textures/grass.jpg",);
 		grassMap.colorSpace = THREE.SRGBColorSpace;
 		grassMap.wrapS = THREE.RepeatWrapping;
 		grassMap.wrapT = THREE.RepeatWrapping;
@@ -323,6 +334,17 @@ export class SceneController {
 		stoneTexture.repeat.set(1.1, 1);
 		stoneTexture.anisotropy = maxAnisotropy;
 
+		const bannerTexture = new THREE.TextureLoader().load("/assets/textures/coliseum-banner.svg",);
+		bannerTexture.colorSpace = THREE.SRGBColorSpace;
+		bannerTexture.anisotropy = maxAnisotropy;
+
+		const crowdBandTexture = new THREE.TextureLoader().load("/assets/textures/coliseum-crowd-band.svg",);
+		crowdBandTexture.colorSpace = THREE.SRGBColorSpace;
+		crowdBandTexture.wrapS = THREE.RepeatWrapping;
+		crowdBandTexture.wrapT = THREE.RepeatWrapping;
+		crowdBandTexture.repeat.set(2.2, 1);
+		crowdBandTexture.anisotropy = maxAnisotropy;
+
 		this.skyDome = new THREE.Mesh(
 			new THREE.SphereGeometry(250, 40, 24),
 			new THREE.MeshBasicMaterial({
@@ -341,7 +363,7 @@ export class SceneController {
 		this.floor = new THREE.Mesh(
 			new THREE.CircleGeometry(50, 72),
 			new THREE.MeshStandardMaterial({
-				color: 0xcf_e8_cf,
+				color: 0xCF_E8_CF,
 				map: grassMap,
 				bumpMap: floorDetailMap,
 				bumpScale: 0.3,
@@ -356,7 +378,7 @@ export class SceneController {
 		this.innerDisk = new THREE.Mesh(
 			new THREE.CircleGeometry(41, 72),
 			new THREE.MeshStandardMaterial({
-				color: 0xb8_dd_b8,
+				color: 0xB8_DD_B8,
 				map: innerGrassMap,
 				bumpMap: innerDetailMap,
 				bumpScale: 0.2,
@@ -372,7 +394,7 @@ export class SceneController {
 		this.brassRing = new THREE.Mesh(
 			new THREE.RingGeometry(32, 38, 64),
 			new THREE.MeshBasicMaterial({
-				color: 0xe7_b5_44,
+				color: 0xE7_B5_44,
 				opacity: 0.3,
 				transparent: true,
 				side: THREE.DoubleSide,
@@ -385,13 +407,13 @@ export class SceneController {
 		this.boundaryRing = new THREE.Mesh(
 			new THREE.TorusGeometry(50, 0.45, 14, 120),
 			new THREE.MeshStandardMaterial({
-				color: 0xf5_d2_77,
+				color: 0xF5_D2_77,
 				map: brassBandMap,
 				bumpMap: brassDetailMap,
 				bumpScale: 0.1,
 				roughness: 0.26,
 				metalness: 0.76,
-				emissive: 0x8d_5d_00,
+				emissive: 0x8D_5D_00,
 				emissiveIntensity: 0.26,
 			}),
 		);
@@ -401,11 +423,72 @@ export class SceneController {
 		this.boundaryRing.castShadow = true;
 		this.scene.add(this.boundaryRing);
 
+		const coliseumOuterWall = new THREE.Mesh(
+			new THREE.CylinderGeometry(53, 53, 9.8, 96, 1, true),
+			new THREE.MeshStandardMaterial({
+				color: 0x8D_7A_64,
+				map: stoneTexture,
+				roughness: 0.85,
+				metalness: 0.05,
+			}),
+		);
+		coliseumOuterWall.position.y = 4.9;
+		coliseumOuterWall.receiveShadow = true;
+		coliseumOuterWall.castShadow = true;
+		this.arenaDecorGroup.add(coliseumOuterWall);
+
+		const coliseumCornice = new THREE.Mesh(
+			new THREE.TorusGeometry(53, 0.85, 14, 128),
+			new THREE.MeshStandardMaterial({
+				color: 0xC9_AA_79,
+				map: brassBandMap,
+				bumpMap: brassDetailMap,
+				bumpScale: 0.08,
+				roughness: 0.32,
+				metalness: 0.66,
+				emissive: 0x6A_3F_00,
+				emissiveIntensity: 0.25,
+			}),
+		);
+		coliseumCornice.rotation.x = Math.PI / 2;
+		coliseumCornice.position.y = 9.6;
+		coliseumCornice.receiveShadow = true;
+		coliseumCornice.castShadow = true;
+		this.arenaDecorGroup.add(coliseumCornice);
+
+		const coliseumInnerTier = new THREE.Mesh(
+			new THREE.CylinderGeometry(46.5, 46.5, 5.2, 96, 1, true),
+			new THREE.MeshStandardMaterial({
+				color: 0x74_65_55,
+				map: stoneTexture,
+				roughness: 0.86,
+				metalness: 0.04,
+			}),
+		);
+		coliseumInnerTier.position.y = 2.6;
+		coliseumInnerTier.receiveShadow = true;
+		coliseumInnerTier.castShadow = true;
+		this.arenaDecorGroup.add(coliseumInnerTier);
+
+		const crowdBand = new THREE.Mesh(
+			new THREE.CylinderGeometry(49.3, 49.3, 2.6, 96, 1, true),
+			new THREE.MeshStandardMaterial({
+				color: 0xFF_E1_A6,
+				map: crowdBandTexture,
+				roughness: 0.9,
+				metalness: 0.02,
+			}),
+		);
+		crowdBand.position.y = 6.45;
+		crowdBand.receiveShadow = true;
+		crowdBand.castShadow = true;
+		this.arenaDecorGroup.add(crowdBand);
+
 		for (let index = 0; index < SETTINGS.arenaPostCount; index += 1) {
 			const pillar = new THREE.Mesh(
 				new THREE.CylinderGeometry(0.45, 0.65, 4.8, 14),
 				new THREE.MeshStandardMaterial({
-					color: 0xb0_8f_72,
+					color: 0xB0_8F_72,
 					map: pillarMap,
 					bumpMap: pillarDetailMap,
 					bumpScale: 0.22,
@@ -427,7 +510,7 @@ export class SceneController {
 			const pedestal = new THREE.Mesh(
 				new THREE.CylinderGeometry(0.85, 1.1, 1.15, 10),
 				new THREE.MeshStandardMaterial({
-					color: 0x4c_57_59,
+					color: 0x4C_57_59,
 					map: stoneTexture,
 					roughness: 0.84,
 					metalness: 0.06,
@@ -454,7 +537,7 @@ export class SceneController {
 			const cap = new THREE.Mesh(
 				new THREE.SphereGeometry(0.36, 14, 14),
 				new THREE.MeshBasicMaterial({
-					color: index % 2 === 0 ? 0x7b_df_f2 : 0xff_d1_66,
+					color: index % 2 === 0 ? 0x7B_DF_F2 : 0xFF_D1_66,
 					transparent: true,
 					opacity: 0.82,
 				}),
@@ -465,7 +548,7 @@ export class SceneController {
 			const band = new THREE.Mesh(
 				new THREE.TorusGeometry(0.86, 0.06, 8, 24),
 				new THREE.MeshBasicMaterial({
-					color: index % 2 === 0 ? 0x7b_df_f2 : 0xff_d1_66,
+					color: index % 2 === 0 ? 0x7B_DF_F2 : 0xFF_D1_66,
 					transparent: true,
 					opacity: 0.24,
 					side: THREE.DoubleSide,
@@ -515,36 +598,128 @@ export class SceneController {
 			this.arenaDecorations.push(patch);
 		}
 
+		for (let index = 0; index < 16; index += 1) {
+			const angle = (Math.PI * 2 * index) / 16;
+			const gate = new THREE.Group();
+
+			const leftColumn = new THREE.Mesh(
+				new THREE.CylinderGeometry(0.38, 0.5, 4.8, 10),
+				new THREE.MeshStandardMaterial({
+					color: 0x9F_8A_70,
+					map: pillarMap,
+					bumpMap: pillarDetailMap,
+					bumpScale: 0.15,
+					roughness: 0.72,
+					metalness: 0.12,
+				}),
+			);
+			leftColumn.position.set(-1.25, 2.4, 0);
+			leftColumn.castShadow = true;
+			leftColumn.receiveShadow = true;
+			gate.add(leftColumn);
+
+			const rightColumn = leftColumn.clone();
+			rightColumn.position.x = 1.25;
+			gate.add(rightColumn);
+
+			const arch = new THREE.Mesh(
+				new THREE.TorusGeometry(1.25, 0.24, 8, 24, Math.PI),
+				new THREE.MeshStandardMaterial({
+					color: 0xB9_A4_86,
+					map: stoneTexture,
+					roughness: 0.74,
+					metalness: 0.08,
+				}),
+			);
+			arch.rotation.z = Math.PI;
+			arch.position.y = 4.58;
+			arch.castShadow = true;
+			arch.receiveShadow = true;
+			gate.add(arch);
+
+			const banner = new THREE.Mesh(
+				new THREE.PlaneGeometry(1.1, 2),
+				new THREE.MeshStandardMaterial({
+					color: index % 2 === 0 ? 0xB0_1D_1D : 0x15_2D_5A,
+					map: bannerTexture,
+					roughness: 0.9,
+					metalness: 0,
+					side: THREE.DoubleSide,
+				}),
+			);
+			banner.position.set(0, 3.05, 0.02);
+			gate.add(banner);
+
+			gate.userData = {
+				angle,
+				radius: 50 * 0.915,
+				baseY: 0,
+			};
+			this.arenaDecorGroup.add(gate);
+			this.arenaDecorations.push(gate);
+		}
+
+		for (let index = 0; index < SETTINGS.arenaBrazierCount; index += 1) {
+			const angle = (Math.PI * 2 * index) / SETTINGS.arenaBrazierCount;
+			const brazier = new THREE.Group();
+
+			const base = new THREE.Mesh(
+				new THREE.CylinderGeometry(0.42, 0.52, 0.62, 10),
+				new THREE.MeshStandardMaterial({
+					color: 0x5F_55_49,
+					map: stoneTexture,
+					roughness: 0.78,
+					metalness: 0.07,
+				}),
+			);
+			base.castShadow = true;
+			base.receiveShadow = true;
+			brazier.add(base);
+
+			const bowl = new THREE.Mesh(
+				new THREE.SphereGeometry(0.36, 10, 10),
+				new THREE.MeshStandardMaterial({
+					color: 0x9F_7B_3D,
+					roughness: 0.28,
+					metalness: 0.65,
+					emissive: 0x5A_33_00,
+					emissiveIntensity: 0.22,
+				}),
+			);
+			bowl.position.y = 0.56;
+			bowl.scale.set(1, 0.52, 1);
+			bowl.castShadow = true;
+			bowl.receiveShadow = true;
+			brazier.add(bowl);
+
+			const flame = new THREE.Mesh(
+				new THREE.SphereGeometry(0.2, 10, 10),
+				new THREE.MeshBasicMaterial({
+					color: index % 2 === 0 ? 0xFF_B5_47 : 0xFF_6E_3A,
+					transparent: true,
+					opacity: 0.8,
+				}),
+			);
+			flame.position.y = 0.92;
+			brazier.add(flame);
+
+			brazier.userData = {
+				angle,
+				radius: 50 * SETTINGS.arenaBrazierRingScale,
+				baseY: 0.05,
+				bobPhase: Math.random() * Math.PI * 2,
+			};
+			this.arenaDecorGroup.add(brazier);
+			this.arenaDecorations.push(brazier);
+		}
+
 		this.layoutArenaDecor();
 	}
 
 	async loadArenaAssets() {
 		const loader = new GLTFLoader();
-		const assetDefinitions = [
-			{
-				url: "/assets/models/lantern.glb",
-				count: SETTINGS.arenaLanternCount,
-				ringScale: SETTINGS.arenaLanternRingScale,
-				scale: 0.68,
-				y: 0.03,
-				yOffset: 0.02,
-				yRotationOffset: Math.PI,
-				phaseOffset: 0,
-			},
-			{
-				url: "/assets/models/diffuse-transmission-plant.glb",
-				count: SETTINGS.arenaPlantCount,
-				ringScale: SETTINGS.arenaPlantRingScale,
-				scale: 0.52,
-				y: 0.02,
-				yOffset: 0.05,
-				yRotationOffset: Math.PI / 2,
-				phaseOffset: Math.PI / 7,
-			},
-		];
 
-		const loadedAssets = await Promise.all(
-			assetDefinitions.map(async (definition) => {
+		const loadedAssets = await Promise.all(ARENA_ASSET_DEFINITIONS.map(async definition => {
 				try {
 					const gltf = await loader.loadAsync(definition.url);
 					return { definition, root: gltf.scene || gltf.scenes?.[0] || null };
@@ -552,8 +727,7 @@ export class SceneController {
 					console.warn("Failed to load arena asset", definition.url, error);
 					return { definition, root: null };
 				}
-			}),
-		);
+			}),);
 
 		if (!this.arenaAssetGroup || !this.scene) {
 			return;
@@ -564,10 +738,10 @@ export class SceneController {
 				continue;
 			}
 
-			root.traverse((node) => {
+			root.traverse(node => {
 				if (node.isMesh) {
-					node.castShadow = true;
-					node.receiveShadow = true;
+					node.castShadow = this.renderProfile.shadowsEnabled;
+					node.receiveShadow = this.renderProfile.shadowsEnabled;
 					const materials = Array.isArray(node.material)
 						? node.material
 						: [node.material];
@@ -591,12 +765,15 @@ export class SceneController {
 				instance.userData = {
 					angle,
 					radiusScale: definition.ringScale,
-					baseY: definition.y,
+					baseY: definition.baseY,
 					bobPhase: definition.phaseOffset + Math.random() * Math.PI * 2,
-					rotationOffset: definition.yRotationOffset,
+					rotationOffset: definition.rotationOffset,
 					yOffset: definition.yOffset,
 				};
-				instance.scale.setScalar(definition.scale);
+				instance.scale.setScalar(definition.visualScale);
+				instance.traverse(node => {
+					node.frustumCulled = true;
+				});
 				this.arenaAssetGroup.add(instance);
 				this.arenaAssetRoots.push(instance);
 			}
@@ -607,8 +784,13 @@ export class SceneController {
 
 	layoutArenaDecor(simulationTimeMs = 0) {
 		const scale = this.worldSize / 50;
-		const postRadius = this.worldSize * SETTINGS.arenaPostRingScale;
+		this.applyArenaScale(scale);
+		this.layoutArenaPosts();
+		this.layoutArenaMonuments();
+		this.layoutArenaAssetRoots(simulationTimeMs);
+	}
 
+	applyArenaScale(scale: number) {
 		this.floor.scale.setScalar(scale);
 		this.innerDisk.scale.setScalar(scale);
 		this.brassRing.scale.setScalar(scale);
@@ -620,7 +802,10 @@ export class SceneController {
 		if (this.arenaDecorGroup) {
 			this.arenaDecorGroup.scale.setScalar(scale);
 		}
+	}
 
+	layoutArenaPosts() {
+		const postRadius = this.worldSize * SETTINGS.arenaPostRingScale;
 		for (const [index, post] of this.posts.entries()) {
 			const angle = (Math.PI * 2 * index) / this.posts.length;
 			post.position.set(
@@ -630,50 +815,54 @@ export class SceneController {
 			);
 			post.rotation.y = -angle;
 		}
+	}
 
-		if (this.arenaDecorations?.length) {
-			for (const decor of this.arenaDecorations) {
-				if (!decor.userData) {
-					continue;
-				}
-
-				if (decor.geometry?.type === "PlaneGeometry") {
-					continue;
-				}
-
-				const { angle, radius, baseY } = decor.userData;
-				decor.position.set(
-					Math.cos(angle) * radius,
-					baseY,
-					Math.sin(angle) * radius,
-				);
-				decor.rotation.y = -angle + Math.PI / 2;
-			}
+	layoutArenaMonuments() {
+		if (!this.arenaDecorations?.length) {
+			return;
 		}
 
-		if (this.arenaAssetRoots?.length) {
-			for (const asset of this.arenaAssetRoots) {
-				const {
-					angle,
-					radiusScale,
-					baseY,
-					rotationOffset = 0,
-					yOffset = 0,
-					bobPhase = 0,
-				} = asset.userData || {};
-				if (!Number.isFinite(angle) || !Number.isFinite(radiusScale)) {
-					continue;
-				}
-
-				const radius = this.worldSize * radiusScale;
-				const bob = Math.sin(simulationTimeMs * 0.001 + bobPhase) * 0.08;
-				asset.position.set(
-					Math.cos(angle) * radius,
-					baseY + yOffset + bob,
-					Math.sin(angle) * radius,
-				);
-				asset.rotation.y = -angle + rotationOffset;
+		for (const decor of this.arenaDecorations) {
+			if (!decor.userData || decor.geometry?.type === "PlaneGeometry") {
+				continue;
 			}
+
+			const { angle, radius, baseY } = decor.userData;
+			decor.position.set(
+				Math.cos(angle) * radius,
+				baseY,
+				Math.sin(angle) * radius,
+			);
+			decor.rotation.y = -angle + Math.PI / 2;
+		}
+	}
+
+	layoutArenaAssetRoots(simulationTimeMs: number) {
+		if (!this.arenaAssetRoots?.length) {
+			return;
+		}
+
+		for (const asset of this.arenaAssetRoots) {
+			const {
+				angle,
+				radiusScale,
+				baseY,
+				rotationOffset = 0,
+				yOffset = 0,
+				bobPhase = 0,
+			} = asset.userData || {};
+			if (!Number.isFinite(angle) || !Number.isFinite(radiusScale)) {
+				continue;
+			}
+
+			const radius = this.worldSize * radiusScale;
+			const bob = Math.sin(simulationTimeMs * 0.001 + bobPhase) * 0.08;
+			asset.position.set(
+				Math.cos(angle) * radius,
+				baseY + yOffset + bob,
+				Math.sin(angle) * radius,
+			);
+			asset.rotation.y = -angle + rotationOffset;
 		}
 	}
 
@@ -703,7 +892,7 @@ export class SceneController {
 		const accentColor = baseColor.clone().offsetHSL(0.02, -0.12, -0.18);
 		const bellyColor = baseColor
 			.clone()
-			.lerp(new THREE.Color(0xf9_f1_da), 0.52);
+			.lerp(new THREE.Color(0xF9_F1_DA), 0.52);
 
 		const bodyMaterial = new THREE.MeshStandardMaterial({
 			color: bodyColor,
@@ -779,10 +968,10 @@ export class SceneController {
 		avatar.add(snout);
 
 		const eyeMaterial = new THREE.MeshStandardMaterial({
-			color: 0x12_1f_25,
+			color: 0x12_1F_25,
 			roughness: 0.2,
 			metalness: 0.36,
-			emissive: 0x3d_59_63,
+			emissive: 0x3D_59_63,
 			emissiveIntensity: 0.35,
 		});
 
@@ -800,7 +989,7 @@ export class SceneController {
 		eyeRight.position.set(0.16, 1.05, 0.58);
 		avatar.add(eyeRight);
 
-		const nostrilMaterial = new THREE.MeshBasicMaterial({ color: 0x2f_38_3d });
+		const nostrilMaterial = new THREE.MeshBasicMaterial({ color: 0x2F_38_3D });
 		const nostrilLeft = new THREE.Mesh(
 			new THREE.SphereGeometry(0.026, 8, 8),
 			nostrilMaterial,
@@ -892,7 +1081,7 @@ export class SceneController {
 		const localRing = new THREE.Mesh(
 			new THREE.TorusGeometry(0.92, 0.06, 10, 48),
 			new THREE.MeshBasicMaterial({
-				color: 0xff_e0_8a,
+				color: 0xFF_E0_8A,
 				transparent: true,
 				opacity: isLocal ? 0.95 : 0,
 			}),
@@ -904,7 +1093,7 @@ export class SceneController {
 		const statusRing = new THREE.Mesh(
 			new THREE.TorusGeometry(1.08, 0.05, 10, 48),
 			new THREE.MeshBasicMaterial({
-				color: 0x7b_df_f2,
+				color: 0x7B_DF_F2,
 				transparent: true,
 				opacity: 0,
 			}),
@@ -958,7 +1147,7 @@ export class SceneController {
 			healthBarHeight,
 		);
 		const healthFillMaterial = new THREE.MeshBasicMaterial({
-			color: 0x44_dd_44,
+			color: 0x44_DD_44,
 			transparent: true,
 			opacity: 0.85,
 			side: THREE.DoubleSide,
@@ -970,7 +1159,7 @@ export class SceneController {
 		const healthBarGroup = new THREE.Group();
 		healthBarGroup.add(healthBg);
 		healthBarGroup.add(healthFill);
-		healthBarGroup.position.y = 3.0;
+		healthBarGroup.position.y = 3;
 		group.add(healthBarGroup);
 
 		this.scene.add(group);
@@ -1007,6 +1196,13 @@ export class SceneController {
 			this.playerMeshes.set(player.id, entry);
 		}
 
+		this.refreshPlayerLabel(entry, player, isLocal);
+		this.updatePlayerDisplayScale(entry, player);
+		this.applyPlayerVisualState(entry, player, isLocal);
+		this.updatePlayerHealthBar(entry, player);
+	}
+
+	refreshPlayerLabel(entry, player, isLocal) {
 		if (entry.labelText !== player.nickname || entry.localState !== isLocal) {
 			entry.labelTexture.dispose();
 			entry.labelTexture = createTextTexture(
@@ -1018,14 +1214,16 @@ export class SceneController {
 			entry.labelText = player.nickname;
 			entry.localState = isLocal;
 		}
+	}
 
+	updatePlayerDisplayScale(entry, player) {
 		const targetScale = player.sizeMultiplier || 1;
 		if (!Number.isFinite(entry.displayScale)) {
 			entry.displayScale = targetScale;
 		}
 
-		const scaleSmoothing =
-			targetScale > entry.displayScale
+		const scaleSmoothing
+			= targetScale > entry.displayScale
 				? SETTINGS.playerScaleGrowSmoothing
 				: SETTINGS.playerScaleShrinkSmoothing;
 		entry.displayScale = THREE.MathUtils.lerp(
@@ -1036,7 +1234,9 @@ export class SceneController {
 		if (Math.abs(entry.displayScale - targetScale) < 0.002) {
 			entry.displayScale = targetScale;
 		}
+	}
 
+	applyPlayerVisualState(entry, player, isLocal) {
 		const scale = entry.displayScale;
 		const bobOffset = player.bobOffset || 0;
 		const now = Date.now();
@@ -1055,10 +1255,10 @@ export class SceneController {
 			Math.abs(player.tilt || 0) * 4.5 + Math.abs(bobOffset) * 5,
 		);
 		const gaitWave = Math.sin(now * 0.018 + player.position.x * 0.4);
-		entry.leftArm.rotation.x =
-			-0.24 * movementEnergy + gaitWave * 0.34 * movementEnergy;
-		entry.rightArm.rotation.x =
-			-0.24 * movementEnergy - gaitWave * 0.34 * movementEnergy;
+		entry.leftArm.rotation.x
+			= -0.24 * movementEnergy + gaitWave * 0.34 * movementEnergy;
+		entry.rightArm.rotation.x
+			= -0.24 * movementEnergy - gaitWave * 0.34 * movementEnergy;
 		entry.leftEar.rotation.x = 0.06 + gaitWave * 0.04;
 		entry.rightEar.rotation.x = 0.06 - gaitWave * 0.04;
 
@@ -1068,12 +1268,8 @@ export class SceneController {
 			const pulse = 0.58 + Math.sin(now * 0.012) * 0.2;
 			entry.statusRing.visible = true;
 			entry.statusRing.material.opacity = pulse;
-			entry.statusRing.material.color.setHex(
-				invulnerable ? 0x7b_df_f2 : 0xc7_f4_64,
-			);
-			entry.statusRing.scale.setScalar(
-				1.12 + (scale - 1) * 0.34 + Math.sin(now * 0.008) * 0.04,
-			);
+			entry.statusRing.material.color.setHex(invulnerable ? 0x7B_DF_F2 : 0xC7_F4_64,);
+			entry.statusRing.scale.setScalar(1.12 + (scale - 1) * 0.34 + Math.sin(now * 0.008) * 0.04,);
 		} else {
 			entry.statusRing.visible = false;
 			entry.statusRing.material.opacity = 0;
@@ -1083,22 +1279,27 @@ export class SceneController {
 		entry.shadow.scale.setScalar(scale * 1.1);
 		entry.label.position.y = 3.4 * scale + bobOffset;
 		entry.label.quaternion.copy(this.camera.quaternion);
+	}
+
+	updatePlayerHealthBar(entry, player) {
+		const scale = entry.displayScale;
+		const bobOffset = player.bobOffset || 0;
 
 		const healthRatio = Math.max(
 			0,
 			Math.min(1, (player.health || 0) / Math.max(1, player.maxHealth || 1)),
 		);
-		entry.healthBarGroup.position.y = 3.0 * scale + bobOffset;
+		entry.healthBarGroup.position.y = 3 * scale + bobOffset;
 		entry.healthBarGroup.quaternion.copy(this.camera.quaternion);
 		entry.healthFill.scale.x = healthRatio;
-		entry.healthFill.position.x =
-			-(entry.healthBarWidth * (1 - healthRatio)) / 2;
+		entry.healthFill.position.x
+			= -(entry.healthBarWidth * (1 - healthRatio)) / 2;
 		if (healthRatio > 0.5) {
-			entry.healthFill.material.color.setHex(0x44_dd_44);
+			entry.healthFill.material.color.setHex(0x44_DD_44);
 		} else if (healthRatio > 0.25) {
-			entry.healthFill.material.color.setHex(0xff_bf_69);
+			entry.healthFill.material.color.setHex(0xFF_BF_69);
 		} else {
-			entry.healthFill.material.color.setHex(0xff_7f_7f);
+			entry.healthFill.material.color.setHex(0xFF_7F_7F);
 		}
 
 		entry.healthBarGroup.visible = healthRatio < 1 || entry.localState;
@@ -1112,7 +1313,7 @@ export class SceneController {
 
 		this.scene.remove(entry.group);
 		entry.labelTexture.dispose();
-		entry.group.traverse((node) => {
+		entry.group.traverse(node => {
 			if (node.geometry) {
 				node.geometry.dispose();
 			}
@@ -1294,7 +1495,7 @@ export class SceneController {
 		}
 
 		this.scene.remove(entry.group);
-		entry.group.traverse((node) => {
+		entry.group.traverse(node => {
 			if (node.geometry) {
 				node.geometry.dispose();
 			}
@@ -1374,7 +1575,7 @@ export class SceneController {
 	spawnFireballImpact(position, color, simulationTimeMs, wasFatal = false) {
 		this.spawnBurst({
 			position,
-			color: wasFatal ? 0xff7f7f : color,
+			color: wasFatal ? 0xFF_7F_7F : color,
 			simulationTimeMs,
 			innerRadius: wasFatal ? 0.56 : 0.34,
 			outerRadius: wasFatal ? 1.02 : 0.72,
@@ -1409,7 +1610,7 @@ export class SceneController {
 		duration,
 		opacity,
 		grow,
-		y = 0.18,
+		y,
 	}) {
 		const mesh = new THREE.Mesh(
 			new THREE.RingGeometry(innerRadius, outerRadius, 26),
@@ -1434,50 +1635,61 @@ export class SceneController {
 	}
 
 	step(simulationTimeMs, serverNowMs = simulationTimeMs) {
+		this.animateSky(simulationTimeMs);
+		this.animateBalls(simulationTimeMs);
+		this.animateProjectiles(simulationTimeMs, serverNowMs);
+		this.updateProjectileTrails(simulationTimeMs);
+		this.updatePickupBursts(simulationTimeMs);
+		this.updateValuePopups(simulationTimeMs);
+		this.animateArenaDecorations(simulationTimeMs);
+		this.animateArenaAssets(simulationTimeMs);
+	}
+
+	animateSky(simulationTimeMs) {
 		if (this.skyDome) {
 			this.skyDome.rotation.y = simulationTimeMs * 0.000_015;
 		}
+	}
 
+	animateBalls(simulationTimeMs) {
 		for (const entry of this.ballMeshes.values()) {
 			const hover = Math.sin(simulationTimeMs * 0.004 + entry.phase) * 0.18;
 			entry.group.position.y = entry.baseY + hover;
 			entry.core.rotation.y += 0.02;
-			entry.glow.scale.setScalar(
-				1 + Math.sin(simulationTimeMs * 0.006 + entry.phase) * 0.08,
-			);
+			entry.glow.scale.setScalar(1 + Math.sin(simulationTimeMs * 0.006 + entry.phase) * 0.08,);
 		}
+	}
 
+	animateProjectiles(simulationTimeMs, serverNowMs) {
 		for (const entry of this.projectileMeshes.values()) {
 			const ageSeconds = Math.max(0, (serverNowMs - entry.bornAt) / 1000);
 			const progress = Math.max(
 				0,
 				Math.min(
 					1,
-					(serverNowMs - entry.bornAt) /
-						Math.max(1, entry.expiresAt - entry.bornAt),
+					(serverNowMs - entry.bornAt)
+					/ Math.max(1, entry.expiresAt - entry.bornAt),
 				),
 			);
 			const travel = entry.direction
 				.clone()
 				.multiplyScalar(entry.speed * ageSeconds);
 			entry.sprite.position.copy(entry.origin).add(travel);
-			entry.sprite.position.y =
-				0.85 + Math.sin(simulationTimeMs * 0.01 + entry.radius * 2) * 0.08;
+			entry.sprite.position.y
+				= 0.85 + Math.sin(simulationTimeMs * 0.01 + entry.radius * 2) * 0.08;
 			const pulse = 1 + Math.sin(simulationTimeMs * 0.012 + progress) * 0.12;
 			const size = entry.baseVisualSize * pulse;
 			entry.sprite.scale.set(size, size, 1);
 			entry.sprite.material.opacity = 1 - progress * 0.3;
 
-			const trailParticle = new THREE.Sprite(
-				new THREE.SpriteMaterial({
+			const trailParticle = new THREE.Sprite(new THREE.SpriteMaterial({
 					map: this.fireballTexture,
 					transparent: true,
 					depthWrite: false,
 					blending: THREE.AdditiveBlending,
-					color: 0xff_99_33,
+					color: 0xFF_99_33,
 					opacity: 0.7,
-				}),
-			);
+				}),);
 			const trailSize = entry.baseVisualSize * 0.75;
 			trailParticle.scale.set(trailSize, trailSize, 1);
 			trailParticle.position.copy(entry.sprite.position);
@@ -1489,8 +1701,10 @@ export class SceneController {
 				initialSize: trailSize,
 			});
 		}
+	}
 
-		this.projectileTrails = this.projectileTrails.filter((trail) => {
+	updateProjectileTrails(simulationTimeMs) {
+		this.projectileTrails = this.projectileTrails.filter(trail => {
 			const age = simulationTimeMs - trail.bornAt;
 			const progress = age / trail.duration;
 
@@ -1506,8 +1720,10 @@ export class SceneController {
 			trail.sprite.scale.set(shrink, shrink, 1);
 			return true;
 		});
+	}
 
-		this.pickupBursts = this.pickupBursts.filter((burst) => {
+	updatePickupBursts(simulationTimeMs) {
+		this.pickupBursts = this.pickupBursts.filter(burst => {
 			const age = simulationTimeMs - burst.bornAt;
 			const progress = age / burst.duration;
 
@@ -1522,8 +1738,10 @@ export class SceneController {
 			burst.mesh.material.opacity = burst.opacity * (1 - progress);
 			return true;
 		});
+	}
 
-		this.valuePopups = this.valuePopups.filter((popup) => {
+	updateValuePopups(simulationTimeMs) {
+		this.valuePopups = this.valuePopups.filter(popup => {
 			const age = simulationTimeMs - popup.bornAt;
 			const progress = age / popup.duration;
 
@@ -1540,8 +1758,7 @@ export class SceneController {
 			);
 			this.valuePopupProjectPoint.project(this.camera);
 
-			const isBehindCamera = this.valuePopupProjectPoint.z > 1;
-			if (isBehindCamera) {
+			if (this.valuePopupProjectPoint.z > 1) {
 				popup.element.style.opacity = "0";
 				return true;
 			}
@@ -1557,56 +1774,64 @@ export class SceneController {
 			popup.element.style.transform = `translate3d(${screenX.toFixed(1)}px, ${screenY.toFixed(1)}px, 0) translate(-50%, -50%) scale(${visualScale.toFixed(3)})`;
 			return true;
 		});
+	}
 
-		if (this.arenaDecorations?.length) {
-			for (const decor of this.arenaDecorations) {
-				if (!decor.userData?.pulsePhase) {
-					continue;
-				}
-
-				if (decor.geometry?.type === "PlaneGeometry") {
-					decor.material.opacity =
-						0.66 +
-						Math.sin(simulationTimeMs * 0.0011 + decor.userData.pulsePhase) *
-							0.08;
-					decor.position.y =
-						0.03 +
-						Math.sin(simulationTimeMs * 0.0014 + decor.userData.pulsePhase) *
-							0.02;
-					continue;
-				}
-
-				decor.position.y =
-					decor.userData.baseY +
-					Math.sin(simulationTimeMs * 0.0017 + decor.userData.bobPhase) * 0.08;
-			}
+	animateArenaDecorations(simulationTimeMs) {
+		if (!this.arenaDecorations?.length) {
+			return;
 		}
 
-		if (this.arenaAssetRoots?.length) {
-			for (const asset of this.arenaAssetRoots) {
-				const {
-					angle,
-					radius,
-					baseY,
-					rotationOffset = 0,
-					yOffset = 0,
-					bobPhase = 0,
-				} = asset.userData || {};
-				if (!Number.isFinite(angle) || !Number.isFinite(radius)) {
-					continue;
-				}
-
-				const bob = Math.sin(simulationTimeMs * 0.001 + bobPhase) * 0.08;
-				asset.position.set(
-					Math.cos(angle) * radius,
-					baseY + yOffset + bob,
-					Math.sin(angle) * radius,
-				);
-				asset.rotation.y =
-					-angle +
-					rotationOffset +
-					Math.sin(simulationTimeMs * 0.0004 + bobPhase) * 0.02;
+		for (const decor of this.arenaDecorations) {
+			if (!decor.userData?.pulsePhase) {
+				continue;
 			}
+
+			if (decor.geometry?.type === "PlaneGeometry") {
+				decor.material.opacity
+					= 0.66
+						+ Math.sin(simulationTimeMs * 0.0011 + decor.userData.pulsePhase)
+						* 0.08;
+				decor.position.y
+					= 0.03
+						+ Math.sin(simulationTimeMs * 0.0014 + decor.userData.pulsePhase)
+						* 0.02;
+				continue;
+			}
+
+			decor.position.y
+				= decor.userData.baseY
+					+ Math.sin(simulationTimeMs * 0.0017 + decor.userData.bobPhase) * 0.08;
+		}
+	}
+
+	animateArenaAssets(simulationTimeMs) {
+		if (!this.arenaAssetRoots?.length) {
+			return;
+		}
+
+		for (const asset of this.arenaAssetRoots) {
+			const {
+				angle,
+				radius,
+				baseY,
+				rotationOffset = 0,
+				yOffset = 0,
+				bobPhase = 0,
+			} = asset.userData || {};
+			if (!Number.isFinite(angle) || !Number.isFinite(radius)) {
+				continue;
+			}
+
+			const bob = Math.sin(simulationTimeMs * 0.001 + bobPhase) * 0.08;
+			asset.position.set(
+				Math.cos(angle) * radius,
+				baseY + yOffset + bob,
+				Math.sin(angle) * radius,
+			);
+			asset.rotation.y
+				= -angle
+					+ rotationOffset
+					+ Math.sin(simulationTimeMs * 0.0004 + bobPhase) * 0.02;
 		}
 	}
 
@@ -1615,140 +1840,41 @@ export class SceneController {
 			return;
 		}
 
-		const scale =
-			this.playerMeshes.get(player.id)?.displayScale ||
-			player.sizeMultiplier ||
-			1;
+		const scale
+			= this.playerMeshes.get(player.id)?.displayScale
+				|| player.sizeMultiplier
+				|| 1;
 		const growth = Math.max(0, scale - 1);
 		const maxGrowth = Math.max(0.001, SETTINGS.maxSizeMultiplier - 1);
 		const growthProgress = THREE.MathUtils.clamp(growth / maxGrowth, 0, 1);
-		const targetDistance =
-			SETTINGS.cameraDistance *
-			(1 +
-				growth * SETTINGS.cameraDistanceGrowthFactor +
-				growthProgress * SETTINGS.cameraDistanceProgressFactor);
-		const targetHeight =
-			SETTINGS.cameraHeight *
-			(1 +
-				growth * SETTINGS.cameraHeightGrowthFactor +
-				growthProgress * SETTINGS.cameraHeightProgressFactor);
+		const targetDistance
+			= SETTINGS.cameraDistance
+				* (1
+					+ growth * SETTINGS.cameraDistanceGrowthFactor
+					+ growthProgress * SETTINGS.cameraDistanceProgressFactor);
+		const targetHeight
+			= SETTINGS.cameraHeight
+				* (1
+					+ growth * SETTINGS.cameraHeightGrowthFactor
+					+ growthProgress * SETTINGS.cameraHeightProgressFactor);
 		const targetLookHeight = SETTINGS.cameraLookHeight * scale;
 		const targetFov = THREE.MathUtils.clamp(
-			SETTINGS.cameraBaseFov +
-				growth * SETTINGS.cameraFovGrowthFactor +
-				growthProgress * SETTINGS.cameraFovProgressFactor,
+			SETTINGS.cameraBaseFov
+			+ growth * SETTINGS.cameraFovGrowthFactor
+			+ growthProgress * SETTINGS.cameraFovProgressFactor,
 			SETTINGS.cameraBaseFov,
 			SETTINGS.cameraMaxFov,
 		);
 
 		if (this.cameraTrackedPlayerId === player.id) {
-			this.cameraPickupFovBoost = THREE.MathUtils.lerp(
-				this.cameraPickupFovBoost,
-				this.cameraPickupFovBoostTarget,
-				SETTINGS.cameraPickupBoostSmoothing,
-			);
-			this.cameraPickupDistanceBoost = THREE.MathUtils.lerp(
-				this.cameraPickupDistanceBoost,
-				this.cameraPickupDistanceBoostTarget,
-				SETTINGS.cameraPickupBoostSmoothing,
-			);
-			this.cameraPickupHeightBoost = THREE.MathUtils.lerp(
-				this.cameraPickupHeightBoost,
-				this.cameraPickupHeightBoostTarget,
-				SETTINGS.cameraPickupBoostSmoothing,
-			);
-			this.cameraPickupDistanceBoostTarget = THREE.MathUtils.lerp(
-				this.cameraPickupDistanceBoostTarget,
-				0,
-				SETTINGS.cameraPickupBoostDecay,
-			);
-			this.cameraPickupHeightBoostTarget = THREE.MathUtils.lerp(
-				this.cameraPickupHeightBoostTarget,
-				0,
-				SETTINGS.cameraPickupBoostDecay,
-			);
-			this.cameraPickupFovBoostTarget = THREE.MathUtils.lerp(
-				this.cameraPickupFovBoostTarget,
-				0,
-				SETTINGS.cameraPickupBoostDecay,
-			);
-
-			const zoomingOut = targetDistance > this.cameraCurrentDistance;
-			let smoothing = zoomingOut
-				? SETTINGS.cameraZoomOutSmoothing
-				: SETTINGS.cameraZoomInSmoothing;
-			if (
-				this.cameraPickupDistanceBoost > 0.02 ||
-				this.cameraPickupDistanceBoostTarget > 0.02
-			) {
-				smoothing = Math.max(
-					smoothing,
-					SETTINGS.cameraPickupZoomResponseSmoothing,
-				);
-			}
-
-			this.cameraCurrentDistance = THREE.MathUtils.lerp(
-				this.cameraCurrentDistance,
-				targetDistance + this.cameraPickupDistanceBoost,
-				smoothing,
-			);
-			this.cameraCurrentHeight = THREE.MathUtils.lerp(
-				this.cameraCurrentHeight,
-				targetHeight + this.cameraPickupHeightBoost,
-				smoothing,
-			);
-			this.cameraCurrentLookHeight = THREE.MathUtils.lerp(
-				this.cameraCurrentLookHeight,
+			this.smoothTrackedCamera(
+				targetDistance,
+				targetHeight,
 				targetLookHeight,
-				SETTINGS.cameraLookHeightSmoothing,
+				targetFov,
 			);
-			const wideningFov =
-				targetFov + this.cameraPickupFovBoost > this.cameraCurrentFov;
-			let fovSmoothing = wideningFov
-				? SETTINGS.cameraFovZoomOutSmoothing
-				: SETTINGS.cameraFovZoomInSmoothing;
-			if (
-				this.cameraPickupFovBoost > 0.05 ||
-				this.cameraPickupFovBoostTarget > 0.05
-			) {
-				fovSmoothing = Math.max(
-					fovSmoothing,
-					SETTINGS.cameraPickupZoomResponseSmoothing,
-				);
-			}
-
-			this.cameraCurrentFov = THREE.MathUtils.lerp(
-				this.cameraCurrentFov,
-				targetFov + this.cameraPickupFovBoost,
-				fovSmoothing,
-			);
-			if (Math.abs(this.cameraCurrentDistance - targetDistance) < 0.01) {
-				this.cameraCurrentDistance = targetDistance;
-			}
-
-			if (Math.abs(this.cameraCurrentHeight - targetHeight) < 0.01) {
-				this.cameraCurrentHeight = targetHeight;
-			}
-
-			if (Math.abs(this.cameraCurrentLookHeight - targetLookHeight) < 0.01) {
-				this.cameraCurrentLookHeight = targetLookHeight;
-			}
-
-			if (Math.abs(this.cameraCurrentFov - targetFov) < 0.05) {
-				this.cameraCurrentFov = targetFov;
-			}
 		} else {
-			this.cameraTrackedPlayerId = player.id;
-			this.cameraCurrentFov = targetFov;
-			this.cameraCurrentDistance = targetDistance;
-			this.cameraCurrentHeight = targetHeight;
-			this.cameraCurrentLookHeight = targetLookHeight;
-			this.cameraPickupFovBoost = 0;
-			this.cameraPickupDistanceBoost = 0;
-			this.cameraPickupHeightBoost = 0;
-			this.cameraPickupFovBoostTarget = 0;
-			this.cameraPickupDistanceBoostTarget = 0;
-			this.cameraPickupHeightBoostTarget = 0;
+			this.resetTrackedCamera(player.id, targetDistance, targetHeight, targetLookHeight, targetFov);
 		}
 
 		const cameraLimit = this.worldSize * 0.84;
@@ -1785,6 +1911,119 @@ export class SceneController {
 		this.camera.lookAt(this.cameraLookTarget);
 	}
 
+	smoothTrackedCamera(targetDistance, targetHeight, targetLookHeight, targetFov) {
+		this.cameraPickupFovBoost = THREE.MathUtils.lerp(
+			this.cameraPickupFovBoost,
+			this.cameraPickupFovBoostTarget,
+			SETTINGS.cameraPickupBoostSmoothing,
+		);
+		this.cameraPickupDistanceBoost = THREE.MathUtils.lerp(
+			this.cameraPickupDistanceBoost,
+			this.cameraPickupDistanceBoostTarget,
+			SETTINGS.cameraPickupBoostSmoothing,
+		);
+		this.cameraPickupHeightBoost = THREE.MathUtils.lerp(
+			this.cameraPickupHeightBoost,
+			this.cameraPickupHeightBoostTarget,
+			SETTINGS.cameraPickupBoostSmoothing,
+		);
+		this.cameraPickupDistanceBoostTarget = THREE.MathUtils.lerp(
+			this.cameraPickupDistanceBoostTarget,
+			0,
+			SETTINGS.cameraPickupBoostDecay,
+		);
+		this.cameraPickupHeightBoostTarget = THREE.MathUtils.lerp(
+			this.cameraPickupHeightBoostTarget,
+			0,
+			SETTINGS.cameraPickupBoostDecay,
+		);
+		this.cameraPickupFovBoostTarget = THREE.MathUtils.lerp(
+			this.cameraPickupFovBoostTarget,
+			0,
+			SETTINGS.cameraPickupBoostDecay,
+		);
+
+		const zoomingOut = targetDistance > this.cameraCurrentDistance;
+		let smoothing = zoomingOut
+			? SETTINGS.cameraZoomOutSmoothing
+			: SETTINGS.cameraZoomInSmoothing;
+		if (
+			this.cameraPickupDistanceBoost > 0.02
+			|| this.cameraPickupDistanceBoostTarget > 0.02
+		) {
+			smoothing = Math.max(
+				smoothing,
+				SETTINGS.cameraPickupZoomResponseSmoothing,
+			);
+		}
+
+		this.cameraCurrentDistance = THREE.MathUtils.lerp(
+			this.cameraCurrentDistance,
+			targetDistance + this.cameraPickupDistanceBoost,
+			smoothing,
+		);
+		this.cameraCurrentHeight = THREE.MathUtils.lerp(
+			this.cameraCurrentHeight,
+			targetHeight + this.cameraPickupHeightBoost,
+			smoothing,
+		);
+		this.cameraCurrentLookHeight = THREE.MathUtils.lerp(
+			this.cameraCurrentLookHeight,
+			targetLookHeight,
+			SETTINGS.cameraLookHeightSmoothing,
+		);
+
+		const wideningFov
+			= targetFov + this.cameraPickupFovBoost > this.cameraCurrentFov;
+		let fovSmoothing = wideningFov
+			? SETTINGS.cameraFovZoomOutSmoothing
+			: SETTINGS.cameraFovZoomInSmoothing;
+		if (
+			this.cameraPickupFovBoost > 0.05
+			|| this.cameraPickupFovBoostTarget > 0.05
+		) {
+			fovSmoothing = Math.max(
+				fovSmoothing,
+				SETTINGS.cameraPickupZoomResponseSmoothing,
+			);
+		}
+
+		this.cameraCurrentFov = THREE.MathUtils.lerp(
+			this.cameraCurrentFov,
+			targetFov + this.cameraPickupFovBoost,
+			fovSmoothing,
+		);
+		if (Math.abs(this.cameraCurrentDistance - targetDistance) < 0.01) {
+			this.cameraCurrentDistance = targetDistance;
+		}
+
+		if (Math.abs(this.cameraCurrentHeight - targetHeight) < 0.01) {
+			this.cameraCurrentHeight = targetHeight;
+		}
+
+		if (Math.abs(this.cameraCurrentLookHeight - targetLookHeight) < 0.01) {
+			this.cameraCurrentLookHeight = targetLookHeight;
+		}
+
+		if (Math.abs(this.cameraCurrentFov - targetFov) < 0.05) {
+			this.cameraCurrentFov = targetFov;
+		}
+	}
+
+	resetTrackedCamera(playerId, targetDistance, targetHeight, targetLookHeight, targetFov) {
+		this.cameraTrackedPlayerId = playerId;
+		this.cameraCurrentFov = targetFov;
+		this.cameraCurrentDistance = targetDistance;
+		this.cameraCurrentHeight = targetHeight;
+		this.cameraCurrentLookHeight = targetLookHeight;
+		this.cameraPickupFovBoost = 0;
+		this.cameraPickupDistanceBoost = 0;
+		this.cameraPickupHeightBoost = 0;
+		this.cameraPickupFovBoostTarget = 0;
+		this.cameraPickupDistanceBoostTarget = 0;
+		this.cameraPickupHeightBoostTarget = 0;
+	}
+
 	setFreeCameraMode(enabled, player = null) {
 		this.freeCameraMode = Boolean(enabled);
 
@@ -1794,8 +2033,8 @@ export class SceneController {
 
 		if (player && this.freeCameraMode) {
 			const distance = SETTINGS.cameraDistance;
-			const lookHeight =
-				SETTINGS.cameraLookHeight * (player.sizeMultiplier || 1);
+			const lookHeight
+				= SETTINGS.cameraLookHeight * (player.sizeMultiplier || 1);
 			const target = new THREE.Vector3(
 				player.position.x,
 				lookHeight,
@@ -1808,9 +2047,7 @@ export class SceneController {
 			);
 			const direction = target.clone().sub(this.camera.position).normalize();
 			this.freeCameraYaw = Math.atan2(direction.x, direction.z);
-			this.freeCameraPitch = Math.asin(
-				THREE.MathUtils.clamp(direction.y, -0.97, 0.97),
-			);
+			this.freeCameraPitch = Math.asin(THREE.MathUtils.clamp(direction.y, -0.97, 0.97),);
 			this.camera.position.set(
 				player.position.x - Math.sin(this.freeCameraYaw) * distance,
 				player.position.y + SETTINGS.cameraHeight,
@@ -1831,9 +2068,7 @@ export class SceneController {
 				);
 			}
 
-			this.freeCameraPitch = Math.asin(
-				THREE.MathUtils.clamp(this.freeCameraForward.y, -0.97, 0.97),
-			);
+			this.freeCameraPitch = Math.asin(THREE.MathUtils.clamp(this.freeCameraForward.y, -0.97, 0.97),);
 		}
 
 		this.cameraTrackedPlayerId = null;
@@ -1855,8 +2090,8 @@ export class SceneController {
 		}
 
 		const inputX = (inputState?.right ? 1 : 0) - (inputState?.left ? 1 : 0);
-		const inputZ =
-			(inputState?.forward ? 1 : 0) - (inputState?.backward ? 1 : 0);
+		const inputZ
+			= (inputState?.forward ? 1 : 0) - (inputState?.backward ? 1 : 0);
 		const inputY = (inputState?.up ? 1 : 0) - (inputState?.down ? 1 : 0);
 		const accelerate = Boolean(inputState?.sprint);
 		const speed = accelerate ? 30 : 17;
@@ -2004,9 +2239,9 @@ export class SceneController {
 		}
 
 		this.camera.getWorldDirection(this.cameraForward);
-		const planarLengthSq =
-			this.cameraForward.x * this.cameraForward.x +
-			this.cameraForward.z * this.cameraForward.z;
+		const planarLengthSq
+			= this.cameraForward.x * this.cameraForward.x
+				+ this.cameraForward.z * this.cameraForward.z;
 		if (planarLengthSq < 0.000_001) {
 			return fallback;
 		}
@@ -2057,7 +2292,7 @@ export class SceneController {
 		}
 
 		this.scene?.remove(node);
-		node.traverse?.((child) => {
+		node.traverse?.(child => {
 			if (child.geometry) {
 				child.geometry.dispose();
 			}
