@@ -1193,7 +1193,8 @@ class GameApp {
 	}
 
 	handlePlayerState(payload) {
-		const hardSync = payload?.syncMode === "corrected";
+		const hardSync =
+			payload?.syncMode === "corrected" || payload?.syncMode === "respawn";
 		this.upsertPlayerFromServer(payload, { hardSync });
 
 		if (payload?.id === this.localPlayerId) {
