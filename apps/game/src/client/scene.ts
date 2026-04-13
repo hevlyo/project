@@ -1215,7 +1215,7 @@ export class SceneController {
 			color: projectile.color,
 		});
 		const sprite = new THREE.Sprite(material);
-		const visualSize = Math.max(1.4, projectile.radius * 2.8);
+		const visualSize = Math.max(2.5, projectile.radius * 4.5);
 		sprite.scale.set(visualSize, visualSize, 1);
 		sprite.position.set(
 			projectile.position.x,
@@ -1475,17 +1475,17 @@ export class SceneController {
 					depthWrite: false,
 					blending: THREE.AdditiveBlending,
 					color: 0xff_99_33,
-					opacity: 0.55,
+					opacity: 0.7,
 				}),
 			);
-			const trailSize = entry.baseVisualSize * 0.5;
+			const trailSize = entry.baseVisualSize * 0.75;
 			trailParticle.scale.set(trailSize, trailSize, 1);
 			trailParticle.position.copy(entry.sprite.position);
 			this.scene.add(trailParticle);
 			this.projectileTrails.push({
 				sprite: trailParticle,
 				bornAt: simulationTimeMs,
-				duration: 280,
+				duration: 500,
 				initialSize: trailSize,
 			});
 		}
@@ -1501,8 +1501,8 @@ export class SceneController {
 			}
 
 			const fade = 1 - progress;
-			trail.sprite.material.opacity = 0.55 * fade;
-			const shrink = trail.initialSize * (0.6 + 0.4 * fade);
+			trail.sprite.material.opacity = 0.7 * fade;
+			const shrink = trail.initialSize * (0.7 + 0.3 * fade);
 			trail.sprite.scale.set(shrink, shrink, 1);
 			return true;
 		});
